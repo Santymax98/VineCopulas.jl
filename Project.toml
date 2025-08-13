@@ -1,0 +1,13 @@
+name = "VineCopulas"
+uuid = "58f8e485-d1fe-48aa-8792-3d6ba0b7fb45"
+authors = ["santymax98 <santymax9807@gmail.com> and contributors"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.6.7"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
