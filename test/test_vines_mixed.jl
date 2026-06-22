@@ -59,15 +59,26 @@ end
 
     @test maximum(abs.(U .- U2)) < 1e-8
 end
-@testset "BB1 inside C- and D-vines" begin
+@testset "Specialized numerical BB families inside C- and D-vines" begin
     rng = MersenneTwister(321)
-    B = BB1Copula(2, 1.2, 1.5)
-    vines = (
-        DVineCopula(order=(1, 2, 3), paircopulas=((B, B), (B,))),
-        CVineCopula(order=(1, 2, 3), paircopulas=((B, B), (B,))),
+    families = (
+        "BB1" => BB1Copula(2, 1.2, 1.5),
+        "BB3" => BB3Copula(2, 1.2, 1.5),
     )
-    for vine in vines
-        U = rand(rng, vine, 250)
-        @test maximum(abs.(U .- inverse_rosenblatt(vine, rosenblatt(vine, U)))) < 1e-7
+
+    for (name, B) in families
+        @testset "$name" begin
+            vines = (
+                DVineCopula(order=(1, 2, 3), paircopulas=((B, B), (B,))),
+                CVineCopula(order=(1, 2, 3), paircopulas=((B, B), (B,))),
+            )
+
+            for vine in vines
+                U = rand(rng, vine, 250)
+                Z = rosenblatt(vine, U)
+                U2 = inverse_rosenblatt(vine, Z)
+                @test maximum(abs.(U .- U2)) < 1e-7
+            end
+        end
     end
 end

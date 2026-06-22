@@ -83,10 +83,11 @@ end
     @test VineCopulas._logsubexp_plus_one(2.0, 2.0) == 0.0
     @test_throws DomainError VineCopulas._logsubexp_plus_one(1.0, 2.0)
 
-    C = Copulas.BB1Copula(2, 1.2, 1.5)
-    d = ForwardDiff.derivative(u -> hfunc1(C, u, 0.4), 0.3)
-    @test isfinite(d)
-    @test d > 0
+    for C in (Copulas.BB1Copula(2, 1.2, 1.5), Copulas.BB3Copula(2, 1.2, 1.5))
+        d = ForwardDiff.derivative(u -> hfunc1(C, u, 0.4), 0.3)
+        @test isfinite(d)
+        @test d > 0
+    end
 end
 
 @testset "Specialized inverse parameter sweep" begin
@@ -169,11 +170,61 @@ end
             _check_derivative_inverse(Copulas.BB2Generator(θ, δ), s; atol=1e-10, rtol=1e-10)
         end
     end
+
+
+    @testset "BB3 numerical inverse in log1p-coordinate" begin
+        for θ in (1.0, 1.01, 1.2, 3.0), δ in (0.2, 1.0, 5.0), s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 1e3)
+            _check_derivative_inverse(Copulas.BB3Generator(θ, δ), s; atol=2e-10, rtol=2e-10)
+        end
+
+        for θ in (1.0, 1.2, 3.0), δ in (0.3, 1.5, 4.0), u in (0.01, 0.2, 0.5, 0.9, 0.99)
+            G = Copulas.BB3Generator(θ, δ)
+            L = VineCopulas._arch_coordinate(G, u)
+            @test L >= 0
+            @test VineCopulas._arch_probability(G, L) ≈ u atol=2e-12 rtol=2e-12
+        end
+
+        for θ in (1.01, 1.5, 4.0), δ in (0.3, 2.0)
+            G = Copulas.BB3Generator(θ, δ)
+            ss = (1e-4, 1e-2, 1.0, 1e2)
+            ys = [Copulas.ϕ⁽¹⁾(G, s) for s in ss]
+            recovered = [VineCopulas._inv_ϕ¹(G, y) for y in ys]
+            @test issorted(ys)
+            @test issorted(recovered)
+            @test recovered ≈ collect(ss) atol=2e-10 rtol=2e-10
+        end
+
+        for θ in (1.1, 2.0), δ in (0.5, 3.0)
+            G = Copulas.BB3Generator(θ, δ)
+            a = VineCopulas._arch_coordinate(G, 0.25)
+            b = VineCopulas._arch_coordinate(G, 0.70)
+            total = VineCopulas._arch_combine(G, a, b)
+            @test VineCopulas._arch_difference(G, total, b) ≈ a atol=2e-12 rtol=2e-12
+            @test VineCopulas._arch_difference(G, total, a) ≈ b atol=2e-12 rtol=2e-12
+        end
+
+        setprecision(BigFloat, 256) do
+            G = Copulas.BB3Generator(big"2.5", big"0.3")
+            s = big"1e40"
+            y = Copulas.ϕ⁽¹⁾(G, s)
+            @test VineCopulas._inv_ϕ¹(G, y) ≈ s rtol=big"1e-50"
+        end
+
+        G = Copulas.BB3Generator(1.2, 1.5)
+        @test VineCopulas._inv_ϕ¹(G, -Inf) == 0.0
+        @test VineCopulas._inv_ϕ¹(G, -0.0) == Inf
+        @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1)
+        @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN)
+
+        G1 = Copulas.BB3Generator(1.0, 2.0)
+        @test VineCopulas._inv_ϕ¹(G1, -0.5) ≈ 0.0
+        @test_throws DomainError VineCopulas._inv_ϕ¹(G1, -0.6)
+        @test_throws DomainError VineCopulas._inv_ϕ¹(G1, -Inf)
+    end
 end
 
 @testset "Generic fallback BB-family smoke grid" begin
     generators = (
-        Copulas.BB3Generator(1.2, 1.5),
         Copulas.BB8Generator(1.2, 0.5),
         Copulas.BB9Generator(1.2, 1.5),
         Copulas.BB10Generator(1.2, 0.5),

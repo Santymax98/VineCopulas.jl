@@ -71,10 +71,11 @@ The Archimedean implementation uses one target/base protocol. Family dispatch is
 | Inverse Gaussian | specialized analytic |
 | BB1 | specialized numerical inversion in `z = log(s)` |
 | BB2 | specialized analytic in a logarithmic coordinate |
-| BB3, BB8, BB9, BB10 | generic numerical fallback; specialization pending |
+| BB3 | specialized numerical inversion in `z = log(log(1+s)/δ)` |
+| BB8, BB9, BB10 | generic numerical fallback; specialization pending |
 | BB6, BB7 | pending; not advertised as supported conditional families |
 
-BB1 and BB2 share a small internal protocol—stable coordinate, inverse coordinate, log-derivative and inverse log-derivative—rather than a collection of unrelated family-only helpers. Standard log-domain primitives come directly from `LogExpFunctions`; only genuinely composed operations remain local.
+BB1, BB2 and BB3 use the same small internal protocol—stable coordinate, inverse coordinate, log-derivative and inverse log-derivative—rather than a collection of unrelated family-only helpers. BB2 and BB3 additionally share the coordinate `L = log(1+s)`, including its stable sum and difference algebra. Standard log-domain primitives come directly from `LogExpFunctions`; only genuinely composed operations remain local.
 
 ## Vine conventions
 
@@ -146,4 +147,3 @@ Pkg.test()
 - `npars` currently counts parameters exposed by `Distributions.params`; it is a structural count, not a universal free-parameter analysis.
 - Current vine kernels allocate `Float64` workspaces. Generic element types and preallocated kernels belong to the performance phase.
 
-See `ARCHITECTURE_AUDIT.md` for the detailed review and `PROMPT_NEXT_PHASE.md` for the next BB-family specialization phase.
