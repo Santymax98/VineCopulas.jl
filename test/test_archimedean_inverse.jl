@@ -99,7 +99,8 @@ end
         Copulas.BB6Copula(2, 1.2, 1.5),
         Copulas.BB7Copula(2, 1.2, 1.5),
         Copulas.BB8Copula(2, 1.5, 0.6),
-        )
+        Copulas.BB9Copula(2, 1.5, 0.8),
+    )
 
         d = ForwardDiff.derivative(u -> hfunc1(C, u, 0.4), 0.3)
         @test isfinite(d)
@@ -449,14 +450,119 @@ end
     @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1) 
     @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN) 
     # δ = 1 is reduced to Joe by Copulas.jl. 
-    @test Copulas.BB8Generator(1.5, 1.0) isa Copulas.JoeGenerator 
+    @test Copulas.BB8Generator(1.5, 1.0) isa Copulas.JoeGenerator
+    
+    @testset "BB9 numerical inverse in shifted-log coordinate" begin
+    # θ = 1 is the independence case. The remaining values exercise
+    # parameters close to independence and stronger dependence.
+    for θ in (1.0, 1.001, 1.2, 3.0),
+        δ in (0.05, 0.3, 1.0, 5.0),
+        s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 100.0)
+
+        _check_derivative_inverse(Copulas.BB9Generator(θ, δ), s; atol=5e-9, rtol=5e-9,)
+    end
+
+    # Coordinate ↔ probability.
+    for θ in (1.0, 1.01, 1.5, 3.0),
+        δ in (0.05, 0.5, 1.0, 5.0),
+        u in (0.01, 0.2, 0.5, 0.9, 0.99)
+
+        G = Copulas.BB9Generator(θ, δ)
+        x = VineCopulas._arch_coordinate(G, u)
+        recovered = VineCopulas._arch_probability(G, x)
+
+        @test recovered ≈ u atol=5e-12 rtol=5e-12
+    end
+
+    # Coordinate lower boundary corresponds to s = 0 and u = 1.
+    for θ in (1.0, 1.5, 3.0),
+        δ in (0.1, 1.0, 5.0)
+
+        G = Copulas.BB9Generator(θ, δ)
+        logc = -θ * log(δ)
+
+        @test VineCopulas._arch_coordinate(G, 1.0) ≈ logc
+        @test VineCopulas._arch_probability(G, logc) ≈ 1.0
+    end
+
+    # Monotonicity and derivative inversion.
+    for θ in (1.0, 1.01, 1.5, 4.0),
+        δ in (0.1, 1.0, 5.0)
+
+        G = Copulas.BB9Generator(θ, δ)
+        ss = (1e-4, 1e-2, 1.0, 50.0)
+
+        ys = [Copulas.ϕ⁽¹⁾(G, s) for s in ss]
+        recovered = [VineCopulas._inv_ϕ¹(G, y) for y in ys]
+
+        @test issorted(ys)
+        @test issorted(recovered)
+        @test recovered ≈ collect(ss) atol=5e-9 rtol=5e-9
+    end
+
+    # Shifted-log coordinate algebra.
+    for θ in (1.0, 1.5, 3.0),
+        δ in (0.2, 1.0, 4.0)
+
+        G = Copulas.BB9Generator(θ, δ)
+
+        a = VineCopulas._arch_coordinate(G, 0.25)
+        b = VineCopulas._arch_coordinate(G, 0.70)
+        total = VineCopulas._arch_combine(G, a, b)
+
+        @test VineCopulas._arch_difference(G, total, b,) ≈ a atol=5e-11 rtol=5e-11
+        @test VineCopulas._arch_difference(G, total, a,) ≈ b atol=5e-11 rtol=5e-11
+    end
+
+    # Arbitrary precision through the public derivative interface.
+    setprecision(BigFloat, 256) do
+        G = Copulas.BB9Generator(big"2.5", big"0.7",)
+
+        s = big"1e6"
+        y = Copulas.ϕ⁽¹⁾(G, s)
+        recovered = VineCopulas._inv_ϕ¹(G, y)
+
+        @test !iszero(y)
+        @test recovered ≈ s rtol=big"1e-40"
+
+        # More extreme test entirely in the log domain.
+        s_extreme = big"1e30"
+        c = G.δ^(-G.θ)
+        x_extreme = log(s_extreme + c)
+
+        logm = VineCopulas._arch_logderivative(G, x_extreme,)
+
+        recovered_x = VineCopulas._arch_inverse_logderivative(G, logm,)
+
+        recovered_extreme = exp(log(c)) * expm1(recovered_x - log(c))
+
+        @test recovered_extreme ≈ s_extreme rtol=big"1e-40"
+    end
+
+    # Finite derivative boundary at s = 0.
+    G = Copulas.BB9Generator(1.5, 0.8)
+    maxm = -Copulas.ϕ⁽¹⁾(G, 0.0)
+
+    @test VineCopulas._inv_ϕ¹(G, -maxm,) ≈ 0.0
+
+    @test VineCopulas._inv_ϕ¹(G, -0.0,) == Inf
+
+    @test_throws DomainError VineCopulas._inv_ϕ¹(G, -(maxm * 1.01),)
+    @test_throws DomainError VineCopulas._inv_ϕ¹(G, -Inf,)
+    @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1,)
+    @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN,)
+
+    # θ = 1 gives the independence generator mathematically.
+    Gind = Copulas.BB9Generator(1.0, 0.3)
+
+    for s in (0.0, 0.1, 1.0, 10.0)
+        @test Copulas.ϕ(Gind, s) ≈ exp(-s)
+    end
+    end
 end
 
 @testset "Generic fallback BB-family smoke grid" begin
-    generators = (
-        Copulas.BB9Generator(1.2, 1.5),
-        Copulas.BB10Generator(1.2, 0.5),
-    )
+    generators = (Copulas.BB10Generator(1.2, 0.5),)
     for G in generators, s in (0.1, 0.5, 2.0)
         _check_derivative_inverse(G, s; atol=1e-7, rtol=1e-7)
     end

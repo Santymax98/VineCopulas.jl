@@ -44,10 +44,10 @@ archimedean_specialized_candidates() = Pair{String,Copulas.Copula{2}}[
     "BB6" => Copulas.BB6Copula(2, 1.2, 1.5),
     "BB7" => Copulas.BB7Copula(2, 1.2, 1.5),
     "BB8" => Copulas.BB8Copula(2, 1.5, 0.6),
+    "BB9" => Copulas.BB9Copula(2, 1.5, 0.8),
 ]
 
 archimedean_fallback_candidates() = Pair{String,Copulas.Copula{2}}[
-    "BB9" => Copulas.BB9Copula(2, 1.2, 1.5),
     "BB10" => Copulas.BB10Copula(2, 1.2, 0.5),
 ]
 
