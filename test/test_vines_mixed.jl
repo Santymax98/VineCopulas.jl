@@ -64,6 +64,7 @@ end
     families = (
         "BB1" => BB1Copula(2, 1.2, 1.5),
         "BB3" => BB3Copula(2, 1.2, 1.5),
+        "BB6" => BB6Copula(2, 1.2, 1.5),
     )
 
     for (name, B) in families

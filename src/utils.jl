@@ -56,6 +56,59 @@ end
 end
 
 # Stable compositions not provided directly by LogExpFunctions.
+# Stable evaluation of
+#
+#     log(1 - exp(-exp(x))).
+#
+# For x ≪ 0, the expression is asymptotic to x. Returning x below the
+# precision-dependent threshold prevents exp(x) from underflowing and is also
+# useful for the BB7 implementation.
+@inline function _log1mexp_negexp(x::T) where {T<:AbstractFloat}
+    isnan(x) && return x
+    x == -T(Inf) && return x
+    x == T(Inf) && return zero(T)
+    x < log(eps(T)) && return x
+
+    r = exp(x)
+    isinf(r) && return zero(T)
+    return LogExpFunctions.log1mexp(-r)
+end
+
+# Generic fallback for number wrappers such as ForwardDiff.Dual.
+@inline function _log1mexp_negexp(x::Real)
+    isnan(x) && return x
+    x == -Inf && return x
+    x == Inf && return zero(x)
+    return LogExpFunctions.log1mexp(-exp(x))
+end
+
+# Stable evaluation of
+#
+#     log(-log(1 - exp(x))),    x ≤ 0.
+#
+# This is the inverse transformation of _log1mexp_negexp and is shared by
+# the natural coordinates of BB6 and BB7.
+@inline function _log_neglog1mexp(x::T) where {T<:AbstractFloat}
+    isnan(x) && return x
+    x <= zero(T) ||
+        throw(DomainError(x, "Expected a non-positive logarithm."))
+
+    x == -T(Inf) && return x
+    x < log(eps(T)) && return x
+
+    return log(-LogExpFunctions.log1mexp(x))
+end
+
+# Generic fallback for number wrappers such as ForwardDiff.Dual.
+@inline function _log_neglog1mexp(x::Real)
+    isnan(x) && return x
+    x <= zero(x) ||
+        throw(DomainError(x, "Expected a non-positive logarithm."))
+
+    x == -Inf && return x
+    return log(-LogExpFunctions.log1mexp(x))
+end
+
 @inline function _logaddexp_minus_one(a::Real, b::Real)
     z = LogExpFunctions.logaddexp(a, b)
     return z + LogExpFunctions.log1mexp(-z)
