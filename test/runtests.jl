@@ -1,6 +1,7 @@
-using VineCopulas
-using Test
-
-@testset "VineCopulas.jl" begin
-    # Write your tests here.
-end
+include("test_helpers.jl")
+include("test_paircopulas.jl")
+include("test_archimedean_inverse.jl")
+include("test_survival.jl")
+include("test_vines_mixed.jl")
+include("test_vines_truncated.jl")
+include("test_core.jl")
