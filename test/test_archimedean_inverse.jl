@@ -1,6 +1,7 @@
 using Test
 using Copulas
 using VineCopulas
+using ForwardDiff
 
 function _check_derivative_inverse(G, s; atol=1e-9, rtol=1e-9)
     y = Copulas.ϕ⁽¹⁾(G, s)
@@ -67,6 +68,27 @@ end
     @test VineCopulas._clp(1.0) == prevfloat(1.0)
 end
 
+@testset "LogExpFunctions integration and AD" begin
+    @test !isdefined(VineCopulas, :_softplus)
+    @test !isdefined(VineCopulas, :_logistic)
+    @test !isdefined(VineCopulas, :_logexpm1)
+    @test !isdefined(VineCopulas, :_logaddexp)
+    @test !isdefined(VineCopulas, :_logsubexp)
+
+    @test VineCopulas._logaddexp_minus_one(0.0, 0.0) ≈ 0.0 atol=eps(Float64)
+    @test VineCopulas._logaddexp_minus_one(2.0, 1.0) ≈ log(exp(2.0) + exp(1.0) - 1.0)
+    @test isfinite(VineCopulas._logaddexp_minus_one(1_000.0, 999.0))
+    @test VineCopulas._logsubexp_plus_one(3.0, 1.0) ≈ log(exp(3.0) - exp(1.0) + 1.0)
+    @test isfinite(VineCopulas._logsubexp_plus_one(1_000.0, 999.0))
+    @test VineCopulas._logsubexp_plus_one(2.0, 2.0) == 0.0
+    @test_throws DomainError VineCopulas._logsubexp_plus_one(1.0, 2.0)
+
+    C = Copulas.BB1Copula(2, 1.2, 1.5)
+    d = ForwardDiff.derivative(u -> hfunc1(C, u, 0.4), 0.3)
+    @test isfinite(d)
+    @test d > 0
+end
+
 @testset "Specialized inverse parameter sweep" begin
     @testset "Clayton" begin
         for θ in (-0.5, 0.5, 2.0), s in (0.01, 0.20, 1.00)
@@ -121,6 +143,27 @@ end
         end
     end
 
+    @testset "BB1 numerical inverse in log-coordinate" begin
+        for θ in (0.2, 1.2, 5.0), δ in (1.01, 1.5, 3.0), s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 1e3)
+            _check_derivative_inverse(Copulas.BB1Generator(θ, δ), s; atol=2e-10, rtol=2e-10)
+        end
+        for θ in (0.5, 2.0), δ in (1.2, 4.0)
+            G = Copulas.BB1Generator(θ, δ)
+            ys = [Copulas.ϕ⁽¹⁾(G, s) for s in (1e-4, 1e-2, 1.0, 1e2)]
+            @test issorted(ys)
+            @test all(VineCopulas._inv_ϕ¹(G, ys[i]) < VineCopulas._inv_ϕ¹(G, ys[i+1]) for i in 1:length(ys)-1)
+        end
+        setprecision(BigFloat, 256) do
+            G, s = Copulas.BB1Generator(big"0.3", big"2.5"), big"1e40"
+            @test VineCopulas._inv_ϕ¹(G, Copulas.ϕ⁽¹⁾(G, s)) ≈ s rtol=big"1e-60"
+        end
+        G = Copulas.BB1Generator(1.2, 1.5)
+        @test VineCopulas._inv_ϕ¹(G, -Inf) == 0.0
+        @test VineCopulas._inv_ϕ¹(G, -0.0) == Inf
+        @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1)
+        @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN)
+    end
+
     @testset "BB2" begin
         for θ in (0.5, 1.0, 2.0), δ in (0.5, 1.0, 2.0), s in (0.1, 0.5, 1.0, 2.0, 5.0)
             _check_derivative_inverse(Copulas.BB2Generator(θ, δ), s; atol=1e-10, rtol=1e-10)
@@ -130,7 +173,6 @@ end
 
 @testset "Generic fallback BB-family smoke grid" begin
     generators = (
-        Copulas.BB1Generator(1.2, 1.5),
         Copulas.BB3Generator(1.2, 1.5),
         Copulas.BB8Generator(1.2, 0.5),
         Copulas.BB9Generator(1.2, 1.5),

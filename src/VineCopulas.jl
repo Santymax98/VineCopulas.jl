@@ -7,6 +7,7 @@ import ForwardDiff
 import Roots
 import QuasiMonteCarlo
 import LambertW
+import LogExpFunctions
 
 using Reexport
 @reexport using Copulas

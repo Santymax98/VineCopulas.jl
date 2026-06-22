@@ -1,31 +1,28 @@
 # VineCopulas.jl
 
-`VineCopulas.jl` is an experimental native Julia extension of the `Copulas.jl` ecosystem for C-vine, D-vine and regular vine copula models. The package follows the `Distributions.jl` interface whenever possible.
+`VineCopulas.jl` is a native Julia extension of the `Copulas.jl` ecosystem for C-vine, D-vine and regular-vine copula models. The implementation favors composability, explicit mathematical conventions and the standard `Distributions.jl` interface.
 
-The goal is not to reproduce the R/C++ API of existing vine-copula libraries. The goal is a Julian, composable and mathematically transparent implementation that uses `Copulas.jl` pair-copulas and exposes standard functions such as `logpdf`, `pdf`, `cdf`, `rand`, `rosenblatt` and `inverse_rosenblatt`.
+## Current scope
 
-## Current v0.1.0 scope
+Implemented:
 
-Implemented core operations:
+- `CVineCopula`, `DVineCopula` and `RVineCopula`
+- `logpdf`, `pdf`, `rand` and numerical `cdf`
+- Rosenblatt and inverse Rosenblatt transforms
+- ASCII and Unicode pair-copula conditional primitives
+- truncated C- and D-vines
+- survival/rotated pair-copulas
+- smooth and singular bivariate extreme-value pair-copulas
+- R-vine matrix exchange helpers
+- log-likelihood, parameter count, AIC and BIC
 
-- `CVineCopula`
-- `DVineCopula`
-- `RVineCopula`
-- `logpdf` / `pdf`
-- `rand` through inverse Rosenblatt transforms
-- `rosenblatt` / `inverse_rosenblatt`
-- QMC-based `cdf`
-- ASCII and Unicode h-functions: `hfunc1`, `hfunc2`, `hinv1`, `hinv2`, and `h₁`, `h₂`, `h₁⁻¹`, `h₂⁻¹`
-- R-vine matrix/structure support as exchange format
+Not yet part of the stable scope:
 
-Planned after v0.1.0:
-
-- pair-copula parameter estimation
-- family selection
-- structure selection
-- truncation selection
-- compiled high-performance kernels
-- benchmarks against `rvinecopulib`
+- pair-copula estimation and family selection
+- automatic vine-structure selection
+- general truncated R-vine Rosenblatt traversal
+- allocation-free compiled kernels
+- BB6 and BB7 conditional inverses
 
 ## Quickstart
 
@@ -36,84 +33,117 @@ using Random
 
 C12 = GaussianCopula([1.0 0.5; 0.5 1.0])
 C23 = ClaytonCopula(2, 2.0)
-C13 = GaussianCopula([1.0 0.2; 0.2 1.0])
+C13 = FrankCopula(2, 3.0)
 
-vine = DVineCopula(
-    [1, 2, 3],
-    [[C12, C23],
-     [C13]]
-)
-
+vine = DVineCopula([1, 2, 3], [[C12, C23], [C13]])
 u = [0.2, 0.5, 0.7]
 
 logpdf(vine, u)
 pdf(vine, u)
 cdf(vine, u; method=:qmc, N=10_000)
 
-U = rand(MersenneTwister(123), vine, 1000)   # 3×1000
+U = rand(MersenneTwister(123), vine, 1_000)
 Z = rosenblatt(vine, U)
 U2 = inverse_rosenblatt(vine, Z)
 ```
 
-## C-vine convention
+## Pair-copula conditional convention
 
-For a C-vine, `edges[k][i]` represents
+```julia
+hfunc1(C, u, v) = F₁|₂(u | v) = ∂C(u,v)/∂v
+hfunc2(C, u, v) = F₂|₁(v | u) = ∂C(u,v)/∂u
+```
+
+`hinv1` inverts the first coordinate given the second; `hinv2` inverts the second coordinate given the first.
+
+The Archimedean implementation uses one target/base protocol. Family dispatch is added only when a closed-form inverse or a numerically stable coordinate system is required.
+
+### Current Archimedean inverse status
+
+| Family | `_inv_ϕ¹` path |
+|---|---|
+| Clayton | specialized analytic; finite-support branch for negative parameters |
+| AMH | specialized analytic |
+| Gumbel | specialized analytic with Lambert W |
+| Joe | specialized safeguarded scalar inversion |
+| Frank | specialized analytic, positive and negative bivariate parameters |
+| Gumbel–Barnett | specialized analytic with stable `W₋₁` evaluation |
+| Inverse Gaussian | specialized analytic |
+| BB1 | specialized numerical inversion in `z = log(s)` |
+| BB2 | specialized analytic in a logarithmic coordinate |
+| BB3, BB8, BB9, BB10 | generic numerical fallback; specialization pending |
+| BB6, BB7 | pending; not advertised as supported conditional families |
+
+BB1 and BB2 share a small internal protocol—stable coordinate, inverse coordinate, log-derivative and inverse log-derivative—rather than a collection of unrelated family-only helpers. Standard log-domain primitives come directly from `LogExpFunctions`; only genuinely composed operations remain local.
+
+## Vine conventions
+
+### C-vine
+
+`edges[k][i]` represents
 
 ```math
-C_{r,c \mid D},
+C_{r,c\mid D},
 ```
 
-where
+with `r = order[k]`, `c = order[k+i]` and `D = order[1:k-1]`. Pair-copula coordinates are `(root, child)`.
 
-```julia
-r = order[k]
-c = order[k+i]
-D = order[1:k-1]
-```
+### D-vine
 
-The pair-copula coordinates are `(root, child)`.
-
-## D-vine convention
-
-For a D-vine, `edges[k][i]` represents
+`edges[k][i]` represents
 
 ```math
-C_{a,b \mid D},
+C_{a,b\mid D},
 ```
 
-where
+with `a = order[i]`, `b = order[i+k]` and `D = order[i+1:i+k-1]`. Pair-copula coordinates are `(left, right)`.
+
+### R-vine
+
+The preferred constructor is:
 
 ```julia
-a = order[i]
-b = order[i+k]
-D = order[i+1:i+k-1]
+RVineCopula(order, struct_array, edges; trunc=length(order)-1)
 ```
 
-The pair-copula coordinates are `(left, right)`.
-
-## R-vine support
-
-The preferred explicit constructor is:
+The matrix constructor is an exchange format:
 
 ```julia
-rv = RVineCopula(order, struct_array, edges)
+RVineCopula(matrix, edges)
 ```
 
-A matrix constructor is also provided as an exchange format:
+Natural D-vine structures delegate to the D-vine engine. General full R-vine traversal remains experimental; general truncated R-vine Rosenblatt transforms intentionally throw an explicit error instead of returning incomplete results.
+
+## Extreme-value conditionals
+
+Smooth Pickands tails share the generic analytic h-function and a one-dimensional conditional quantile inversion. Tails with jumps or flat conditional regions (`CuadrasAugeTail`, `MOTail`, `BC2Tail`) use the exact `BivEVDistortion` generalized inverse supplied by `Copulas.jl`. Per-family implementations should only be introduced after a demonstrated correctness or performance need.
+
+## Testing
+
+The suite is divided by responsibility:
+
+- `test_helpers.jl`: shared grids and explicit candidate inventories
+- `test_paircopulas.jl`: density, h-function and inverse checks
+- `test_archimedean_inverse.jl`: derivative-inverse identities, parameter sweeps and tail precision
+- `test_survival.jl`: rotations, matrix helpers and vine integration
+- `test_vines_mixed.jl`: mixed-family C-/D-vines
+- `test_vines_truncated.jl`: dimensions 5 and 10, truncations 1 and 2, nontrivial orders and R-vine matrix exchange
+- `test_core.jl`: public API smoke tests
+
+Run from a clean Julia session:
 
 ```julia
-rv = RVineCopula(M, edges)
+using Pkg
+Pkg.activate(".")
+Pkg.resolve()
+Pkg.test()
 ```
 
-For structures recognized as natural D-vines, `RVineCopula` delegates core operations to the D-vine engine. A general R-vine traversal is included but should be treated as experimental until the high-performance compiled kernel is completed.
+## Design notes
 
-## CDF
+- `eps(T)` is not used as the lower probability bound; every representable interior probability is preserved.
+- `mbic` is not exported because an alias to ordinary BIC would be mathematically misleading.
+- `npars` currently counts parameters exposed by `Distributions.params`; it is a structural count, not a universal free-parameter analysis.
+- Current vine kernels allocate `Float64` workspaces. Generic element types and preallocated kernels belong to the performance phase.
 
-For general vine copulas, the multivariate CDF is approximated using Monte Carlo or quasi-Monte Carlo simulation from the fitted vine:
-
-```julia
-cdf(vine, u; method=:qmc, N=10_000, randomized=true)
-cdf(vine, u; method=:mc,  N=50_000)
-```
-
-This mirrors the practical approach used in high-performance vine-copula software: the CDF is numerical, not a closed-form exact expression.
+See `ARCHITECTURE_AUDIT.md` for the detailed review and `PROMPT_NEXT_PHASE.md` for the next BB-family specialization phase.

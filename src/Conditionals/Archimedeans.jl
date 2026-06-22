@@ -24,6 +24,18 @@ end
 
 @inline _arch_hinv(G, q::Real, base::Real) = _arch_hinv_generic(G, q, base)
 
+@inline function _arch_hfunc_coordinate(G, target::Real, base::Real)
+    ct, cb = _arch_coordinate(G, target), _arch_coordinate(G, base)
+    ctotal = _arch_combine(G, ct, cb)
+    return exp(_arch_logderivative(G, ctotal) - _arch_logderivative(G, cb))
+end
+
+@inline function _arch_hinv_coordinate(G, q::Real, base::Real)
+    cb = _arch_coordinate(G, base)
+    ctotal = _arch_inverse_logderivative(G, log(float(q)) + _arch_logderivative(G, cb))
+    return _arch_probability(G, _arch_difference(G, ctotal, cb))
+end
+
 function hfunc1(C::Copulas.ArchimedeanCopula{2}, uv::Tuple{<:Real,<:Real})
     u, v = _clp(uv[1]), _clp(uv[2])
     return _clp(_arch_hfunc(C.G, u, v))
@@ -68,6 +80,102 @@ function _inv_ϕ¹_generic(G, y::Real)
 end
 
 @inline _inv_ϕ¹(G, y::Real) = _inv_ϕ¹_generic(G, y)
+
+# Safeguarded Newton solver for strictly decreasing scalar equations. The
+# helper is intentionally family-agnostic and will also serve BB generators
+# whose derivative inversion is best posed in a transformed coordinate.
+function _solve_decreasing_root(f, df, x0::T) where {T<:AbstractFloat}
+    lo, hi = x0 - one(T), x0 + one(T)
+    flo, fhi = f(lo), f(hi)
+    for _ in 1:128
+        flo >= zero(T) && break
+        hi, fhi = lo, flo
+        lo = 2lo - one(T)
+        flo = f(lo)
+    end
+    for _ in 1:128
+        fhi <= zero(T) && break
+        lo, flo = hi, fhi
+        hi = 2hi + one(T)
+        fhi = f(hi)
+    end
+    flo >= zero(T) >= fhi || throw(DomainError(x0, "Could not bracket the monotone inverse."))
+
+    x = clamp(x0, lo, hi)
+    for _ in 1:64
+        fx = f(x)
+        candidate = x - fx / df(x)
+        abs(candidate - x) <= T(16) * eps(T) * max(one(T), abs(candidate)) && return candidate
+        (!isfinite(candidate) || !(lo < candidate < hi)) && (candidate = lo + (hi - lo) / 2)
+        fc = f(candidate)
+        if fc > zero(T)
+            lo = candidate
+        else
+            hi = candidate
+        end
+        abs(hi - lo) <= T(16) * eps(T) * max(one(T), abs(candidate)) && return candidate
+        x = candidate
+    end
+    return x
+end
+
+# =====================================================================
+# BB1
+# =====================================================================
+
+# BB1 has no useful closed-form inverse of ϕ'. It is solved numerically in
+# z = log(s), where log|ϕ'| is smooth and strictly decreasing. The same stable
+# coordinate protocol is shared with BB2 and future BB implementations.
+@inline function _arch_coordinate(G::Copulas.BB1Generator, u::Real)
+    θ, δ, uu = promote(float(G.θ), float(G.δ), float(u))
+    return δ * LogExpFunctions.logexpm1(-θ * log(uu))
+end
+
+@inline function _arch_probability(G::Copulas.BB1Generator, z::Real)
+    θ, δ, zz = promote(float(G.θ), float(G.δ), float(z))
+    return exp(-LogExpFunctions.log1pexp(zz / δ) / θ)
+end
+
+@inline function _arch_logderivative(G::Copulas.BB1Generator, z::Real)
+    θ, δ, zz = promote(float(G.θ), float(G.δ), float(z))
+    a, b = inv(δ), inv(θ)
+    return log(a) + log(b) + (a - one(zz)) * zz - (b + one(zz)) * LogExpFunctions.log1pexp(a * zz)
+end
+
+function _arch_inverse_logderivative(G::Copulas.BB1Generator, logm::Real)
+    lm = float(logm)
+    T = typeof(lm)
+    isnan(lm) && throw(DomainError(logm, "log|ϕ'| cannot be NaN."))
+    lm == -T(Inf) && return T(Inf)
+    lm == T(Inf) && return -T(Inf)
+
+    θ, δ = T(G.θ), T(G.δ)
+    θ > zero(T) || throw(DomainError(θ, "The BB1 generator requires θ > 0."))
+    δ > one(T) || throw(DomainError(δ, "A genuine BB1 generator requires δ > 1; δ = 1 reduces to Clayton."))
+
+    a, b = inv(δ), inv(θ)
+    logab = log(a) + log(b)
+    f(z) = logab + (a - one(T)) * z - (b + one(T)) * LogExpFunctions.log1pexp(a * z) - lm
+    df(z) = (a - one(T)) - a * (b + one(T)) * LogExpFunctions.logistic(a * z)
+    return _solve_decreasing_root(f, df, zero(T))
+end
+
+@inline _arch_combine(::Copulas.BB1Generator, a::Real, b::Real) = LogExpFunctions.logaddexp(a, b)
+@inline function _arch_difference(::Copulas.BB1Generator, total::Real, base::Real)
+    total >= base || throw(DomainError((total, base), "Expected total ≥ base."))
+    total == base && return oftype(total - base, -Inf)
+    return LogExpFunctions.logsubexp(total, base)
+end
+@inline _arch_hfunc(G::Copulas.BB1Generator, target::Real, base::Real) = _arch_hfunc_coordinate(G, target, base)
+@inline _arch_hinv(G::Copulas.BB1Generator, q::Real, base::Real) = _arch_hinv_coordinate(G, q, base)
+
+function _inv_ϕ¹(G::Copulas.BB1Generator, y::Real)
+    m = _negative_derivative_magnitude(y, "BB1")
+    T = typeof(m)
+    iszero(m) && return T(Inf)
+    isinf(m) && return zero(T)
+    return exp(_arch_inverse_logderivative(G, log(m)))
+end
 
 # =====================================================================
 # Clayton
@@ -158,7 +266,7 @@ function _inv_ϕ¹(G::Copulas.JoeGenerator, y::Real)
 
     α, logm = inv(θ), log(m)
     logα = log(α)
-    equation(z) = logα - _softplus(z) - (α - one(T)) * _softplus(-z) - logm
+    equation(z) = logα - LogExpFunctions.log1pexp(z) - (α - one(T)) * LogExpFunctions.log1pexp(-z) - logm
 
     z = logm >= logα ? (logm - logα) / (α - one(T)) : logα - logm
     isfinite(z) || return z < zero(T) ? zero(T) : T(Inf)
@@ -180,7 +288,7 @@ function _inv_ϕ¹(G::Copulas.JoeGenerator, y::Real)
     for _ in 1:20
         fz = equation(z)
         abs(fz) <= 16eps(T) * (one(T) + abs(logm)) && break
-        candidate = z - fz / (α - one(T) - α * _logistic(z))
+        candidate = z - fz / (α - one(T) - α * LogExpFunctions.logistic(z))
         (!isfinite(candidate) || !(lo < candidate < hi)) && (candidate = lo + (hi - lo) / 2)
         if equation(candidate) > zero(T)
             lo = candidate
@@ -189,7 +297,7 @@ function _inv_ϕ¹(G::Copulas.JoeGenerator, y::Real)
         end
         z = candidate
     end
-    return _softplus(z)
+    return LogExpFunctions.log1pexp(z)
 end
 
 # =====================================================================
@@ -214,7 +322,8 @@ function _inv_ϕ¹(G::Copulas.FrankGenerator, y::Real)
 
     denominator = one(T) - θ * y
     denominator > zero(T) || throw(DomainError(y, "The target lies outside the range of the Frank derivative."))
-    logx = log(abs(θ)) + log(m) - _logabsexpm1_minus(θ) - log(denominator)
+    logabs_expm1 = θ > zero(T) ? LogExpFunctions.log1mexp(-θ) : LogExpFunctions.logexpm1(-θ)
+    logx = log(abs(θ)) + log(m) - logabs_expm1 - log(denominator)
     return max(-logx, zero(T))
 end
 
@@ -296,17 +405,10 @@ function _arch_inverse_logderivative(G::Copulas.BB2Generator, logm::Real)
     return max(a * exp(_log_lambertw_exp(logv)) - δ, zero(T))
 end
 
-@inline function _arch_hfunc(G::Copulas.BB2Generator, target::Real, base::Real)
-    Lt, Lb = _arch_coordinate(G, target), _arch_coordinate(G, base)
-    Ltotal = _logaddexp_minus_one(Lt, Lb)
-    return exp(_arch_logderivative(G, Ltotal) - _arch_logderivative(G, Lb))
-end
-
-@inline function _arch_hinv(G::Copulas.BB2Generator, q::Real, base::Real)
-    Lb = _arch_coordinate(G, base)
-    Ltotal = _arch_inverse_logderivative(G, log(float(q)) + _arch_logderivative(G, Lb))
-    return _arch_probability(G, _logsubexp_plus_one(Ltotal, Lb))
-end
+@inline _arch_combine(::Copulas.BB2Generator, a::Real, b::Real) = _logaddexp_minus_one(a, b)
+@inline _arch_difference(::Copulas.BB2Generator, total::Real, base::Real) = _logsubexp_plus_one(total, base)
+@inline _arch_hfunc(G::Copulas.BB2Generator, target::Real, base::Real) = _arch_hfunc_coordinate(G, target, base)
+@inline _arch_hinv(G::Copulas.BB2Generator, q::Real, base::Real) = _arch_hinv_coordinate(G, q, base)
 
 function _inv_ϕ¹(G::Copulas.BB2Generator, y::Real)
     m = _negative_derivative_magnitude(y, "BB2")

@@ -25,27 +25,6 @@ end
 
 @inline _isunit(x::Real) = zero(x) <= x <= one(x)
 
-@inline function _softplus(x::T) where {T<:Real}
-    x > zero(T) && return x + log1p(exp(-x))
-    return log1p(exp(x))
-end
-
-@inline function _logistic(x::T) where {T<:Real}
-    if x >= zero(T)
-        e = exp(-x)
-        return inv(one(T) + e)
-    end
-    e = exp(x)
-    return e / (one(T) + e)
-end
-
-# log|exp(-x)-1| without overflow.
-@inline function _logabsexpm1_minus(x::T) where {T<:Real}
-    x > zero(T) && return log(-expm1(-x))
-    c = -x
-    return c + log(-expm1(-c))
-end
-
 # log(W₀(exp(logz))) without necessarily constructing exp(logz).
 @inline function _log_lambertw_exp(logz::T) where {T<:AbstractFloat}
     log_min, log_max = log(floatmin(T)), log(floatmax(T))
@@ -76,23 +55,25 @@ end
     return x
 end
 
-# log(exp(a)+exp(b)-1), stable when a and b are very different.
+# Stable compositions not provided directly by LogExpFunctions.
 @inline function _logaddexp_minus_one(a::Real, b::Real)
-    x, y = promote(float(a), float(b))
-    m = max(x, y)
-    isinf(m) && return m
-    lse = m + log(exp(x - m) + exp(y - m))
-    return max(lse + log1p(-exp(-lse)), zero(lse))
+    z = LogExpFunctions.logaddexp(a, b)
+    return z + LogExpFunctions.log1mexp(-z)
 end
 
-# log(exp(total)-exp(base)+1), assuming total ≥ base ≥ 0.
 @inline function _logsubexp_plus_one(total::Real, base::Real)
     t, b = promote(float(total), float(base))
+
+    if t < b
+        tol = 8eps(typeof(t)) * max(abs(t), abs(b), one(t))
+        b - t <= tol || throw(DomainError((total, base), "Expected total ≥ base."))
+        return zero(t)
+    end
+
+    t == b && return zero(t)
+
     d = t - b
-    d <= zero(d) && return zero(d)
-    isinf(t) && return isinf(b) ? zero(t) : t
-    inside = -expm1(-d) + exp(-t)
-    return max(t + log(inside), zero(t))
+    return t + log(-LogExpFunctions.expm1(-d) + exp(-t))
 end
 
 @inline function _negative_derivative_magnitude(y::Real, family::AbstractString)
