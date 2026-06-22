@@ -66,6 +66,7 @@ end
         "BB3" => BB3Copula(2, 1.2, 1.5),
         "BB6" => BB6Copula(2, 1.2, 1.5),
         "BB7" => BB7Copula(2, 1.2, 1.5),
+        "BB8" => BB8Copula(2, 1.5, 0.6),
     )
 
     for (name, B) in families
