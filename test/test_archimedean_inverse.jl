@@ -93,7 +93,12 @@ end
     @test VineCopulas._log1mexp_negexp(Inf) == 0.0 
     @test_throws DomainError VineCopulas._log_neglog1mexp(0.1)
 
-    for C in ( Copulas.BB1Copula(2, 1.2, 1.5), Copulas.BB3Copula(2, 1.2, 1.5), Copulas.BB6Copula(2, 1.2, 1.5), )
+    for C in (
+        Copulas.BB1Copula(2, 1.2, 1.5),
+        Copulas.BB3Copula(2, 1.2, 1.5),
+        Copulas.BB6Copula(2, 1.2, 1.5),
+        Copulas.BB7Copula(2, 1.2, 1.5),)
+
         d = ForwardDiff.derivative(u -> hfunc1(C, u, 0.4), 0.3)
         @test isfinite(d)
         @test d > 0
@@ -295,6 +300,79 @@ end
         @test Copulas.BB6Generator(1.5, 1.0) isa Copulas.JoeGenerator 
         @test Copulas.BB6Generator(1.0, 1.5) isa Copulas.GumbelGenerator 
     end
+
+    @testset "BB7 numerical inverse in shared log1p-coordinate" begin
+        # Genuine BB7 parameters, including θ close to the Clayton boundary
+        # and both small and large values of δ.
+        for θ in (1.001, 1.01, 1.2, 3.0),
+            δ in (0.1, 0.5, 1.5, 5.0),
+            s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 100.0)
+
+            _check_derivative_inverse(Copulas.BB7Generator(θ, δ), s; atol=5e-9, rtol=5e-9,)
+        end
+
+        # Coordinate ↔ probability.
+        for θ in (1.01, 1.2, 3.0),
+            δ in (0.1, 1.0, 5.0),
+            u in (0.01, 0.2, 0.5, 0.9, 0.99)
+
+            G = Copulas.BB7Generator(θ, δ)
+            L = VineCopulas._arch_coordinate(G, u)
+
+            @test L >= 0
+            @test VineCopulas._arch_probability(G, L) ≈ u atol=5e-12 rtol=5e-12
+        end
+
+        # Monotonicity and derivative inversion.
+        for θ in (1.01, 1.5, 4.0), δ in (0.2, 2.0)
+            G = Copulas.BB7Generator(θ, δ)
+            ss = (1e-4, 1e-2, 1.0, 50.0)
+
+            ys = [Copulas.ϕ⁽¹⁾(G, s) for s in ss]
+            recovered = [
+                VineCopulas._inv_ϕ¹(G, y)
+                for y in ys
+            ]
+
+            @test issorted(ys)
+            @test issorted(recovered)
+            @test recovered ≈ collect(ss) atol=5e-9 rtol=5e-9
+        end
+
+        # BB7 shares the log(1+s) coordinate algebra with BB2 and BB3.
+        for θ in (1.1, 2.0), δ in (0.3, 3.0)
+            G = Copulas.BB7Generator(θ, δ)
+
+            a = VineCopulas._arch_coordinate(G, 0.25)
+            b = VineCopulas._arch_coordinate(G, 0.70)
+            total = VineCopulas._arch_combine(G, a, b)
+
+            @test VineCopulas._arch_difference(G, total, b) ≈ a atol=5e-11 rtol=5e-11
+            @test VineCopulas._arch_difference(G, total, a) ≈ b atol=5e-11 rtol=5e-11
+        end
+
+        # Arbitrary precision.
+        setprecision(BigFloat, 256) do
+            G = Copulas.BB7Generator(big"2.5", big"0.3")
+            s = big"1e20"
+            y = Copulas.ϕ⁽¹⁾(G, s)
+            recovered = VineCopulas._inv_ϕ¹(G, y)
+
+            @test recovered ≈ s rtol=big"1e-40"
+        end
+
+        # Boundary behavior.
+        G = Copulas.BB7Generator(1.2, 1.5)
+
+        @test VineCopulas._inv_ϕ¹(G, -Inf) == 0.0
+        @test VineCopulas._inv_ϕ¹(G, -0.0) == Inf
+        @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1)
+        @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN)
+
+        # θ = 1 is reduced to Clayton by Copulas.jl.
+        @test Copulas.BB7Generator(1.0, 1.5) isa Copulas.ClaytonGenerator
+    end
+
 end
 
 @testset "Generic fallback BB-family smoke grid" begin
