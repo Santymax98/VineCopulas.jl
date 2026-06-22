@@ -1050,6 +1050,158 @@ function _inv_ϕ¹(G::Copulas.BB9Generator, y::Real)
     return exp(logc) * expm1(xx - logc)
 end
 
+# =====================================================================
+# BB10
+# =====================================================================
+
+# BB10 uses the original generator coordinate
+#
+#     s = ϕ⁻¹(u).
+#
+# Hence Archimedean composition is ordinary addition. The proper
+# absolutely continuous parameter domain used here is
+#
+#     θ > 0,    0 ≤ δ < 1.
+#
+# Copulas.jl reduces θ = 1 to AMH. The boundary δ = 1 is singular.
+
+@inline function _arch_coordinate(G::Copulas.BB10Generator, u::Real,)
+    θ, δ, uu = promote(float(G.θ), float(G.δ), float(u),)
+    T = typeof(uu)
+
+    zero(T) < uu <= one(T) || throw(DomainError(u, "The BB10 probability must belong to (0, 1].",))
+    zero(T) <= δ < one(T) || throw(DomainError(δ, "The proper BB10 domain requires 0 ≤ δ < 1.",))
+    isone(uu) && return zero(T)
+
+    # s = log(δ + (1-δ)u^(-θ))
+    # evaluated as a log-sum-exp to avoid constructing u^(-θ).
+    logδ = iszero(δ) ? -T(Inf) : log(δ)
+    logtail = log1p(-δ) - θ * log(uu)
+
+    return LogExpFunctions.logaddexp(logδ, logtail,)
+end
+
+@inline function _arch_probability(G::Copulas.BB10Generator, s::Real,)
+    θ, δ, ss = promote(float(G.θ), float(G.δ), float(s),)
+    T = typeof(ss)
+
+    ss >= zero(T) || throw(DomainError(s, "The BB10 generator coordinate must be non-negative.",))
+
+    zero(T) <= δ < one(T) || throw(DomainError(δ, "The proper BB10 domain requires 0 ≤ δ < 1.",))
+    iszero(ss) && return one(T)
+    isinf(ss) && return zero(T)
+
+    # log(exp(s)-δ) = s + log(1-δ exp(-s)).
+    q = δ * exp(-ss)
+    logden = ss + log1p(-q)
+
+    return exp((log1p(-δ) - logden) / θ,)
+end
+
+@inline function _arch_logderivative(G::Copulas.BB10Generator, s::Real,)
+    θ, δ, ss = promote(float(G.θ), float(G.δ), float(s),)
+    T = typeof(ss)
+
+    ss >= zero(T) || throw(DomainError(s, "The BB10 generator coordinate must be non-negative.",))
+    zero(T) <= δ < one(T) || throw(DomainError(δ, "The proper BB10 domain requires 0 ≤ δ < 1.",))
+    isinf(ss) && return -T(Inf)
+
+    a = inv(θ)
+    q = δ * exp(-ss)
+
+    # log|ϕ′(s)| = -log θ + (1/θ)log(1-δ) - s/θ - (1+1/θ)log(1-δ exp(-s)).
+    return -log(θ) + a * log1p(-δ) - a * ss - (one(T) + a) * log1p(-q)
+end
+
+function _arch_inverse_logderivative(G::Copulas.BB10Generator, logm::Real,)
+    lm = float(logm)
+    T = typeof(lm)
+
+    isnan(lm) && throw(DomainError(logm, "log|ϕ'| cannot be NaN.",))
+    θ, δ = T(G.θ), T(G.δ)
+    θ > zero(T) || throw(DomainError(θ, "The BB10 generator requires θ > 0.",))
+
+    zero(T) <= δ < one(T) || throw(DomainError(δ, "The proper BB10 domain requires 0 ≤ δ < 1.",))
+
+    # At s = 0:
+    #     |ϕ′(0)| = 1 / [θ(1-δ)].
+    maxlm = -log(θ) - log1p(-δ)
+
+    tol = T(64) * eps(T) * max(one(T), abs(maxlm))
+
+    lm == T(Inf) && throw(DomainError(logm, "The target lies outside the range of the BB10 derivative.",))
+    lm > maxlm + tol && throw(DomainError(logm, "The target lies outside the range of the BB10 derivative.",))
+    lm >= maxlm - tol && return zero(T)
+    lm == -T(Inf) && return T(Inf)
+
+    # When δ = 0:
+    #     ϕ(s) = exp(-s/θ),
+    #     log|ϕ′(s)| = -log θ - s/θ.
+    if iszero(δ) return max(-θ * (lm + log(θ)), zero(T),) end
+
+    # Solve in z = log(s), converting the constrained domain s ≥ 0
+    # into an unconstrained real coordinate.
+    function f(z)
+        s = exp(z)
+        return _arch_logderivative(G, s) - lm
+    end
+
+    function df(z)
+        z == -T(Inf) && return zero(T)
+        z == T(Inf) && return -T(Inf)
+
+        s = exp(z)
+        isinf(s) && return -T(Inf)
+
+        a = inv(θ)
+        q = δ * exp(-s)
+
+        # d/ds log|ϕ′(s)| =
+        #   -1/θ - (1+1/θ) q/(1-q).
+        dlogm_ds = -a - (one(T) + a) * q / (one(T) - q)
+        return s * dlogm_ds
+    end
+    z = _solve_decreasing_root(f, df, zero(T),)
+    return exp(z)
+end
+
+# =====================================================================
+# Direct generator-coordinate protocol
+# =====================================================================
+
+# BB8 and BB10 both use the original generator argument s as their
+# stable internal coordinate.
+const _DirectGeneratorCoordinate = Union{Copulas.BB8Generator, Copulas.BB10Generator,}
+
+@inline _arch_combine(::_DirectGeneratorCoordinate, a::Real, b::Real,) = a + b
+@inline function _arch_difference(::_DirectGeneratorCoordinate, total::Real, base::Real,)
+    tt, bb = promote(float(total), float(base),)
+    T = typeof(tt)
+
+    if tt < bb
+        tol = T(8) * eps(T) * max(abs(tt), abs(bb), one(T))
+        bb - tt <= tol || throw(DomainError((total, base), "Expected total ≥ base in the direct generator coordinate.",))
+        return zero(T)
+    end
+
+    return tt - bb
+end
+
+@inline _arch_hfunc(G::_DirectGeneratorCoordinate, target::Real, base::Real,) = _arch_hfunc_coordinate(G, target, base,)
+
+@inline _arch_hinv(G::_DirectGeneratorCoordinate, q::Real, base::Real,) = _arch_hinv_coordinate(G, q, base,)
+
+function _inv_ϕ¹(G::_DirectGeneratorCoordinate, y::Real,)
+    m = _negative_derivative_magnitude(y,"BB8/BB10",)
+    T = typeof(m)
+
+    iszero(m) && return T(Inf)
+
+    # Both families have finite |ϕ′(0)|, so m = Inf must be checked
+    # against the admissible derivative range.
+    return _arch_inverse_logderivative(G, log(m),)
+end
+
 function _inv_ϕ¹(G::_Log1pCoordinateGenerator, y::Real)
     m = _negative_derivative_magnitude(y, "BB2/BB3")
     T = typeof(m)
