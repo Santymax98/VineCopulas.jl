@@ -379,7 +379,7 @@ end
 
 end
 
-@testset "BB8 numerical inverse in generator coordinate" begin 
+@testset "Specialized BB8-BB10 inverse implementations" begin
     # Genuine BB8 parameters, including ϑ = 1 (independence), 
     # ϑ close to 1, small δ and δ close to the Joe boundary. 
     for ϑ in (1.0, 1.001, 1.2, 3.0), 

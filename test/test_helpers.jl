@@ -10,7 +10,7 @@ const ARCH_GRID = (0.05, 0.25, 0.50, 0.75, 0.95)
 const S_GRID = (1e-3, 0.03, 0.20, 1.00, 5.00)
 
 @inline _is_extreme_value(C) = C isa Copulas.ExtremeValueCopula{2}
-@inline _is_singular_extreme_value(C) = _is_extreme_value(C) && C.tail isa Union{Copulas.CuadrasAugeTail,Copulas.MOTail,Copulas.BC2Tail}
+@inline _is_singular_extreme_value(C) = _is_extreme_value(C) && C.tail isa Union{Copulas.CuadrasAugeTail,Copulas.MOTail,Copulas.BC2Tail,Copulas.EmpiricalEVTail}
 
 function _finite_pdf_h1(C, u, v; h=1e-5)
     a, b = max(u-h, TEST_EPSU), min(u+h, 1-TEST_EPSU)

@@ -22,7 +22,6 @@ Not yet part of the stable scope:
 - automatic vine-structure selection
 - general truncated R-vine Rosenblatt traversal
 - allocation-free compiled kernels
-- BB6 and BB7 conditional inverses
 
 ## Quickstart
 
@@ -71,11 +70,14 @@ The Archimedean implementation uses one target/base protocol. Family dispatch is
 | Inverse Gaussian | specialized analytic |
 | BB1 | specialized numerical inversion in `z = log(s)` |
 | BB2 | specialized analytic in a logarithmic coordinate |
-| BB3 | specialized numerical inversion in `z = log(log(1+s)/δ)` |
-| BB8, BB9, BB10 | generic numerical fallback; specialization pending |
-| BB6, BB7 | pending; not advertised as supported conditional families |
+| BB3 | specialized numerical inversion in a transformed logarithmic coordinate |
+| BB6 | specialized stable inversion in its natural generator coordinate |
+| BB7 | specialized stable inversion in its natural generator coordinate |
+| BB8 | specialized numerical inversion in the direct generator coordinate |
+| BB9 | specialized analytic inversion in a shifted-log coordinate |
+| BB10 | specialized numerical inversion in the direct generator coordinate |
 
-BB1, BB2 and BB3 use the same small internal protocol—stable coordinate, inverse coordinate, log-derivative and inverse log-derivative—rather than a collection of unrelated family-only helpers. BB2 and BB3 additionally share the coordinate `L = log(1+s)`, including its stable sum and difference algebra. Standard log-domain primitives come directly from `LogExpFunctions`; only genuinely composed operations remain local.
+The BB families share a compact internal protocol based on stable coordinates, inverse coordinates, log-derivatives and inverse log-derivatives. Family-specific code is retained only where the mathematics or numerical geometry genuinely differs. Standard log-domain primitives come directly from `LogExpFunctions`; only composed operations remain local.
 
 ## Vine conventions
 
@@ -117,7 +119,7 @@ Natural D-vine structures delegate to the D-vine engine. General full R-vine tra
 
 ## Extreme-value conditionals
 
-Smooth Pickands tails share the generic analytic h-function and a one-dimensional conditional quantile inversion. Tails with jumps or flat conditional regions (`CuadrasAugeTail`, `MOTail`, `BC2Tail`) use the exact `BivEVDistortion` generalized inverse supplied by `Copulas.jl`. Per-family implementations should only be introduced after a demonstrated correctness or performance need.
+Smooth Pickands tails share generic analytic h-functions and a safeguarded one-dimensional inverse in the unconstrained logit of the Pickands coordinate. `LogTail` reuses the analytic Gumbel inverse. Tails with jumps or flat conditional regions (`CuadrasAugeTail`, `MOTail`, `BC2Tail`) use the generalized inverse supplied by `BivEVDistortion`. Per-family methods are introduced only when they provide an analytic inverse or demonstrably improve stability.
 
 ## Testing
 
@@ -126,6 +128,7 @@ The suite is divided by responsibility:
 - `test_helpers.jl`: shared grids and explicit candidate inventories
 - `test_paircopulas.jl`: density, h-function and inverse checks
 - `test_archimedean_inverse.jl`: derivative-inverse identities, parameter sweeps and tail precision
+- `test_extreme_value.jl`: smooth and singular Pickands conditionals, generalized quantiles, boundary coordinates and vine integration
 - `test_survival.jl`: rotations, matrix helpers and vine integration
 - `test_vines_mixed.jl`: mixed-family C-/D-vines
 - `test_vines_truncated.jl`: dimensions 5 and 10, truncations 1 and 2, nontrivial orders and R-vine matrix exchange

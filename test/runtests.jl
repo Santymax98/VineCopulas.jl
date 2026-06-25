@@ -1,5 +1,6 @@
 include("test_helpers.jl")
 include("test_paircopulas.jl")
+include("test_extreme_value.jl")
 include("test_archimedean_inverse.jl")
 include("test_survival.jl")
 include("test_vines_mixed.jl")

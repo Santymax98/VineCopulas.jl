@@ -10,20 +10,20 @@
 - [x] ASCII and Unicode h-functions
 - [x] SurvivalCopula conditionals
 - [x] Smooth and singular bivariate extreme-value conditionals
-- [x] Stable specialized inverses for Clayton, AMH, Gumbel, Joe, Frank, Gumbel–Barnett, inverse Gaussian, BB1 and BB2
+- [x] Stable specialized inverses for Clayton, AMH, Gumbel, Joe, Frank, Gumbel–Barnett, inverse Gaussian and BB1–BB10
 - [x] Tests for dimensions 5 and 10 and truncations 1 and 2
 - [x] Lossless package-native R-vine matrix exchange
 
 ## v0.1.x — Complete conditional layer
 
-- [ ] specialized `_inv_ϕ¹` for BB3
-- [ ] specialized `_inv_ϕ¹` for BB8
-- [ ] specialized `_inv_ϕ¹` for BB9
-- [ ] specialized `_inv_ϕ¹` for BB10
-- [ ] derive and implement stable BB6 conditional inversion
-- [ ] derive and implement stable BB7 conditional inversion
-- [ ] broaden boundary and `BigFloat` tests for all BB families
-- [ ] profile smooth extreme-value quantile inversion before adding per-tail methods
+- [x] specialized `_inv_ϕ¹` for BB1–BB10
+- [x] broad boundary and `BigFloat` tests for the BB families
+- [x] common analytic Pickands h-functions for smooth bivariate extreme-value copulas
+- [x] generalized conditional quantiles for singular extreme-value copulas
+- [x] unconstrained logit-coordinate solver for smooth extreme-value inverses
+- [ ] add stable direct Pickands factors for tEV and asymmetric tails where beneficial
+- [ ] broaden extreme-value parameter sweeps, AD coverage and vine integration
+- [ ] add explicit tested support for empirical extreme-value tails
 
 ## v0.2.0 — Pair-copula estimation
 
