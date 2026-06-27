@@ -1,5 +1,12 @@
 # VineCopulas.jl
 
+[![Docs dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://santymax98.github.io/VineCopulas.jl/dev/)
+[![CI](https://github.com/Santymax98/VineCopulas.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/Santymax98/VineCopulas.jl/actions/workflows/CI.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/Santymax98/VineCopulas.jl/blob/main/LICENSE)
+[![Julia 1.10+](https://img.shields.io/badge/julia-1.10%2B-9558B2.svg)](https://julialang.org/)
+[![Repo status: active](https://img.shields.io/badge/repo%20status-active-brightgreen.svg)](https://www.repostatus.org/#active)
+[![Citation](https://img.shields.io/badge/citation-CFF-informational.svg)](https://github.com/Santymax98/VineCopulas.jl/blob/main/CITATION.cff)
+
 `VineCopulas.jl` is a native Julia package for explicit C-vine, D-vine and regular-vine copula models built on top of [`Copulas.jl`](https://github.com/lrnv/Copulas.jl). It provides a construction and evaluation core for users who want to compose bivariate pair-copulas into higher-dimensional dependence models.
 
 Documentation: <https://santymax98.github.io/VineCopulas.jl/dev/>
