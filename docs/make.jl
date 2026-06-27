@@ -6,11 +6,11 @@ DocMeta.setdocmeta!(VineCopulas, :DocTestSetup, :(using VineCopulas); recursive=
 
 makedocs(;
     modules=[VineCopulas],
-    repo=Remotes.GitHub("santymax98", "VineCopulas.jl"),
+    repo=Remotes.GitHub("Santymax98", "VineCopulas.jl"),
     authors="Santiago Jimenez and contributors",
     sitename="VineCopulas.jl",
     format = DocumenterVitepress.MarkdownVitepress(
-        repo = "https://github.com/santymax98/VineCopulas.jl",
+        repo = "https://github.com/Santymax98/VineCopulas.jl",
         devbranch = "main",
     ),
     pages=[
@@ -45,7 +45,7 @@ makedocs(;
 )
 
 DocumenterVitepress.deploydocs(;
-    repo = "github.com/santymax98/VineCopulas.jl",
+    repo = "github.com/Santymax98/VineCopulas.jl",
     target = "build",
     devbranch = "main",
     branch = "gh-pages",

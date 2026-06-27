@@ -4,3 +4,7 @@
 /Manifest*.toml
 /docs/Manifest*.toml
 /docs/build/
+# Documentation build artifacts
+docs/build/
+docs/node_modules/
+docs/package-lock.json
