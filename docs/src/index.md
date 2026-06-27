@@ -8,7 +8,7 @@ hero:
   tagline: Explicit C-vine, D-vine and R-vine copula constructions built on Copulas.jl.
   image:
     src: /assets/logo.png
-    alt: VineCopulas.jl logo
+    alt: VineCopulas.jl
   actions:
     - theme: brand
       text: Getting started
