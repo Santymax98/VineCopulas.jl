@@ -21,6 +21,16 @@ using TestItemRunner
 @run_package_tests filter = ti -> :Rosenblatt in ti.tags
 ```
 
-The current suite keeps the older large regression tests under `test/legacy` while newer tests are organized by functionality under `test/paircopulas`, `test/vines`, and `test/numerical`.
+The older large regression tests are preserved under `test/legacy` and run through `test/regression`, so the migration to `TestItems.jl` does not discard coverage.
 
-When adding tests, prefer reusing existing contracts such as `M.check(vine)` and `M.check_paircopula(C)` instead of duplicating the same mathematical properties in many files.
+## Adding tests for a new pair-copula
+
+A new pair-copula should pass at least the generic pair-copula contract:
+
+```julia
+M.check_paircopula(C)
+```
+
+This checks finite density/log-density behavior, valid h-functions, and inverse h-function round trips on a grid. Singular families may need specialized inequalities instead of strict round trips.
+
+Prefer adding tests in `test/paircopulas/generic.jl` or a new family-specific test file, with clear tags such as `:PairCopula`, `:Miscellaneous`, `:ExtremeValue`, or `:Archimedean`.

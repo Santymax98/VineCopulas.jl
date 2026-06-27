@@ -10,6 +10,15 @@ Construct a drawable/path vine copula from a variable `order` and a triangular
 collection of bivariate pair-copulas. The entry `edges[k][i]` represents the
 pair-copula between `order[i]` and `order[i+k]`, conditional on the variables
 between them in the D-vine path.
+
+# Example
+
+```julia
+C12 = GaussianCopula([1.0 0.5; 0.5 1.0])
+C23 = ClaytonCopula(2, 2.0)
+C13_2 = FrankCopula(2, 3.0)
+dv = DVineCopula([1, 2, 3], [[C12, C23], [C13_2]])
+```
 """
 struct DVineCopula{p,q} <: AbstractVineCopula{p}
     order::NTuple{p,Int}
@@ -36,8 +45,27 @@ function DVineCopula(edges::AbstractVector; order=nothing, trunc::Int=length(edg
     return DVineCopula(order, edges; trunc=trunc)
 end
 
+"""
+    order(vine)
+
+Return the variable order used by a vine copula.
+"""
 order(vc::DVineCopula) = vc.order
+
+"""
+    edges(vine)
+
+Return the triangular array of bivariate pair-copulas used by a vine copula.
+Tree `k` is stored in `edges(vine)[k]`.
+"""
 edges(vc::DVineCopula) = vc.edges
+
+"""
+    truncation(vine)
+
+Return the number of active trees in the vine. A full `p`-dimensional vine has
+truncation level `p - 1`.
+"""
 truncation(vc::DVineCopula) = vc.trunc
 
 Base.show(io::IO, vc::DVineCopula{p}) where {p} = print(io, "DVineCopula(p=$p, trunc=$(vc.trunc))")

@@ -13,6 +13,12 @@ using Reexport
 @reexport using Copulas
 import Copulas: rosenblatt, inverse_rosenblatt
 
+"""
+    PairCopula
+
+Alias for `Copulas.Copula{2}`. Pair-copulas are the bivariate building blocks
+used on vine edges.
+"""
 const PairCopula = Copulas.Copula{2}
 
 """
@@ -23,6 +29,11 @@ Abstract supertype for all `p`-dimensional vine copula models implemented by
 [`DVineCopula`](@ref), and [`RVineCopula`](@ref).
 """
 abstract type AbstractVineCopula{p} <: Copulas.Copula{p} end
+"""
+    VineCopula
+
+Alias for [`AbstractVineCopula`](@ref).
+"""
 const VineCopula = AbstractVineCopula
 
 include("utils.jl")

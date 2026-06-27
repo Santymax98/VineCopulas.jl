@@ -1,13 +1,20 @@
 # Limitations
 
-`VineCopulas.jl` v0.1 is a construction and evaluation core. The following features are intentionally outside the stable v0.1 scope:
+`VineCopulas.jl` v0.1 is a correctness-oriented construction and evaluation core. The following features are not part of the stable v0.1 scope.
 
-- automatic pair-copula parameter estimation;
-- automatic pair-copula family selection;
-- automatic vine-structure selection;
-- automatic truncation selection;
-- fully optimized allocation-free kernels;
-- systematic benchmarking against C++ implementations such as `vinecopulib`;
-- stable general truncated R-vine Rosenblatt traversal.
+| Area | Status |
+|---|---|
+| Pair-copula parameter estimation | Not implemented yet |
+| Automatic family selection | Not implemented yet |
+| Automatic C-vine/D-vine/R-vine structure selection | Not implemented yet |
+| Automatic truncation selection | Not implemented yet |
+| Mixed discrete/continuous data | Not implemented |
+| Non-simplified vines | Not implemented |
+| Allocation-free high-performance kernels | Not implemented yet |
+| Benchmarked C++ parity | Not claimed |
+| General truncated R-vine Rosenblatt traversal | Not stable yet |
+| Plackett/FGM/Raftery/M/W as tested vine pair-copulas | Not yet exposed as tested vine pair-copulas |
 
-These features are planned for later releases. The v0.1 line prioritizes correctness, explicit constructors, pair-copula conditional primitives, and reproducible tests.
+This does not mean these features are impossible in Julia. It means they are intentionally not advertised as implemented until the corresponding algorithms, tests, and documentation exist.
+
+The v0.1 release focuses on explicit model construction, conditional primitives, simulation, density evaluation, Rosenblatt transforms, and a robust test suite.

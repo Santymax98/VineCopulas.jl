@@ -94,9 +94,20 @@ function RVineCopula(matrix::AbstractMatrix{<:Integer}, edges::AbstractVector)
     return RVineCopula{p,trunc}(st, E, trunc)
 end
 
+"""Return the variable order used by an `RVineCopula`."""
 order(vc::RVineCopula) = vc.structure.order
+
+"""
+    struct_array(vine)
+
+Return the triangular structure array used by an `RVineCopula`.
+"""
 struct_array(vc::RVineCopula) = vc.structure.struct_array
+
+"""Return the triangular array of pair-copulas used by an `RVineCopula`."""
 edges(vc::RVineCopula) = vc.edges
+
+"""Return the number of active trees in an `RVineCopula`."""
 truncation(vc::RVineCopula) = vc.trunc
 
 Base.show(io::IO, vc::RVineCopula{p}) where {p} = print(io, "RVineCopula(p=$p, trunc=$(vc.trunc))")

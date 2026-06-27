@@ -9,6 +9,35 @@ hinv1(C, q, v)
 hinv2(C, q, u)
 ```
 
-These are used recursively by `logpdf`, `rosenblatt`, `inverse_rosenblatt`, and `rand` for vine objects.
+The aliases `h₁`, `h₂`, `h₁⁻¹`, and `h₂⁻¹` are also exported.
 
-The generic fallback uses automatic differentiation and safeguarded scalar root finding. Specialized methods are provided when a family has a closed-form inverse or when a numerically stable coordinate system is needed.
+## Mathematical convention
+
+```math
+h_1(u,v) = \frac{\partial C(u,v)}{\partial v},
+\qquad
+h_2(u,v) = \frac{\partial C(u,v)}{\partial u}.
+```
+
+The inverse functions satisfy approximately
+
+```math
+h_1(h_1^{-1}(q\mid v),v)=q,
+\qquad
+h_2(u,h_2^{-1}(q\mid u))=q.
+```
+
+For singular copulas the inverse should be interpreted as a generalized inverse.
+
+## Matrix helpers
+
+For bivariate data stored row-wise as an `n × 2` matrix, `hfunc1(C, U)` and `hfunc2(C, U)` return vectors of conditional probabilities.
+
+```@example conditionals
+using VineCopulas
+
+C = FrankCopula(2, 3.0)
+U = [0.2 0.7; 0.5 0.5; 0.8 0.3]
+
+hfunc1(C, U)
+```

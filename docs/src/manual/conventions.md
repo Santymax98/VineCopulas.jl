@@ -1,6 +1,26 @@
 # Conventions
 
-## Conditional pair-copula convention
+## Data orientation
+
+`VineCopulas.jl` uses `p × n` matrices for observations:
+
+- rows are variables/dimensions;
+- columns are observations;
+- a single observation is a vector of length `p`.
+
+This is consistent with many `Distributions.jl` multivariate conventions.
+
+## Edge orientation
+
+The edge array is triangular. For a full vine in dimension ``p``, tree ``k`` contains ``p-k`` pair-copulas. In code:
+
+```julia
+edges[k][i]
+```
+
+represents the ``i``th pair-copula in tree ``k``.
+
+## Conditional convention
 
 For a bivariate copula ``C`` and coordinates ``(u, v)``, the package uses
 
@@ -30,12 +50,10 @@ h₁⁻¹(C, q, v)
 h₂⁻¹(C, q, u)
 ```
 
-`hinv1` inverts the first coordinate given the second coordinate. `hinv2` inverts the second coordinate given the first coordinate.
+## Probability boundaries
 
-## Probability clamping
-
-The package preserves representable interior probabilities. Clamping is used to avoid invalid exact boundary evaluations, not to erase valid values near `0` or `1`. This is important for high-precision tests and for extreme-value conditional inverses.
+Copulas are defined on ``[0,1]^p``, but densities and conditional inverses are often singular or undefined exactly at the boundary. The implementation clamps exact boundary values only when necessary to avoid invalid evaluations.
 
 ## Truncation
 
-For C-vines and D-vines, `trunc` controls the number of active trees. Pair-copulas above the truncation level are not used. A truncation level of `p - 1` corresponds to the full vine.
+For C-vines and D-vines, `trunc` controls the number of active trees. A truncation level of `p - 1` corresponds to the full vine. A truncation level of `q < p - 1` omits higher-order trees.

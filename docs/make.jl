@@ -15,8 +15,13 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Getting started" => "getting_started.md",
         "Manual" => [
-            "Introduction" => "manual/intro.md",
+            "Mathematical background" => "manual/mathematical_background.md",
+            "Pair-copula decomposition" => "manual/pair_copula_decomposition.md",
+            "h-functions and inverses" => "manual/h_functions.md",
+            "Rosenblatt transforms" => "manual/rosenblatt.md",
+            "Simulation vs fitting" => "manual/simulation_vs_fitting.md",
             "Conventions" => "manual/conventions.md",
             "Testing" => "manual/testing.md",
             "Limitations" => "manual/limitations.md",
@@ -30,16 +35,24 @@ makedocs(;
             "Supported families" => "paircopulas/supported_families.md",
             "Conditionals" => "paircopulas/conditionals.md",
             "Extreme-value pair copulas" => "paircopulas/extreme_value.md",
+            "Adding a new pair-copula" => "paircopulas/adding_paircopula.md",
         ],
         "Examples" => [
+            "Minimal D-vine" => "examples/minimal_dvine.md",
             "Mixed D-vine" => "examples/mixed_dvine.md",
             "Truncated C-vine" => "examples/truncated_cvine.md",
             "Extreme-value vine" => "examples/extreme_value_vine.md",
+            "Large simulation" => "examples/large_simulation.md",
+            "Plots" => "examples/plots.md",
+        ],
+        "Comparison" => [
+            "rvinecopulib" => "comparison/rvinecopulib.md",
         ],
         "API" => [
             "Public" => "api/public.md",
             "Internal (non-stable)" => "api/internal.md",
         ],
+        "Citation" => "citation.md",
     ],
     checkdocs=:none,
 )

@@ -1,6 +1,8 @@
 # Mixed D-vine
 
-```julia
+A vine can mix different bivariate families across its edges.
+
+```@example mixed-dvine
 using VineCopulas
 using Distributions: logpdf
 using Random
@@ -16,7 +18,15 @@ dv = DVineCopula(
     [1, 2, 3, 4],
     [[C12, C23, C34], [C13_2, C24_3], [C14_23]],
 )
+```
 
-U = rand(MersenneTwister(123), dv, 100)
-logpdf(dv, U[:, 1])
+```@example mixed-dvine
+U = rand(MersenneTwister(123), dv, 1_000)
+(sum(logpdf(dv, U)), aic(dv, U), bic(dv, U))
+```
+
+```@example mixed-dvine
+Z = rosenblatt(dv, U)
+U2 = inverse_rosenblatt(dv, Z)
+maximum(abs.(U2 .- U))
 ```

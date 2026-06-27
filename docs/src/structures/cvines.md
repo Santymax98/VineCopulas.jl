@@ -1,32 +1,25 @@
 # C-vines
 
-A C-vine is represented by an order and a triangular collection of pair-copula edges.
+A C-vine has one root variable per tree. The first tree connects the first root to all other variables. The second tree connects the second root to the remaining variables conditional on the first root, and so on.
 
-```julia
+For `CVineCopula(order, edges)`, tree `k` has root `order[k]`. The entry `edges[k][i]` represents
+
+```math
+C_{r,c\mid D},
+\qquad r=\texttt{order[k]},\quad c=\texttt{order[k+i]},\quad D=\texttt{order[1:k-1]}.
+```
+
+Pair-copula coordinates are `(root, child)`.
+
+```@example cvine-page
 using VineCopulas
 
 C12 = GaussianCopula([1.0 0.5; 0.5 1.0])
 C13 = ClaytonCopula(2, 2.0)
 C23_1 = FrankCopula(2, 3.0)
 
-cv = CVineCopula(
-    [1, 2, 3],
-    [[C12, C13], [C23_1]],
-)
+cv = CVineCopula([1, 2, 3], [[C12, C13], [C23_1]])
+(order(cv), truncation(cv), length(edges(cv)))
 ```
 
-For tree `k`, `edges[k][i]` represents a pair-copula whose root is `order[k]`, whose child is `order[k+i]`, and whose conditioning set is `order[1:k-1]`.
-
-The main operations are:
-
-```julia
-logpdf(cv, [0.2, 0.5, 0.7])
-rand(cv, 100)
-rosenblatt(cv, rand(cv, 100))
-```
-
-Truncated C-vines are constructed with `trunc`:
-
-```julia
-CVineCopula([1, 2, 3, 4], edges; trunc=2)
-```
+Truncated C-vines are constructed with `trunc`.

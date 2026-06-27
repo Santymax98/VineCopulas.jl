@@ -12,6 +12,15 @@ on the previous roots `order[1:k-1]`.
 
 Matrices of observations follow the package convention `p × n`: rows are
 dimensions and columns are observations.
+
+# Example
+
+```julia
+C12 = GaussianCopula([1.0 0.5; 0.5 1.0])
+C13 = ClaytonCopula(2, 2.0)
+C23_1 = FrankCopula(2, 3.0)
+cv = CVineCopula([1, 2, 3], [[C12, C13], [C23_1]])
+```
 """
 struct CVineCopula{p,q} <: AbstractVineCopula{p}
     order::NTuple{p,Int}
@@ -38,8 +47,27 @@ function CVineCopula(edges::AbstractVector; order=nothing, trunc::Int=length(edg
     return CVineCopula(order, edges; trunc=trunc)
 end
 
+"""
+    order(vine)
+
+Return the variable order used by a vine copula.
+"""
 order(vc::CVineCopula) = vc.order
+
+"""
+    edges(vine)
+
+Return the triangular array of bivariate pair-copulas used by a vine copula.
+Tree `k` is stored in `edges(vine)[k]`.
+"""
 edges(vc::CVineCopula) = vc.edges
+
+"""
+    truncation(vine)
+
+Return the number of active trees in the vine. A full `p`-dimensional vine has
+truncation level `p - 1`.
+"""
 truncation(vc::CVineCopula) = vc.trunc
 
 Base.show(io::IO, vc::CVineCopula{p}) where {p} = print(io, "CVineCopula(p=$p, trunc=$(vc.trunc))")

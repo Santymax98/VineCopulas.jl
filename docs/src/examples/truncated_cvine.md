@@ -1,6 +1,8 @@
 # Truncated C-vine
 
-```julia
+A truncated C-vine uses only the first `trunc` trees. Higher-order pair-copulas are omitted.
+
+```@example truncated-cvine
 using VineCopulas
 using Random
 
@@ -10,7 +12,11 @@ edges = [
 ]
 
 cv = CVineCopula([4, 3, 2, 1], edges; trunc=2)
-U = rand(MersenneTwister(321), cv, 50)
+truncation(cv)
+```
+
+```@example truncated-cvine
+U = rand(MersenneTwister(321), cv, 1_000)
 Z = rosenblatt(cv, U)
 U2 = inverse_rosenblatt(cv, Z)
 maximum(abs.(U2 .- U))

@@ -7,8 +7,21 @@ Base.length(::AbstractVineCopula{p}) where {p} = p
 const _CDF_NSAMPLES = Ref(10_000)
 const _CDF_QMC_SEED = Ref(0x7A1E5EED)
 
+"""
+    set_cdf_nsamples!(N::Integer)
+
+Set the global number of Monte Carlo or quasi-Monte Carlo samples used by the
+numerical `cdf` approximation for vine copulas. This does not affect `pdf`,
+`logpdf`, `rand`, or Rosenblatt transforms.
+"""
 set_cdf_nsamples!(N::Integer) = (_CDF_NSAMPLES[] = max(1, Int(N)); nothing)
 
+"""
+    enable_deterministic_cdf!(Npow::Integer=15)
+
+Use `2^Npow` quasi-Monte Carlo points for the numerical `cdf` approximation.
+This helper is intended for reproducible examples and tests.
+"""
 enable_deterministic_cdf!(Npow::Integer=15) = (set_cdf_nsamples!(1 << Npow); nothing)
 
 function _qmc_points(p::Int, N::Int; randomized::Bool=true)
@@ -28,6 +41,13 @@ function _qmc_points(p::Int, N::Int; randomized::Bool=true)
     end
 end
 
+"""
+    simulate_qmc(vine, N; randomized=true)
+
+Generate `N` quasi-Monte Carlo observations from a vine copula using Sobol
+points followed by the inverse Rosenblatt transform. The returned matrix has
+size `p × N`, with rows corresponding to variables and columns to observations.
+"""
 function simulate_qmc(vc::AbstractVineCopula{p}, N::Integer; randomized::Bool=true) where {p}
     Z = _qmc_points(p, Int(N); randomized=randomized)
     return inverse_rosenblatt(vc, Z)
@@ -122,6 +142,14 @@ end
 
 # -------------------- Rosenblatt transforms --------------------
 
+"""
+    rosenblatt(vine, u)
+    rosenblatt(vine, U)
+
+Compute the Rosenblatt transform of a point or matrix under a vine copula. A
+matrix input is interpreted as `p × n`: rows are dimensions and columns are
+observations. The output has the same shape as the input.
+"""
 function rosenblatt(vc::AbstractVineCopula{p}, u::AbstractVector{<:Real}) where {p}
     _check_vector_dim(p, u)
     return vec(rosenblatt(vc, reshape(u, p, 1)))
@@ -133,12 +161,25 @@ function rosenblatt(vc::AbstractVineCopula{p}, U::AbstractMatrix{<:Real}) where 
     return rosenblatt!(out, vc, X)
 end
 
+"""
+    rosenblatt!(out, vine, U)
+
+In-place Rosenblatt transform. `out` and `U` must have the same `p × n` shape.
+"""
 function rosenblatt!(out::AbstractMatrix{<:Real}, vc::AbstractVineCopula{p}, U::AbstractMatrix{<:Real}) where {p}
     X = _as_pxn(p, U)
     size(out) == size(X) || throw(ArgumentError("out debe tener tamaño $(size(X)); recibió $(size(out))"))
     return _rosenblatt_internal!(out, vc, X)
 end
 
+"""
+    inverse_rosenblatt(vine, z)
+    inverse_rosenblatt(vine, Z)
+
+Apply the inverse Rosenblatt transform. This maps independent uniforms on the
+unit hypercube into observations from the vine copula. Matrix inputs and outputs
+use the `p × n` convention.
+"""
 function inverse_rosenblatt(vc::AbstractVineCopula{p}, z::AbstractVector{<:Real}) where {p}
     _check_vector_dim(p, z)
     return vec(inverse_rosenblatt(vc, reshape(z, p, 1)))
@@ -150,6 +191,12 @@ function inverse_rosenblatt(vc::AbstractVineCopula{p}, Z::AbstractMatrix{<:Real}
     return inverse_rosenblatt!(out, vc, X)
 end
 
+"""
+    inverse_rosenblatt!(out, vine, Z)
+
+In-place inverse Rosenblatt transform. `out` and `Z` must have the same `p × n`
+shape.
+"""
 function inverse_rosenblatt!(out::AbstractMatrix{<:Real}, vc::AbstractVineCopula{p}, Z::AbstractMatrix{<:Real}) where {p}
     X = _as_pxn(p, Z)
     size(out) == size(X) || throw(ArgumentError("out debe tener tamaño $(size(X)); recibió $(size(out))"))
@@ -172,7 +219,21 @@ _inverse_rosenblatt_internal!(::AbstractMatrix, ::AbstractVineCopula, ::Abstract
 
 # -------------------- public ASCII API --------------------
 
+"""
+    hfunc1(C, u, v)
+    hfunc1(C, U)
+
+Compute ``F_{1|2}(u | v) = ∂C(u,v)/∂v`` for a bivariate pair-copula `C`.
+For an `n × 2` matrix `U`, return one value per row.
+"""
 @inline hfunc1(C::PairCopula, u::Real, v::Real) = hfunc1(C, (u, v))
+"""
+    hfunc2(C, u, v)
+    hfunc2(C, U)
+
+Compute ``F_{2|1}(v | u) = ∂C(u,v)/∂u`` for a bivariate pair-copula `C`.
+For an `n × 2` matrix `U`, return one value per row.
+"""
 @inline hfunc2(C::PairCopula, u::Real, v::Real) = hfunc2(C, (u, v))
 
 # -------------------- generic numerical helpers --------------------
@@ -215,11 +276,23 @@ function hfunc2(C::PairCopula, uv)
     return _clp(ForwardDiff.derivative(f, u))
 end
 
+"""
+    hinv1(C, q, v)
+
+Invert `hfunc1` in its first coordinate: return `u` such that
+`hfunc1(C, u, v) ≈ q`. Singular copulas may use a generalized inverse.
+"""
 function hinv1(C::PairCopula, q::Real, v::Real)
     q, v = _clp(q), _clp(v)
     return _clp(_unit_root(u -> hfunc1(C, u, v) - q))
 end
 
+"""
+    hinv2(C, q, u)
+
+Invert `hfunc2` in its second coordinate: return `v` such that
+`hfunc2(C, u, v) ≈ q`. Singular copulas may use a generalized inverse.
+"""
 function hinv2(C::PairCopula, q::Real, u::Real)
     q, u = _clp(q), _clp(u)
     return _clp(_unit_root(v -> hfunc2(C, u, v) - q))
@@ -253,7 +326,11 @@ end
 
 # -------------------- Unicode aliases, Copulas.jl style --------------------
 
+"""Unicode alias for [`hfunc1`](@ref)."""
 const h₁ = hfunc1
+"""Unicode alias for [`hfunc2`](@ref)."""
 const h₂ = hfunc2
+"""Unicode alias for [`hinv1`](@ref)."""
 const h₁⁻¹ = hinv1
+"""Unicode alias for [`hinv2`](@ref)."""
 const h₂⁻¹ = hinv2
