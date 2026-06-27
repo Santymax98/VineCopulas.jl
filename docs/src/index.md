@@ -7,7 +7,7 @@ hero:
   text: Native Julia vine copula models
   tagline: Explicit C-vine, D-vine and R-vine copula constructions built on Copulas.jl.
   image:
-    src: ./assets/logo.png
+    src: src: /logo.png
     alt: VineCopulas.jl
   actions:
     - theme: brand
