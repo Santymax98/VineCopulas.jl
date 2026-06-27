@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, '__esModule', {value: true});
+const def = MathJax._.util.lengths;
+exports.BIGDIMEN = def.BIGDIMEN;
+exports.UNITS = def.UNITS;
+exports.RELUNITS = def.RELUNITS;
+exports.MATHSPACE = def.MATHSPACE;
+exports.length2em = def.length2em;
+exports.percent = def.percent;
+exports.em = def.em;
+exports.px = def.px;

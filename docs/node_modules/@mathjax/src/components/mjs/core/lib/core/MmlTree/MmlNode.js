@@ -1,0 +1,12 @@
+const def = MathJax._.core.MmlTree.MmlNode;
+export const TEXCLASS = def.TEXCLASS;
+export const TEXCLASSNAMES = def.TEXCLASSNAMES;
+export const MATHVARIANTS = def.MATHVARIANTS;
+export const indentAttributes = def.indentAttributes;
+export const AbstractMmlNode = def.AbstractMmlNode;
+export const AbstractMmlTokenNode = def.AbstractMmlTokenNode;
+export const AbstractMmlLayoutNode = def.AbstractMmlLayoutNode;
+export const AbstractMmlBaseNode = def.AbstractMmlBaseNode;
+export const AbstractMmlEmptyNode = def.AbstractMmlEmptyNode;
+export const TextNode = def.TextNode;
+export const XMLNode = def.XMLNode;

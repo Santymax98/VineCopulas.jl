@@ -3,6 +3,14 @@
 # left = order[i], right = order[i+k] and conditioning set order[i+1:i+k-1].
 # Copula coordinates are (left, right).
 
+"""
+    DVineCopula(order, edges; trunc=length(order)-1)
+
+Construct a drawable/path vine copula from a variable `order` and a triangular
+collection of bivariate pair-copulas. The entry `edges[k][i]` represents the
+pair-copula between `order[i]` and `order[i+k]`, conditional on the variables
+between them in the D-vine path.
+"""
 struct DVineCopula{p,q} <: AbstractVineCopula{p}
     order::NTuple{p,Int}
     edges::NTuple{q,Vector{PairCopula}}

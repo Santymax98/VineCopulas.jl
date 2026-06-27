@@ -123,16 +123,7 @@ Smooth Pickands tails share generic analytic h-functions and a safeguarded one-d
 
 ## Testing
 
-The suite is divided by responsibility:
-
-- `test_helpers.jl`: shared grids and explicit candidate inventories
-- `test_paircopulas.jl`: density, h-function and inverse checks
-- `test_archimedean_inverse.jl`: derivative-inverse identities, parameter sweeps and tail precision
-- `test_extreme_value.jl`: smooth and singular Pickands conditionals, generalized quantiles, boundary coordinates and vine integration
-- `test_survival.jl`: rotations, matrix helpers and vine integration
-- `test_vines_mixed.jl`: mixed-family C-/D-vines
-- `test_vines_truncated.jl`: dimensions 5 and 10, truncations 1 and 2, nontrivial orders and R-vine matrix exchange
-- `test_core.jl`: public API smoke tests
+The test suite uses `TestItems.jl` and is organized around small tagged testitems plus shared contracts in `test/common.jl`. The previous large regression suites are preserved under `test/legacy` and are run through `test/regression` so coverage is not lost during the migration.
 
 Run from a clean Julia session:
 
@@ -141,6 +132,20 @@ using Pkg
 Pkg.activate(".")
 Pkg.resolve()
 Pkg.test()
+```
+
+During development, tests can be filtered by tags such as `:CVine`, `:DVine`, `:RVine`, `:PairCopula`, `:ExtremeValue`, `:Rosenblatt`, or `:Truncation`. See the Testing page in the documentation for examples.
+
+## Documentation
+
+The documentation is built with `Documenter.jl` from the `docs` environment:
+
+```julia
+using Pkg
+Pkg.activate("docs")
+Pkg.develop(PackageSpec(path=pwd()))
+Pkg.instantiate()
+include("docs/make.jl")
 ```
 
 ## Design notes

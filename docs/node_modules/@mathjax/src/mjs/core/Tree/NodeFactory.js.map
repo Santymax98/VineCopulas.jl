@@ -1,0 +1,1 @@
+{"version":3,"file":"NodeFactory.js","sourceRoot":"","sources":["../../../ts/core/Tree/NodeFactory.ts"],"names":[],"mappings":"AAwBA,OAAO,EAA6B,eAAe,EAAE,MAAM,cAAc,CAAC;AA6B1E,MAAM,OAAgB,mBAGpB,SAAQ,eAAqB;IAItB,MAAM,CACX,IAAY,EACZ,aAA2B,EAAE,EAC7B,WAAgB,EAAE;QAElB,OAAO,IAAI,CAAC,IAAI,CAAC,IAAI,CAAC,CAAC,UAAU,EAAE,QAAQ,CAAC,CAAC;IAC/C,CAAC;CACF"}

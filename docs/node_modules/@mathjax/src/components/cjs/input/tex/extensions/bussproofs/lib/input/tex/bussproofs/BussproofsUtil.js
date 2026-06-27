@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, '__esModule', {value: true});
+const def = MathJax._.input.tex.bussproofs.BussproofsUtil;
+exports.balanceRules = def.balanceRules;
+exports.setProperty = def.setProperty;
+exports.getProperty = def.getProperty;
+exports.removeProperty = def.removeProperty;
+exports.makeBsprAttributes = def.makeBsprAttributes;
+exports.saveDocument = def.saveDocument;
+exports.clearDocument = def.clearDocument;

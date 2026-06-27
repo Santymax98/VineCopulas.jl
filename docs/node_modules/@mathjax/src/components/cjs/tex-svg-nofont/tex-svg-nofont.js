@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var init_js_1 = require("../startup/init.js");
+var loader_js_1 = require("#js/components/loader.js");
+require("../core/core.js");
+require("../input/tex/tex.js");
+var svg_js_1 = require("../output/svg/svg.js");
+require("../ui/menu/menu.js");
+require("../a11y/util.js");
+loader_js_1.Loader.preLoaded('core', 'input/tex', 'output/svg', 'ui/menu');
+loader_js_1.Loader.saveVersion('tex-svg-nofont');
+(0, svg_js_1.loadFont)(init_js_1.startup);

@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, '__esModule', {value: true});
+const def = MathJax._.a11y.explorer.Region;
+exports.AbstractRegion = def.AbstractRegion;
+exports.DummyRegion = def.DummyRegion;
+exports.StringRegion = def.StringRegion;
+exports.ToolTip = def.ToolTip;
+exports.LiveRegion = def.LiveRegion;
+exports.SpeechRegion = def.SpeechRegion;
+exports.HoverRegion = def.HoverRegion;

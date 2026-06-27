@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, '__esModule', {value: true});
+const g = (typeof window !== 'undefined' ? window : global);
+const def = g.MathJax._.components.global;
+exports.GLOBAL = def.GLOBAL;
+exports.isObject = def.isObject;
+exports.combineConfig = def.combineConfig;
+exports.combineDefaults = def.combineDefaults;
+exports.combineWithMathJax = def.combineWithMathJax;
+exports.MathJax = def.MathJax;

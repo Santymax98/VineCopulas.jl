@@ -1,0 +1,10 @@
+import { CommonWrapper, CommonWrapperClass, Constructor } from '../Wrapper.js';
+import { CommonWrapperFactory } from '../WrapperFactory.js';
+import { CharOptions, VariantData, DelimiterData, FontData, FontDataClass } from '../FontData.js';
+import { CommonOutputJax } from '../../common.js';
+import { CommonMsqrt, CommonMsqrtClass } from './msqrt.js';
+export interface CommonMroot<N, T, D, JX extends CommonOutputJax<N, T, D, WW, WF, WC, CC, VV, DD, FD, FC>, WW extends CommonWrapper<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>, WF extends CommonWrapperFactory<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>, WC extends CommonWrapperClass<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>, CC extends CharOptions, VV extends VariantData<CC>, DD extends DelimiterData, FD extends FontData<CC, VV, DD>, FC extends FontDataClass<CC, VV, DD>> extends CommonMsqrt<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC> {
+}
+export interface CommonMrootClass<N, T, D, JX extends CommonOutputJax<N, T, D, WW, WF, WC, CC, VV, DD, FD, FC>, WW extends CommonWrapper<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>, WF extends CommonWrapperFactory<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>, WC extends CommonWrapperClass<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>, CC extends CharOptions, VV extends VariantData<CC>, DD extends DelimiterData, FD extends FontData<CC, VV, DD>, FC extends FontDataClass<CC, VV, DD>> extends CommonMsqrtClass<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC> {
+}
+export declare function CommonMrootMixin<N, T, D, JX extends CommonOutputJax<N, T, D, WW, WF, WC, CC, VV, DD, FD, FC>, WW extends CommonWrapper<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>, WF extends CommonWrapperFactory<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>, WC extends CommonWrapperClass<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>, CC extends CharOptions, VV extends VariantData<CC>, DD extends DelimiterData, FD extends FontData<CC, VV, DD>, FC extends FontDataClass<CC, VV, DD>, B extends CommonMsqrtClass<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>>(Base: Constructor<CommonMsqrt<N, T, D, JX, WW, WF, WC, CC, VV, DD, FD, FC>>): B;

@@ -1,0 +1,9 @@
+const def = MathJax._.a11y.sre_ts;
+export const locales = def.locales;
+export const setupEngine = def.setupEngine;
+export const engineSetup = def.engineSetup;
+export const toEnriched = def.toEnriched;
+export const parseDOM = def.parseDOM;
+export const addPreference = def.addPreference;
+export const fromPreference = def.fromPreference;
+export const toPreference = def.toPreference;

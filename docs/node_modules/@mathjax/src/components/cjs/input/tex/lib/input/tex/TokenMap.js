@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, '__esModule', {value: true});
+const def = MathJax._.input.tex.TokenMap;
+exports.parseResult = def.parseResult;
+exports.AbstractTokenMap = def.AbstractTokenMap;
+exports.RegExpMap = def.RegExpMap;
+exports.AbstractParseMap = def.AbstractParseMap;
+exports.CharacterMap = def.CharacterMap;
+exports.DelimiterMap = def.DelimiterMap;
+exports.MacroMap = def.MacroMap;
+exports.CommandMap = def.CommandMap;
+exports.EnvironmentMap = def.EnvironmentMap;

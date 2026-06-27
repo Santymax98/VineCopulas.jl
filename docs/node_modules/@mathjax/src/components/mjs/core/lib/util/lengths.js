@@ -1,0 +1,9 @@
+const def = MathJax._.util.lengths;
+export const BIGDIMEN = def.BIGDIMEN;
+export const UNITS = def.UNITS;
+export const RELUNITS = def.RELUNITS;
+export const MATHSPACE = def.MATHSPACE;
+export const length2em = def.length2em;
+export const percent = def.percent;
+export const em = def.em;
+export const px = def.px;

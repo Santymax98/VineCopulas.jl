@@ -1,0 +1,1 @@
+{"version":3,"file":"WrapperFactory.js","sourceRoot":"","sources":["../../../ts/core/Tree/WrapperFactory.ts"],"names":[],"mappings":"AAyBA,OAAO,EAAW,eAAe,EAAE,MAAM,cAAc,CAAC;AAoCxD,MAAM,OAAgB,sBAMpB,SAAQ,eAAuB;IAMxB,IAAI,CAAqB,IAAO,EAAE,GAAG,IAAW;QACrD,OAAO,IAAI,CAAC,MAAM,CAAC,IAAI,CAAC,IAAI,EAAE,IAAI,EAAE,GAAG,IAAI,CAAO,CAAC;IACrD,CAAC;CACF"}

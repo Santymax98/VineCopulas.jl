@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, '__esModule', {value: true});
+const def = MathJax._.a11y.sre_ts;
+exports.locales = def.locales;
+exports.setupEngine = def.setupEngine;
+exports.engineSetup = def.engineSetup;
+exports.toEnriched = def.toEnriched;
+exports.parseDOM = def.parseDOM;
+exports.addPreference = def.addPreference;
+exports.fromPreference = def.fromPreference;
+exports.toPreference = def.toPreference;

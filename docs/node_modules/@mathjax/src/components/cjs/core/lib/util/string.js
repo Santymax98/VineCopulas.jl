@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, '__esModule', {value: true});
+const def = MathJax._.util.string;
+exports.sortLength = def.sortLength;
+exports.quotePattern = def.quotePattern;
+exports.unicodeChars = def.unicodeChars;
+exports.unicodeString = def.unicodeString;
+exports.isPercent = def.isPercent;
+exports.split = def.split;
+exports.replaceUnicode = def.replaceUnicode;
+exports.toEntity = def.toEntity;

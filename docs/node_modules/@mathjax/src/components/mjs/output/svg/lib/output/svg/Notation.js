@@ -1,0 +1,10 @@
+const def = MathJax._.output.svg.Notation;
+export const computeLineData = def.computeLineData;
+export const lineData = def.lineData;
+export const lineOffset = def.lineOffset;
+export const RenderLine = def.RenderLine;
+export const Border = def.Border;
+export const Border2 = def.Border2;
+export const DiagonalStrike = def.DiagonalStrike;
+export const DiagonalArrow = def.DiagonalArrow;
+export const Arrow = def.Arrow;

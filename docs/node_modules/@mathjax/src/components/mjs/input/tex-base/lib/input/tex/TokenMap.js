@@ -1,0 +1,10 @@
+const def = MathJax._.input.tex.TokenMap;
+export const parseResult = def.parseResult;
+export const AbstractTokenMap = def.AbstractTokenMap;
+export const RegExpMap = def.RegExpMap;
+export const AbstractParseMap = def.AbstractParseMap;
+export const CharacterMap = def.CharacterMap;
+export const DelimiterMap = def.DelimiterMap;
+export const MacroMap = def.MacroMap;
+export const CommandMap = def.CommandMap;
+export const EnvironmentMap = def.EnvironmentMap;

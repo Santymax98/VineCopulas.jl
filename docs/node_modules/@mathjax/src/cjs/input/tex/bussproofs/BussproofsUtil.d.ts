@@ -1,0 +1,20 @@
+import ParseOptions from '../ParseOptions.js';
+import { MmlNode } from '../../../core/MmlTree/MmlNode.js';
+import { Property } from '../../../core/Tree/Node.js';
+import { MathItem } from '../../../core/MathItem.js';
+import { MathDocument } from '../../../core/MathDocument.js';
+type MATHITEM = MathItem<any, any, any>;
+type MATHDOCUMENT = MathDocument<any, any, any>;
+type FilterData = {
+    math: MATHITEM;
+    document: MATHDOCUMENT;
+    data: ParseOptions;
+};
+export declare const balanceRules: (arg: FilterData) => void;
+export declare const setProperty: (node: MmlNode, property: string, value: Property) => void;
+export declare const getProperty: (node: MmlNode, property: string) => Property;
+export declare const removeProperty: (node: MmlNode, property: string) => void;
+export declare const makeBsprAttributes: (arg: FilterData) => void;
+export declare const saveDocument: (arg: FilterData) => void;
+export declare const clearDocument: (_arg: FilterData) => void;
+export {};

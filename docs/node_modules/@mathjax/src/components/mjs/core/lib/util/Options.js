@@ -1,0 +1,17 @@
+const def = MathJax._.util.Options;
+export const isObject = def.isObject;
+export const APPEND = def.APPEND;
+export const REMOVE = def.REMOVE;
+export const OPTIONS = def.OPTIONS;
+export const Expandable = def.Expandable;
+export const expandable = def.expandable;
+export const makeArray = def.makeArray;
+export const keys = def.keys;
+export const copy = def.copy;
+export const insert = def.insert;
+export const defaultOptions = def.defaultOptions;
+export const userOptions = def.userOptions;
+export const selectOptions = def.selectOptions;
+export const selectOptionsFromKeys = def.selectOptionsFromKeys;
+export const separateOptions = def.separateOptions;
+export const lookup = def.lookup;

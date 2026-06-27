@@ -15,6 +15,13 @@ import Copulas: rosenblatt, inverse_rosenblatt
 
 const PairCopula = Copulas.Copula{2}
 
+"""
+    AbstractVineCopula{p} <: Copulas.Copula{p}
+
+Abstract supertype for all `p`-dimensional vine copula models implemented by
+`VineCopulas.jl`. Concrete subtypes include [`CVineCopula`](@ref),
+[`DVineCopula`](@ref), and [`RVineCopula`](@ref).
+"""
 abstract type AbstractVineCopula{p} <: Copulas.Copula{p} end
 const VineCopula = AbstractVineCopula
 

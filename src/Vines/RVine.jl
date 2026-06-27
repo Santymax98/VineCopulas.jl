@@ -3,6 +3,12 @@
 # Matrix support is included as an exchange format, but the operational core uses
 # structure arrays plus pair-copula arrays.
 
+"""
+    VineEdge
+
+Description of a pair-copula edge in a vine tree, including the conditioned
+variables, conditioning set, pair-copula, tree level, and within-tree index.
+"""
 struct VineEdge{C<:PairCopula,K}
     conditioned::NTuple{2,Int}
     conditioning::K
@@ -11,6 +17,13 @@ struct VineEdge{C<:PairCopula,K}
     index::Int
 end
 
+"""
+    RVineStructure(order, struct_array; trunc=length(order)-1)
+
+Internal representation of a regular-vine structure. It stores the variable
+order, triangular structure array, optional exchange matrix, and truncation
+level.
+"""
 struct RVineStructure{p,q}
     order::NTuple{p,Int}
     struct_array::NTuple{q,Vector{Int}}
@@ -18,6 +31,14 @@ struct RVineStructure{p,q}
     trunc::Int
 end
 
+"""
+    RVineCopula(order, struct_array, edges; trunc=length(order)-1)
+    RVineCopula(matrix, edges)
+
+Construct a regular-vine copula from an explicit structure array or from an
+R-vine matrix exchange representation. General R-vine support in v0.1 is more
+experimental than the C-vine and D-vine engines.
+"""
 struct RVineCopula{p,q} <: AbstractVineCopula{p}
     structure::RVineStructure{p,q}
     edges::NTuple{q,Vector{PairCopula}}
@@ -80,6 +101,13 @@ truncation(vc::RVineCopula) = vc.trunc
 
 Base.show(io::IO, vc::RVineCopula{p}) where {p} = print(io, "RVineCopula(p=$p, trunc=$(vc.trunc))")
 
+"""
+    rvine_matrix(vc::RVineCopula)
+
+Return an integer matrix representation of an `RVineCopula`. If the object was
+constructed from a matrix, a copy of that original matrix is returned; otherwise
+one is built from the stored structure array and order.
+"""
 function rvine_matrix(vc::RVineCopula{p}) where {p}
     vc.structure.matrix !== nothing && return copy(vc.structure.matrix)
     M = zeros(Int, p, p)

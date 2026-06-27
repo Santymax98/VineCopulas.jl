@@ -1,0 +1,1 @@
+{"version":3,"file":"mphantom.js","sourceRoot":"","sources":["../../../../ts/core/MmlTree/MmlNodes/mphantom.ts"],"names":[],"mappings":"AAwBA,OAAO,EAAE,qBAAqB,EAAE,QAAQ,EAAE,MAAM,eAAe,CAAC;AAOhE,MAAM,OAAO,WAAY,SAAQ,qBAAqB;IAAtD;;QAWY,aAAQ,GAAG,QAAQ,CAAC,GAAG,CAAC;IAQpC,CAAC;IAHC,IAAW,IAAI;QACb,OAAO,UAAU,CAAC;IACpB,CAAC;;AAda,oBAAQ,qBACjB,qBAAqB,CAAC,QAAQ,CADb,CAEpB"}

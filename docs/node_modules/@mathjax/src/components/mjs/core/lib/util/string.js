@@ -1,0 +1,9 @@
+const def = MathJax._.util.string;
+export const sortLength = def.sortLength;
+export const quotePattern = def.quotePattern;
+export const unicodeChars = def.unicodeChars;
+export const unicodeString = def.unicodeString;
+export const isPercent = def.isPercent;
+export const split = def.split;
+export const replaceUnicode = def.replaceUnicode;
+export const toEntity = def.toEntity;

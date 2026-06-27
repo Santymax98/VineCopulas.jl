@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var init_js_1 = require("../startup/init.js");
+var loader_js_1 = require("#js/components/loader.js");
+require("../core/core.js");
+require("../input/tex/tex.js");
+require("../input/mml/mml.js");
+var chtml_js_1 = require("../output/chtml/chtml.js");
+require("../ui/menu/menu.js");
+require("../a11y/util.js");
+loader_js_1.Loader.preLoaded('loader', 'startup', 'core', 'input/tex', 'input/mml', 'output/chtml', 'ui/menu');
+loader_js_1.Loader.saveVersion('tex-mml-chtml');
+(0, chtml_js_1.loadFont)(init_js_1.startup, true);

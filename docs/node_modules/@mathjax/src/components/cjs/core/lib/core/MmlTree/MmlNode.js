@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, '__esModule', {value: true});
+const def = MathJax._.core.MmlTree.MmlNode;
+exports.TEXCLASS = def.TEXCLASS;
+exports.TEXCLASSNAMES = def.TEXCLASSNAMES;
+exports.MATHVARIANTS = def.MATHVARIANTS;
+exports.indentAttributes = def.indentAttributes;
+exports.AbstractMmlNode = def.AbstractMmlNode;
+exports.AbstractMmlTokenNode = def.AbstractMmlTokenNode;
+exports.AbstractMmlLayoutNode = def.AbstractMmlLayoutNode;
+exports.AbstractMmlBaseNode = def.AbstractMmlBaseNode;
+exports.AbstractMmlEmptyNode = def.AbstractMmlEmptyNode;
+exports.TextNode = def.TextNode;
+exports.XMLNode = def.XMLNode;

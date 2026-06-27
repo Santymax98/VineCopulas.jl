@@ -1,0 +1,1 @@
+{"version":3,"file":"Text.js","sourceRoot":"","sources":["../../../ts/adaptors/lite/Text.ts"],"names":[],"mappings":"AA6BA,MAAM,OAAO,QAAQ;IAgBnB,IAAW,IAAI;QACb,OAAO,OAAO,CAAC;IACjB,CAAC;IAMD,YAAY,OAAe,EAAE;QAC3B,IAAI,CAAC,KAAK,GAAG,IAAI,CAAC;IACpB,CAAC;CACF;AAMD,MAAM,OAAO,WAAY,SAAQ,QAAQ;IACvC,IAAW,IAAI;QACb,OAAO,UAAU,CAAC;IACpB,CAAC;CACF"}

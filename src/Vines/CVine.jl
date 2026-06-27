@@ -2,6 +2,17 @@
 # Convention for edges[k][i]: pair-copula C_{root, child | previous roots},
 # where root = order[k] and child = order[k+i]. The copula coordinates are (root, child).
 
+"""
+    CVineCopula(order, edges; trunc=length(order)-1)
+
+Construct a canonical vine copula from a variable `order` and a triangular
+collection of bivariate pair-copulas. The entry `edges[k][i]` represents the
+pair-copula between the root `order[k]` and the child `order[k+i]`, conditional
+on the previous roots `order[1:k-1]`.
+
+Matrices of observations follow the package convention `p × n`: rows are
+dimensions and columns are observations.
+"""
 struct CVineCopula{p,q} <: AbstractVineCopula{p}
     order::NTuple{p,Int}
     edges::NTuple{q,Vector{PairCopula}}
