@@ -1,6 +1,0 @@
-{
-  "webpack": {
-    "name": "input/mml/entities",
-    "libs": ["components/src/core/lib"]
-  }
-}

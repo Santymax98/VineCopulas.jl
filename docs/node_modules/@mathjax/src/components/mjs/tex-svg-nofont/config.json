@@ -1,6 +1,0 @@
-{
-  "webpack": {
-    "name": "tex-svg-nofont",
-    "font": false
-  }
-}
