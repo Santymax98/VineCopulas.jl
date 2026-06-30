@@ -24,4 +24,6 @@ rv2 = RVineCopula(M, collect(edges(rv)))
 (order(rv2), struct_array(rv2))
 ```
 
-General R-vine support is more experimental than C-vine and D-vine support. Natural D-vine-like R-vines delegate to the D-vine engine. General truncated R-vine Rosenblatt traversal is not part of the stable v0.1 scope.
+General R-vine support is more experimental than C-vine and D-vine support. Natural D-vine-like R-vines delegate to the D-vine engine. General full, non-truncated R-vines have experimental density and Rosenblatt/inverse Rosenblatt traversal. General truncated R-vine Rosenblatt traversal is not part of the stable v0.1 scope.
+
+The pair-copula containers preserve concrete types where possible. For mixed R-vines, tuple levels can be used when the user wants the compiler to retain family information per edge.

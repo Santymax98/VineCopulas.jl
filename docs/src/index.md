@@ -39,12 +39,12 @@ A vine copula is useful when a single multivariate copula family is too restrict
 
 ## What is implemented?
 
-- `CVineCopula`, `DVineCopula` and `RVineCopula` model types.
+- stable `CVineCopula` and `DVineCopula` model types; experimental `RVineCopula` support for explicit structures.
 - `pdf`, `logpdf`, `rand`, numerical `cdf` and `simulate_qmc`.
 - Rosenblatt and inverse Rosenblatt transforms.
 - Truncated C-vines and D-vines.
 - Pair-copula conditional primitives: `hfunc1`, `hfunc2`, `hinv1`, `hinv2`.
-- Elliptical, Archimedean, BB, survival/rotated and bivariate extreme-value pair-copulas where the required conditional primitives are available.
+- Elliptical, Archimedean, BB, survival/rotated and bivariate extreme-value pair-copulas where the required conditional primitives are available. The pair-copula source layout is organized by family to make performance specializations local and auditable.
 - Lightweight model summaries: `loglikelihood`, `npars`, `aic`, and `bic`.
 
 ## What is not implemented yet?
@@ -79,6 +79,7 @@ Pages = [
     "examples/minimal_dvine.md",
     "examples/large_simulation.md",
     "comparison/rvinecopulib.md",
+    "comparison/benchmarks.md",
     "citation.md",
 ]
 Depth = 2

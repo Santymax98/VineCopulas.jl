@@ -20,26 +20,26 @@ C13_2 = FrankCopula(2, 3.0)
 dv = DVineCopula([1, 2, 3], [[C12, C23], [C13_2]])
 ```
 """
-struct DVineCopula{p,q} <: AbstractVineCopula{p}
+struct DVineCopula{p,q,E} <: AbstractVineCopula{p}
     order::NTuple{p,Int}
-    edges::NTuple{q,Vector{PairCopula}}
+    edges::E
     trunc::Int
 end
 
 function DVineCopula(; order, paircopulas, trunc = length(order) - 1)
     ord = collect(Int, order)
-    pcs = [Copulas.Copula{2}[pc for pc in level] for level in paircopulas]
+    pcs = [collect(level) for level in paircopulas]
     return DVineCopula(ord, pcs; trunc = trunc)
 end
 
-function DVineCopula(order::AbstractVector{<:Integer}, edges::AbstractVector; trunc::Int=length(order)-1)
+function DVineCopula(order::AbstractVector{<:Integer}, edges; trunc::Int=length(order)-1)
     p = _check_order(order)
     1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
     E = _normalize_edges(edges, p, trunc)
-    return DVineCopula{p,trunc}(Tuple(Int.(order)), E, trunc)
+    return DVineCopula{p,trunc,typeof(E)}(Tuple(Int.(order)), E, trunc)
 end
 
-function DVineCopula(edges::AbstractVector; order=nothing, trunc::Int=length(edges))
+function DVineCopula(edges; order=nothing, trunc::Int=length(edges))
     p = length(edges) + 1
     order === nothing && (order = collect(1:p))
     return DVineCopula(order, edges; trunc=trunc)

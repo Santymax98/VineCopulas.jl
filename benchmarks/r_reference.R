@@ -1,0 +1,42 @@
+library(rvinecopulib)
+source("benchmarks/r_helpers.R")
+
+family <- str_env("FAMILY", "gaussian")
+model <- str_env("MODEL", "D")
+p <- int_env("P", 5)
+n <- int_env("N", 10000)
+trunc <- int_env("TRUNC", p - 1)
+cdf_points <- int_env("CDF_POINTS", 25)
+cdf_n <- int_env("CDF_N", 10000)
+
+vc <- make_vine(model, family, p, trunc)
+set.seed(2026)
+U <- rvinecop(n, vc)
+Z <- rosenblatt(U, vc)
+
+logdens <- log(dvinecop(U, vc))
+ros <- rosenblatt(U, vc)
+inv <- inverse_rosenblatt(Z, vc)
+Ucdf <- U[seq_len(min(cdf_points, n)), , drop = FALSE]
+cdf_vals <- safe_pvinecop(Ucdf, vc, cdf_n)
+
+prefix <- paste0("benchmarks/reference/", model, "_", family, "_p", p, "_n", n, "_trunc", trunc)
+dir.create(dirname(prefix), recursive = TRUE, showWarnings = FALSE)
+
+write.csv(U, paste0(prefix, "_U.csv"), row.names = FALSE)
+write.csv(Z, paste0(prefix, "_Z.csv"), row.names = FALSE)
+write.csv(logdens, paste0(prefix, "_logdens.csv"), row.names = FALSE)
+write.csv(ros, paste0(prefix, "_rosenblatt.csv"), row.names = FALSE)
+write.csv(inv, paste0(prefix, "_inverse_rosenblatt.csv"), row.names = FALSE)
+write.csv(Ucdf, paste0(prefix, "_Ucdf.csv"), row.names = FALSE)
+write.csv(cdf_vals, paste0(prefix, "_cdf.csv"), row.names = FALSE)
+
+cat("rvinecopulib reference saved\n")
+cat("family     =", family, "\n")
+cat("model      =", model, "\n")
+cat("p          =", p, "\n")
+cat("n          =", n, "\n")
+cat("trunc      =", trunc, "\n")
+cat("cdf_points =", cdf_points, "\n")
+cat("cdf_n      =", cdf_n, "\n")
+cat("prefix     =", prefix, "\n")

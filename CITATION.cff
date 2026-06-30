@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use VineCopulas.jl, please cite it using these metadata."
+title: "VineCopulas.jl: Native Julia vine copula models built on Copulas.jl"
+authors:
+  - family-names: "Jimenez"
+    given-names: "Santiago"
+version: "0.1.0"
+date-released: "2026-06-27"
+license: "MIT"
+repository-code: "https://github.com/Santymax98/VineCopulas.jl"

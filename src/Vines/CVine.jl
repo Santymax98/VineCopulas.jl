@@ -22,26 +22,26 @@ C23_1 = FrankCopula(2, 3.0)
 cv = CVineCopula([1, 2, 3], [[C12, C13], [C23_1]])
 ```
 """
-struct CVineCopula{p,q} <: AbstractVineCopula{p}
+struct CVineCopula{p,q,E} <: AbstractVineCopula{p}
     order::NTuple{p,Int}
-    edges::NTuple{q,Vector{PairCopula}}
+    edges::E
     trunc::Int
 end
 
 function CVineCopula(; order, paircopulas, trunc = length(order) - 1)
     ord = collect(Int, order)
-    pcs = [Copulas.Copula{2}[pc for pc in level] for level in paircopulas]
+    pcs = [collect(level) for level in paircopulas]
     return CVineCopula(ord, pcs; trunc = trunc)
 end
 
-function CVineCopula(order::AbstractVector{<:Integer}, edges::AbstractVector; trunc::Int=length(order)-1)
+function CVineCopula(order::AbstractVector{<:Integer}, edges; trunc::Int=length(order)-1)
     p = _check_order(order)
     1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
     E = _normalize_edges(edges, p, trunc)
-    return CVineCopula{p,trunc}(Tuple(Int.(order)), E, trunc)
+    return CVineCopula{p,trunc,typeof(E)}(Tuple(Int.(order)), E, trunc)
 end
 
-function CVineCopula(edges::AbstractVector; order=nothing, trunc::Int=length(edges))
+function CVineCopula(edges; order=nothing, trunc::Int=length(edges))
     p = length(edges) + 1
     order === nothing && (order = collect(1:p))
     return CVineCopula(order, edges; trunc=trunc)

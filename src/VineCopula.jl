@@ -252,7 +252,7 @@ end
 # Generic fallback for arbitrary pair-copulas.
 #
 # The inverse of the first derivative of an Archimedean generator is
-# intentionally defined in Conditionals/Archimedeans.jl, because it belongs
+# intentionally defined in PairCopulas/Archimedeans/ArchimedeanCopula.jl, because it belongs
 # to the Archimedean conditional formula and must not be defined twice during
 # precompilation.
 

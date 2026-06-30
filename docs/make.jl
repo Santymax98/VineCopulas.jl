@@ -47,6 +47,7 @@ makedocs(;
         ],
         "Comparison" => [
             "rvinecopulib" => "comparison/rvinecopulib.md",
+            "Benchmarks and validation" => "comparison/benchmarks.md",
         ],
         "API" => [
             "Public" => "api/public.md",

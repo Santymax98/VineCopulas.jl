@@ -12,6 +12,7 @@
 | Non-simplified vines | Not implemented |
 | Allocation-free high-performance kernels | Not implemented yet |
 | Benchmarked C++ parity | Not claimed |
+| Student-t performance | Correct and validated, but currently performance-limited by scalar Student-t CDF/quantile evaluations |
 | General truncated R-vine Rosenblatt traversal | Not stable yet |
 | Plackett/FGM/Raftery/M/W as tested vine pair-copulas | Not yet exposed as tested vine pair-copulas |
 

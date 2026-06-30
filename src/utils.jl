@@ -149,27 +149,36 @@ function _check_order(order::AbstractVector{<:Integer})
     return p
 end
 
-function _check_edges(edges::AbstractVector, p::Int, trunc::Int)
+
+function _check_edges(edges, p::Int, trunc::Int)
     length(edges) == trunc || throw(ArgumentError("edges debe tener $trunc niveles"))
     @inbounds for k in 1:trunc
-        length(edges[k]) == p-k || throw(ArgumentError("edges[$k] debe tener $(p-k) pair-copulas; recibió $(length(edges[k]))"))
-        for C in edges[k]
+        level = edges[k]
+        length(level) == p-k || throw(ArgumentError("edges[$k] debe tener $(p-k) pair-copulas; recibió $(length(level))"))
+        for C in level
             C isa PairCopula || throw(ArgumentError("cada elemento de edges debe ser una cópula bivariada de Copulas.jl"))
         end
     end
     return nothing
 end
 
-function _normalize_edges(edges::AbstractVector, p::Int, trunc::Int)
+# Preserve concrete pair-copula container types whenever possible.
+#
+# Avoid converting user input to `Vector{PairCopula}`: that erases the concrete
+# family type and causes dynamic dispatch in the inner vine loops. Homogeneous
+# levels such as `Vector{GaussianCopula{2,...}}` remain concrete, while mixed
+# levels keep whatever element type Julia inferred from the input. Users who
+# need maximum type information for mixed vines can pass tuple levels.
+function _normalize_edges(edges, p::Int, trunc::Int)
     _check_edges(edges, p, trunc)
-    out = Vector{Vector{PairCopula}}(undef, trunc)
-    @inbounds for k in 1:trunc
-        out[k] = PairCopula[C for C in edges[k]]
-    end
-    return Tuple(out)
+    return Tuple(_normalize_edge_level(edges[k]) for k in 1:trunc)
 end
 
-function _normalize_struct_array(S::AbstractVector, p::Int, trunc::Int)
+@inline _normalize_edge_level(level::Tuple) = level
+@inline _normalize_edge_level(level::AbstractVector) = collect(level)
+@inline _normalize_edge_level(level) = Tuple(level)
+
+function _normalize_struct_array(S, p::Int, trunc::Int)
     length(S) == trunc || throw(ArgumentError("struct_array debe tener $trunc niveles"))
     out = Vector{Vector{Int}}(undef, trunc)
     @inbounds for k in 1:trunc
@@ -189,12 +198,6 @@ end
 @inline function _check_vector_dim(p::Int, u::AbstractVector)
     length(u) == p || throw(ArgumentError("u debe tener longitud $p; recibió $(length(u))"))
 end
-
-@inline function _pair_logpdf(C::PairCopula, u::Real, v::Real, buf::Vector{Float64})
-    buf[1], buf[2] = _clp(u), _clp(v)
-    return Distributions.logpdf(C, buf)
-end
-
 @inline function _invperm_tuple(order::NTuple{p,Int}) where {p}
     inv = Vector{Int}(undef, p)
     @inbounds for i in 1:p

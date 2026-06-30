@@ -14,6 +14,10 @@ The format follows the spirit of [Keep a Changelog](https://keepachangelog.com/e
 - Truncated C-vine and D-vine support.
 - R-vine matrix exchange helpers.
 - Pair-copula conditional primitives `hfunc1`, `hfunc2`, `hinv1`, and `hinv2`.
+- Performance-oriented pair-copula source layout under `src/PairCopulas/`.
+- Concrete edge-container preservation for C-vines, D-vines and R-vines when possible.
+- Closed-form fast paths for Gaussian pair log-density and selected rvinecopulib-overlap Archimedean densities.
+- Local benchmark scripts against `rvinecopulib` for explicit C-vine/D-vine operations.
 - Support for elliptical, Archimedean, BB, survival/rotated, and bivariate extreme-value pair-copulas from `Copulas.jl`.
 - Stable conditional inverses for several Archimedean and extreme-value families.
 - Modular test suite based on `TestItems.jl`.
@@ -23,4 +27,4 @@ The format follows the spirit of [Keep a Changelog](https://keepachangelog.com/e
 - No automatic pair-copula estimation yet.
 - No automatic family, truncation, or vine-structure selection yet.
 - General truncated R-vine Rosenblatt traversal is not part of the stable v0.1 scope.
-- Performance work such as allocation-free kernels and multithreading is deferred to later releases.
+- Further performance work such as allocation-free vine buffers, multithreading and additional closed-form BB-family kernels is deferred to later releases.

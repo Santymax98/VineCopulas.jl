@@ -8,6 +8,8 @@ import Roots
 import QuasiMonteCarlo
 import LambertW
 import LogExpFunctions
+import SpecialFunctions
+import StatsFuns
 
 using Reexport
 @reexport using Copulas
@@ -39,10 +41,28 @@ const VineCopula = AbstractVineCopula
 include("utils.jl")
 include("VineCopula.jl")
 
-include("Conditionals/Ellipticals.jl")
-include("Conditionals/Archimedeans.jl")
-include("Conditionals/ExtremeValue.jl")
-include("Conditionals/Miscellaneous.jl")
+include("PairCopulas/Generic.jl")
+include("PairCopulas/Ellipticals/GaussianCopula.jl")
+include("PairCopulas/Ellipticals/TCopula.jl")
+include("PairCopulas/Archimedeans/ArchimedeanCopula.jl")
+include("PairCopulas/Archimedeans/AMHCopula.jl")
+include("PairCopulas/Archimedeans/ClaytonCopula.jl")
+include("PairCopulas/Archimedeans/GumbelBarnettCopula.jl")
+include("PairCopulas/Archimedeans/GumbelCopula.jl")
+include("PairCopulas/Archimedeans/FrankCopula.jl")
+include("PairCopulas/Archimedeans/InvGaussianCopula.jl")
+include("PairCopulas/Archimedeans/JoeCopula.jl")
+include("PairCopulas/Archimedeans/BB1Copula.jl")
+include("PairCopulas/Archimedeans/BB2Copula.jl")
+include("PairCopulas/Archimedeans/BB3Copula.jl")
+include("PairCopulas/Archimedeans/BB6Copula.jl")
+include("PairCopulas/Archimedeans/BB7Copula.jl")
+include("PairCopulas/Archimedeans/BB8Copula.jl")
+include("PairCopulas/Archimedeans/BB9Copula.jl")
+include("PairCopulas/Archimedeans/BB10Copula.jl")
+include("PairCopulas/ExtremeValue/ExtremeValueCopula.jl")
+include("PairCopulas/Miscellaneous/IndependentCopula.jl")
+include("PairCopulas/Miscellaneous/MiscellaneousCopulas.jl")
 
 include("Vines/CVine.jl")
 include("Vines/DVine.jl")

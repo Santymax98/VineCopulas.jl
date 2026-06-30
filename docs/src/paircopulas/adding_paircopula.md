@@ -7,10 +7,11 @@ A contributor who wants to make a `Copulas.jl` bivariate family work reliably in
 For a bivariate copula `C::Copulas.Copula{2}`, vines need:
 
 ```julia
-hfunc1(C, u, v)  # F₁|₂(u | v)
-hfunc2(C, u, v)  # F₂|₁(v | u)
-hinv1(C, q, v)   # inverse in u, given v
-hinv2(C, q, u)   # inverse in v, given u
+_pair_logpdf(C, u, v, buf)  # scalar log-density contribution
+hfunc1(C, u, v)             # F₁|₂(u | v)
+hfunc2(C, u, v)             # F₂|₁(v | u)
+hinv1(C, q, v)              # inverse in u, given v
+hinv2(C, q, u)              # inverse in v, given u
 ```
 
 The expected identities are:
@@ -27,7 +28,7 @@ For singular families, generalized inverses are acceptable, but tests should enc
 
 1. Confirm that the family exists and has valid `pdf`, `logpdf`, and `cdf` in `Copulas.jl`.
 2. Check whether the generic `ForwardDiff`/root-finding fallback is accurate enough.
-3. If the fallback is unstable, add specialized methods in an appropriate file under `src/Conditionals/`.
+3. If the fallback is unstable, add specialized methods in an appropriate file under `src/PairCopulas/`.
 4. Add a pair-copula test using `M.check_paircopula(C)` or a singular-aware variant.
 5. Add at least one vine-level test using the family inside a small `CVineCopula` or `DVineCopula`.
 6. Update `docs/src/paircopulas/supported_families.md`.
@@ -37,23 +38,30 @@ For singular families, generalized inverses are acceptable, but tests should enc
 
 | Family type | Suggested file |
 |---|---|
-| Elliptical | `src/Conditionals/Ellipticals.jl` |
-| Archimedean or BB | `src/Conditionals/Archimedeans.jl` |
-| Extreme-value | `src/Conditionals/ExtremeValue.jl` |
-| Survival/rotated/miscellaneous | `src/Conditionals/Miscellaneous.jl` |
+| Elliptical | `src/PairCopulas/Ellipticals/<Family>.jl` |
+| Archimedean or BB | `src/PairCopulas/Archimedeans/<Family>.jl` |
+| Extreme-value | `src/PairCopulas/ExtremeValue/ExtremeValueCopula.jl` |
+| Survival/rotated/miscellaneous | `src/PairCopulas/Miscellaneous/<Family>.jl` |
 
 ## Example skeleton
 
 ```julia
-function hfunc1(C::Copulas.SomeCopula{2}, uv::Tuple{<:Real,<:Real})
-    u, v = _clp(uv[1]), _clp(uv[2])
+@inline function _pair_logpdf(C::Copulas.SomeCopula{2}, u::Real, v::Real, buf::Vector{Float64})
+    # return log c(u,v) without allocating if possible
+end
+
+@inline function hfunc1(C::Copulas.SomeCopula{2}, u::Real, v::Real)
+    u, v = _clp(u), _clp(v)
     # return F_{1|2}(u | v)
 end
 
-function hfunc2(C::Copulas.SomeCopula{2}, uv::Tuple{<:Real,<:Real})
-    u, v = _clp(uv[1]), _clp(uv[2])
+@inline function hfunc2(C::Copulas.SomeCopula{2}, u::Real, v::Real)
+    u, v = _clp(u), _clp(v)
     # return F_{2|1}(v | u)
 end
+
+@inline hfunc1(C::Copulas.SomeCopula{2}, uv::Tuple{<:Real,<:Real}) = hfunc1(C, uv[1], uv[2])
+@inline hfunc2(C::Copulas.SomeCopula{2}, uv::Tuple{<:Real,<:Real}) = hfunc2(C, uv[1], uv[2])
 
 function hinv1(C::Copulas.SomeCopula{2}, q::Real, v::Real)
     q, v = _clp(q), _clp(v)

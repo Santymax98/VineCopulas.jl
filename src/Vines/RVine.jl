@@ -39,13 +39,13 @@ Construct a regular-vine copula from an explicit structure array or from an
 R-vine matrix exchange representation. General R-vine support in v0.1 is more
 experimental than the C-vine and D-vine engines.
 """
-struct RVineCopula{p,q} <: AbstractVineCopula{p}
+struct RVineCopula{p,q,E} <: AbstractVineCopula{p}
     structure::RVineStructure{p,q}
-    edges::NTuple{q,Vector{PairCopula}}
+    edges::E
     trunc::Int
 end
 
-function RVineStructure(order::AbstractVector{<:Integer}, struct_array::AbstractVector; trunc::Int=length(order)-1, matrix=nothing)
+function RVineStructure(order::AbstractVector{<:Integer}, struct_array; trunc::Int=length(order)-1, matrix=nothing)
     p = _check_order(order)
     1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
     S = _normalize_struct_array(struct_array, p, trunc)
@@ -53,13 +53,13 @@ function RVineStructure(order::AbstractVector{<:Integer}, struct_array::Abstract
     return RVineStructure{p,trunc}(Tuple(Int.(order)), S, M, trunc)
 end
 
-function RVineCopula(order::AbstractVector{<:Integer}, struct_array::AbstractVector, edges::AbstractVector; trunc::Int=length(order)-1)
+function RVineCopula(order::AbstractVector{<:Integer}, struct_array, edges; trunc::Int=length(order)-1)
     p = _check_order(order)
     1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
     S = _normalize_struct_array(struct_array, p, trunc)
     E = _normalize_edges(edges, p, trunc)
     st = RVineStructure{p,trunc}(Tuple(Int.(order)), S, nothing, trunc)
-    return RVineCopula{p,trunc}(st, E, trunc)
+    return RVineCopula{p,trunc,typeof(E)}(st, E, trunc)
 end
 
 # Lightweight matrix parser compatible with the package's natural-order triangular array.
@@ -85,13 +85,13 @@ function _rvine_from_matrix(M0::AbstractMatrix{<:Integer}, trunc::Int)
     return order, S, M
 end
 
-function RVineCopula(matrix::AbstractMatrix{<:Integer}, edges::AbstractVector)
+function RVineCopula(matrix::AbstractMatrix{<:Integer}, edges)
     trunc = length(edges)
     order, S, M = _rvine_from_matrix(matrix, trunc)
     p = _check_order(order)
     E = _normalize_edges(edges, p, trunc)
     st = RVineStructure{p,trunc}(Tuple(order), Tuple(S), M, trunc)
-    return RVineCopula{p,trunc}(st, E, trunc)
+    return RVineCopula{p,trunc,typeof(E)}(st, E, trunc)
 end
 
 """Return the variable order used by an `RVineCopula`."""
