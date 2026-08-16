@@ -5,6 +5,7 @@ import Distributions
 import Copulas
 import ForwardDiff
 import Roots
+import Optim
 import QuasiMonteCarlo
 import LambertW
 import LogExpFunctions
@@ -68,6 +69,7 @@ include("Vines/CVine.jl")
 include("Vines/DVine.jl")
 include("Vines/RVine.jl")
 
+include("fitting.jl")
 include("stats.jl")
 
 export PairCopula,
