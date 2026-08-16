@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Focused Student-t route. It is separated from the main battery because
-# TCopula is correct and validated, but currently performance-limited by
-# scalar Student-t CDF/quantile evaluations.
+# Focused Student-t route. It is separated from the main battery so scalar
+# Rmath/StatsFuns costs, fused pair reuse, and end-to-end vine performance can
+# be measured independently.
 
 : "${RUN_DIAGNOSTICS:=true}"
 : "${MODELS:=D}"

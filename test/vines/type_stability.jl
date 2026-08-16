@@ -25,6 +25,24 @@ end
     @test edges(dv)[2][1] isa FrankCopula
 end
 
+@testitem "Mixed vector edge levels preserve C/D density semantics" tags=[:Vines, :Performance, :MixedFamily] setup=[M] begin
+    using Test
+    using Distributions
+
+    g = M.gaussian_pair(0.35)
+    c = M.clayton_pair(1.5)
+    f = M.frank_pair(2.5)
+    Etuple = ((g, c), (f,))
+    Evector = [collect(Etuple[1]), collect(Etuple[2])]
+    U = [0.21 0.47 0.82; 0.36 0.61 0.73; 0.57 0.29 0.68]
+
+    for ctor in (CVineCopula, DVineCopula)
+        tuple_vine = ctor([1, 2, 3], Etuple)
+        vector_vine = ctor([1, 2, 3], Evector)
+        @test logpdf(vector_vine, U) ≈ logpdf(tuple_vine, U) atol=2e-12 rtol=2e-12
+    end
+end
+
 @testitem "Gaussian pair primitives have negligible scalar-loop allocations" tags=[:PairCopula, :Performance] setup=[M] begin
     pc = M.gaussian_pair(0.35)
     u = range(0.05, 0.95; length=100)

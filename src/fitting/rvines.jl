@@ -172,10 +172,7 @@ function _fit_rvine_candidates(
         if need_h
             h_a = Vector{Float64}(undef, nobs)
             h_b = Vector{Float64}(undef, nobs)
-            for col in 1:nobs
-                h_a[col] = hfunc1(C, c.u_a[col], c.u_b[col])
-                h_b[col] = hfunc2(C, c.u_a[col], c.u_b[col])
-            end
+            _pair_hfuncs!(h_a, h_b, C, c.u_a, c.u_b)
         else
             h_a = Float64[]
             h_b = Float64[]
@@ -440,10 +437,7 @@ function _fit_fixed_rvine(
                 ha = Vector{Float64}(undef, n)
                 hb = Vector{Float64}(undef, n)
                 C = fit.copula
-                for col in 1:n
-                    ha[col] = hfunc1(C, ua[col], ub[col])
-                    hb[col] = hfunc2(C, ua[col], ub[col])
-                end
+                _pair_hfuncs!(ha, hb, C, ua, ub)
                 states[oa] = ha
                 states[ob] = hb
             end
@@ -583,8 +577,10 @@ struct _RVineExecOp
     out_left::Int
     out_right::Int
     copula::PairCopula
-    need_out_left::Bool
+    need_out_left::Bool       # required by Rosenblatt/inverse or a later pair
     need_out_right::Bool
+    need_pair_left::Bool      # required by a later pair (log-density traversal)
+    need_pair_right::Bool
 end
 
 struct _RVineExecPlan
@@ -688,7 +684,8 @@ function _compile_standard_rvine(vc::RVineCopula{p}) where {p}
             sb = _new_slot!(states, ob, nextslot)
 
             push!(ops, _RVineExecOp(
-                t, e, states[ka], states[kb], sa, sb, E[t][e], true, true
+                t, e, states[ka], states[kb], sa, sb, E[t][e],
+                true, true, true, true,
             ))
             push!(column_ops[e], length(ops))
         end
@@ -711,11 +708,12 @@ function _compile_standard_rvine(vc::RVineCopula{p}) where {p}
     # Liveness analysis: compute an h-output only if a later pair consumes it
     # or if it is a final Rosenblatt coordinate. This is especially useful for
     # asymmetric general R-vines where many reverse h-functions are never used.
-    needed = falses(nextslot[])
+    pair_needed = falses(nextslot[])
     @inbounds for op in ops
-        needed[op.left] = true
-        needed[op.right] = true
+        pair_needed[op.left] = true
+        pair_needed[op.right] = true
     end
+    needed = copy(pair_needed)
     @inbounds for s in finalslots
         needed[s] = true
     end
@@ -725,7 +723,9 @@ function _compile_standard_rvine(vc::RVineCopula{p}) where {p}
         op = ops[i]
         liveops[i] = _RVineExecOp(
             op.tree, op.edge, op.left, op.right, op.out_left, op.out_right,
-            op.copula, needed[op.out_left], needed[op.out_right],
+            op.copula,
+            needed[op.out_left], needed[op.out_right],
+            pair_needed[op.out_left], pair_needed[op.out_right],
         )
     end
     ops = liveops
@@ -746,12 +746,60 @@ function _rvine_forward_op!(
     buf::Vector{Float64},
     ::Val{LOGPDF},
 ) where {CT<:PairCopula,LOGPDF}
-    @inbounds for col in axes(V, 2)
-        u = V[op.left, col]
-        v = V[op.right, col]
-        LOGPDF && (ll[col] += _pair_logpdf(C, u, v, buf))
-        op.need_out_left && (V[op.out_left, col] = hfunc1(C, u, v))
-        op.need_out_right && (V[op.out_right, col] = hfunc2(C, u, v))
+    need_left = LOGPDF ? op.need_pair_left : op.need_out_left
+    need_right = LOGPDF ? op.need_pair_right : op.need_out_right
+
+    # Liveness is constant for the whole edge. Log-density needs only outputs
+    # consumed by later pairs; Rosenblatt additionally keeps final coordinates.
+    # Branch once outside the hot observation loop and request exactly the
+    # fused subset that is consumed.
+    if LOGPDF
+        if need_left && need_right
+            @inbounds for col in axes(V, 2)
+                u = V[op.left, col]
+                v = V[op.right, col]
+                logc, h1, h2 = _pair_step(C, u, v, buf)
+                ll[col] += logc
+                V[op.out_left, col] = h1
+                V[op.out_right, col] = h2
+            end
+        elseif need_left
+            @inbounds for col in axes(V, 2)
+                u = V[op.left, col]
+                v = V[op.right, col]
+                logc, h1 = _pair_logpdf_h1(C, u, v, buf)
+                ll[col] += logc
+                V[op.out_left, col] = h1
+            end
+        elseif need_right
+            @inbounds for col in axes(V, 2)
+                u = V[op.left, col]
+                v = V[op.right, col]
+                logc, h2 = _pair_logpdf_h2(C, u, v, buf)
+                ll[col] += logc
+                V[op.out_right, col] = h2
+            end
+        else
+            @inbounds for col in axes(V, 2)
+                ll[col] += _pair_logpdf(C, V[op.left,col], V[op.right,col], buf)
+            end
+        end
+    elseif need_left && need_right
+        @inbounds for col in axes(V, 2)
+            u = V[op.left, col]
+            v = V[op.right, col]
+            h1, h2 = _pair_hfuncs(C, u, v)
+            V[op.out_left, col] = h1
+            V[op.out_right, col] = h2
+        end
+    elseif need_left
+        @inbounds for col in axes(V, 2)
+            V[op.out_left, col] = hfunc1(C, V[op.left,col], V[op.right,col])
+        end
+    elseif need_right
+        @inbounds for col in axes(V, 2)
+            V[op.out_right, col] = hfunc2(C, V[op.left,col], V[op.right,col])
+        end
     end
     return nothing
 end
@@ -777,14 +825,39 @@ function _rvine_propagate_op!(
     op::_RVineExecOp,
     C::CT,
 ) where {CT<:PairCopula}
-    @inbounds for col in axes(V, 2)
-        u = V[op.left, col]
-        v = V[op.right, col]
-        (isfinite(u) && isfinite(v)) || throw(ArgumentError(
-            "R-vine inverse plan encountered an unavailable conditional state"
-        ))
-        op.need_out_left && (V[op.out_left, col] = hfunc1(C, u, v))
-        op.need_out_right && (V[op.out_right, col] = hfunc2(C, u, v))
+    need_left = op.need_out_left
+    need_right = op.need_out_right
+    !(need_left || need_right) && return nothing
+
+    if need_left && need_right
+        @inbounds for col in axes(V, 2)
+            u = V[op.left, col]
+            v = V[op.right, col]
+            (isfinite(u) && isfinite(v)) || throw(ArgumentError(
+                "R-vine inverse plan encountered an unavailable conditional state"
+            ))
+            h1, h2 = _pair_hfuncs(C, u, v)
+            V[op.out_left, col] = h1
+            V[op.out_right, col] = h2
+        end
+    elseif need_left
+        @inbounds for col in axes(V, 2)
+            u = V[op.left, col]
+            v = V[op.right, col]
+            (isfinite(u) && isfinite(v)) || throw(ArgumentError(
+                "R-vine inverse plan encountered an unavailable conditional state"
+            ))
+            V[op.out_left, col] = hfunc1(C, u, v)
+        end
+    else
+        @inbounds for col in axes(V, 2)
+            u = V[op.left, col]
+            v = V[op.right, col]
+            (isfinite(u) && isfinite(v)) || throw(ArgumentError(
+                "R-vine inverse plan encountered an unavailable conditional state"
+            ))
+            V[op.out_right, col] = hfunc2(C, u, v)
+        end
     end
     return nothing
 end

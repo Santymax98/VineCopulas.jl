@@ -720,6 +720,31 @@ end
 
 @inline hfunc1(S::_SwappedPairCopula, u::Real, v::Real) = hfunc2(S.C, v, u)
 @inline hfunc2(S::_SwappedPairCopula, u::Real, v::Real) = hfunc1(S.C, v, u)
+
+@inline function _pair_logpdf(S::_SwappedPairCopula, u::Real, v::Real, buf::Vector{Float64})
+    return _pair_logpdf(S.C, v, u, buf)
+end
+
+@inline function _pair_hfuncs(S::_SwappedPairCopula, u::Real, v::Real)
+    base_h1, base_h2 = _pair_hfuncs(S.C, v, u)
+    return base_h2, base_h1
+end
+
+@inline function _pair_step(S::_SwappedPairCopula, u::Real, v::Real, buf::Vector{Float64})
+    logc, base_h1, base_h2 = _pair_step(S.C, v, u, buf)
+    return logc, base_h2, base_h1
+end
+
+@inline function _pair_logpdf_h1(S::_SwappedPairCopula, u::Real, v::Real, buf::Vector{Float64})
+    logc, base_h2 = _pair_logpdf_h2(S.C, v, u, buf)
+    return logc, base_h2
+end
+
+@inline function _pair_logpdf_h2(S::_SwappedPairCopula, u::Real, v::Real, buf::Vector{Float64})
+    logc, base_h1 = _pair_logpdf_h1(S.C, v, u, buf)
+    return logc, base_h1
+end
+
 @inline hinv1(S::_SwappedPairCopula, q::Real, v::Real) = hinv2(S.C, q, v)
 @inline hinv2(S::_SwappedPairCopula, q::Real, u::Real) = hinv1(S.C, q, u)
 _swap_pair(S::_SwappedPairCopula) = S.C

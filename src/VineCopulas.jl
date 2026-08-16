@@ -1,6 +1,7 @@
 module VineCopulas
 
 import Random
+import Rmath
 import Distributions
 import Copulas
 import ForwardDiff

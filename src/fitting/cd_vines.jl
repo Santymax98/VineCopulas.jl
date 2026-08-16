@@ -178,11 +178,7 @@ function Copulas._fit(
                 C = level[child].copula
                 uroot = cond[root]
                 uchild = cond[child]
-                newchild = similar(uchild)
-                for col in eachindex(newchild)
-                    newchild[col] = hfunc2(C, uroot[col], uchild[col])
-                end
-                cond[child] = newchild
+                _pair_hfunc2!(uchild, C, uroot, uchild)
             end
         end
 
@@ -437,22 +433,12 @@ function Copulas._fit(
         levels[t] = level
 
         if t < q
-            Lnext = copy(L)
-            Rnext = copy(R)
+            # Within a D-vine tree these state vectors are disjoint across
+            # edges, so both conditionals can overwrite the consumed vectors.
             @inbounds for i in 1:m
                 C = level[i].copula
-                newL = Vector{Float64}(undef, n)
-                newR = Vector{Float64}(undef, n)
-                for col in 1:n
-                    u = L[i][col]
-                    v = R[i + t][col]
-                    newL[col] = hfunc1(C, u, v)
-                    newR[col] = hfunc2(C, u, v)
-                end
-                Lnext[i] = newL
-                Rnext[i + t] = newR
+                _pair_hfuncs!(L[i], R[i + t], C, L[i], R[i + t])
             end
-            L, R = Lnext, Rnext
         end
     end
 

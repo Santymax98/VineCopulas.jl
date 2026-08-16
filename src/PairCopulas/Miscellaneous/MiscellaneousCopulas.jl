@@ -30,3 +30,69 @@ function hinv2(S::Copulas.SurvivalCopula{2,CT,flips}, q::Real, u::Real) where {C
     v = hinv2(S.C, fv ? 1-q : q, fu ? 1-u : u)
     return _clp(fv ? 1-v : v)
 end
+
+# Fused reflection wrappers reuse the base copula's specialized kernels.  A
+# coordinate reflection has unit absolute Jacobian, so the density itself is
+# unchanged after evaluating the base copula at the reflected point.
+@inline function _survival_inputs(
+    S::Copulas.SurvivalCopula{2,CT,flips},
+    u::Real,
+    v::Real,
+) where {CT,flips}
+    uu, vv = _clp(u), _clp(v)
+    fu, fv = 1 in flips, 2 in flips
+    return fu ? 1 - uu : uu, fv ? 1 - vv : vv, fu, fv
+end
+
+@inline function _pair_logpdf(
+    S::Copulas.SurvivalCopula{2,CT,flips},
+    u::Real,
+    v::Real,
+    buf::Vector{Float64},
+) where {CT,flips}
+    ub, vb, _, _ = _survival_inputs(S, u, v)
+    return _pair_logpdf(S.C, ub, vb, buf)
+end
+
+@inline function _pair_hfuncs(
+    S::Copulas.SurvivalCopula{2,CT,flips},
+    u::Real,
+    v::Real,
+) where {CT,flips}
+    ub, vb, fu, fv = _survival_inputs(S, u, v)
+    h1, h2 = _pair_hfuncs(S.C, ub, vb)
+    return _clp(fu ? 1 - h1 : h1), _clp(fv ? 1 - h2 : h2)
+end
+
+@inline function _pair_step(
+    S::Copulas.SurvivalCopula{2,CT,flips},
+    u::Real,
+    v::Real,
+    buf::Vector{Float64},
+) where {CT,flips}
+    ub, vb, fu, fv = _survival_inputs(S, u, v)
+    logc, h1, h2 = _pair_step(S.C, ub, vb, buf)
+    return logc, _clp(fu ? 1 - h1 : h1), _clp(fv ? 1 - h2 : h2)
+end
+
+@inline function _pair_logpdf_h1(
+    S::Copulas.SurvivalCopula{2,CT,flips},
+    u::Real,
+    v::Real,
+    buf::Vector{Float64},
+) where {CT,flips}
+    ub, vb, fu, _ = _survival_inputs(S, u, v)
+    logc, h1 = _pair_logpdf_h1(S.C, ub, vb, buf)
+    return logc, _clp(fu ? 1 - h1 : h1)
+end
+
+@inline function _pair_logpdf_h2(
+    S::Copulas.SurvivalCopula{2,CT,flips},
+    u::Real,
+    v::Real,
+    buf::Vector{Float64},
+) where {CT,flips}
+    ub, vb, _, fv = _survival_inputs(S, u, v)
+    logc, h2 = _pair_logpdf_h2(S.C, ub, vb, buf)
+    return logc, _clp(fv ? 1 - h2 : h2)
+end

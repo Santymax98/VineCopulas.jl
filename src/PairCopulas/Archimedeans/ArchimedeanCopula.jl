@@ -35,6 +35,27 @@ end
     return Copulas.ϕ⁽¹⁾(G, starget + sbase) / Copulas.ϕ⁽¹⁾(G, sbase)
 end
 
+# Generator-level fused hooks preserve the existing family dispatch for
+# density and h-functions.  Closed-form families can specialize these hooks
+# without bypassing their standalone numerical-stability implementations.
+@inline function _arch_hfuncs(G, u::Real, v::Real)
+    return _arch_hfunc(G, u, v), _arch_hfunc(G, v, u)
+end
+
+@inline function _arch_pair_step(G, u::Real, v::Real)
+    logc = _arch_pair_logpdf(G, u, v)
+    h1, h2 = _arch_hfuncs(G, u, v)
+    return logc, h1, h2
+end
+
+@inline function _arch_pair_logpdf_h1(G, u::Real, v::Real)
+    return _arch_pair_logpdf(G, u, v), _arch_hfunc(G, u, v)
+end
+
+@inline function _arch_pair_logpdf_h2(G, u::Real, v::Real)
+    return _arch_pair_logpdf(G, u, v), _arch_hfunc(G, v, u)
+end
+
 @inline function _arch_hinv_generic(G, q::Real, base::Real)
     sbase = Copulas.ϕ⁻¹(G, base)
     stotal = _inv_ϕ¹(G, q * Copulas.ϕ⁽¹⁾(G, sbase))
@@ -53,6 +74,45 @@ end
     cb = _arch_coordinate(G, base)
     ctotal = _arch_inverse_logderivative(G, log(float(q)) + _arch_logderivative(G, cb))
     return _arch_probability(G, _arch_difference(G, ctotal, cb))
+end
+
+@inline function _pair_hfuncs(C::Copulas.ArchimedeanCopula{2}, u::Real, v::Real)
+    uu, vv = _clp(u), _clp(v)
+    h1, h2 = _arch_hfuncs(C.G, uu, vv)
+    return _clp(h1), _clp(h2)
+end
+
+@inline function _pair_step(
+    C::Copulas.ArchimedeanCopula{2},
+    u::Real,
+    v::Real,
+    buf::Vector{Float64},
+)
+    uu, vv = _clp(u), _clp(v)
+    logc, h1, h2 = _arch_pair_step(C.G, uu, vv)
+    return logc, _clp(h1), _clp(h2)
+end
+
+@inline function _pair_logpdf_h1(
+    C::Copulas.ArchimedeanCopula{2},
+    u::Real,
+    v::Real,
+    buf::Vector{Float64},
+)
+    uu, vv = _clp(u), _clp(v)
+    logc, h1 = _arch_pair_logpdf_h1(C.G, uu, vv)
+    return logc, _clp(h1)
+end
+
+@inline function _pair_logpdf_h2(
+    C::Copulas.ArchimedeanCopula{2},
+    u::Real,
+    v::Real,
+    buf::Vector{Float64},
+)
+    uu, vv = _clp(u), _clp(v)
+    logc, h2 = _arch_pair_logpdf_h2(C.G, uu, vv)
+    return logc, _clp(h2)
 end
 
 @inline hfunc1(C::Copulas.ArchimedeanCopula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C.G, _clp(u), _clp(v)))

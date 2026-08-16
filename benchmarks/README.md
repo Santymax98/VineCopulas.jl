@@ -62,13 +62,22 @@ MODE=default N=1000 P=5 REPEATS=3 \
 
 Each mode measures pair selection, fixed-structure R-vine fitting, and automatic R-vine fitting.
 
+## Focused engine diagnostics
+
+```bash
+julia --project=benchmarks benchmarks/diagnostics/fused_pair_kernels.jl
+julia --project=benchmarks benchmarks/diagnostics/vine_engine_allocations.jl
+```
+
+These isolate fused pair-kernel speedups and C-/D-/R-vine allocation behavior from the larger benchmark campaign.
+
 ## Student-t study
 
 ```bash
 bash benchmarks/tcopula_study/run_t_study.sh
 ```
 
-Student-t remains separate because its current bottleneck is different from the standard one-parameter family paths.
+Student-t remains separate because the patch changes both traversal reuse and its Float32/Float64 scalar backend. The hot path uses direct Rmath `qt`/`pt`; the diagnostics compare those calls with StatsFuns across several degrees of freedom and tail-heavy probabilities.
 
 ## Outputs
 
