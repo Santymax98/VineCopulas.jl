@@ -1,0 +1,351 @@
+# Shared specifications for the VineCopulas.jl <-> rvinecopulib correctness gate.
+# Julia converts this single source of truth to simple CSV bridge files for R;
+# model specifications are not duplicated across the two statistical engines.
+
+[[pair_cases]]
+name = "independence"
+family = "Independence"
+rotation = 0
+params = []
+
+[[pair_cases]]
+name = "gaussian_r055"
+family = "Gaussian"
+rotation = 0
+params = [0.55]
+
+[[pair_cases]]
+name = "student_r045_nu5"
+family = "Student"
+rotation = 0
+params = [0.45, 5.0]
+
+[[pair_cases]]
+name = "clayton_0"
+family = "Clayton"
+rotation = 0
+params = [2.0]
+
+[[pair_cases]]
+name = "clayton_90"
+family = "Clayton"
+rotation = 90
+params = [2.0]
+
+[[pair_cases]]
+name = "clayton_180"
+family = "Clayton"
+rotation = 180
+params = [2.0]
+
+[[pair_cases]]
+name = "clayton_270"
+family = "Clayton"
+rotation = 270
+params = [2.0]
+
+[[pair_cases]]
+name = "gumbel_0"
+family = "Gumbel"
+rotation = 0
+params = [1.7]
+
+[[pair_cases]]
+name = "gumbel_90"
+family = "Gumbel"
+rotation = 90
+params = [1.7]
+
+[[pair_cases]]
+name = "gumbel_180"
+family = "Gumbel"
+rotation = 180
+params = [1.7]
+
+[[pair_cases]]
+name = "gumbel_270"
+family = "Gumbel"
+rotation = 270
+params = [1.7]
+
+[[pair_cases]]
+name = "frank_0"
+family = "Frank"
+rotation = 0
+params = [5.0]
+
+[[pair_cases]]
+name = "joe_0"
+family = "Joe"
+rotation = 0
+params = [1.8]
+
+[[pair_cases]]
+name = "joe_90"
+family = "Joe"
+rotation = 90
+params = [1.8]
+
+[[pair_cases]]
+name = "joe_180"
+family = "Joe"
+rotation = 180
+params = [1.8]
+
+[[pair_cases]]
+name = "joe_270"
+family = "Joe"
+rotation = 270
+params = [1.8]
+
+[[pair_cases]]
+name = "bb1_0"
+family = "BB1"
+rotation = 0
+params = [1.2, 1.5]
+
+[[pair_cases]]
+name = "bb1_90"
+family = "BB1"
+rotation = 90
+params = [1.2, 1.5]
+
+[[pair_cases]]
+name = "bb6_0"
+family = "BB6"
+rotation = 0
+params = [1.2, 1.5]
+
+[[pair_cases]]
+name = "bb6_270"
+family = "BB6"
+rotation = 270
+params = [1.2, 1.5]
+
+[[pair_cases]]
+name = "bb7_0"
+family = "BB7"
+rotation = 0
+params = [1.2, 1.5]
+
+[[pair_cases]]
+name = "bb7_180"
+family = "BB7"
+rotation = 180
+params = [1.2, 1.5]
+
+[[pair_cases]]
+name = "bb8_0"
+family = "BB8"
+rotation = 0
+params = [1.5, 0.6]
+
+[[pair_cases]]
+name = "bb8_90"
+family = "BB8"
+rotation = 90
+params = [1.5, 0.6]
+
+# Genuine branching 5D R-vine. Rotated families are intentional: this tests
+# orientation semantics in addition to traversal correctness.
+[[vine_models]]
+name = "branching5"
+order = [1, 3, 2, 4, 5]
+struct_array = [[2, 2, 4, 5], [3, 4, 5], [4, 5], [5]]
+fit_source = true
+
+[[vine_models.edges]]
+tree = 1
+edge = 1
+family = "Gaussian"
+rotation = 0
+params = [0.35]
+[[vine_models.edges]]
+tree = 1
+edge = 2
+family = "Clayton"
+rotation = 90
+params = [1.4]
+[[vine_models.edges]]
+tree = 1
+edge = 3
+family = "Frank"
+rotation = 0
+params = [2.0]
+[[vine_models.edges]]
+tree = 1
+edge = 4
+family = "Gumbel"
+rotation = 180
+params = [1.25]
+[[vine_models.edges]]
+tree = 2
+edge = 1
+family = "Joe"
+rotation = 270
+params = [1.7]
+[[vine_models.edges]]
+tree = 2
+edge = 2
+family = "Gaussian"
+rotation = 0
+params = [-0.25]
+[[vine_models.edges]]
+tree = 2
+edge = 3
+family = "Clayton"
+rotation = 0
+params = [1.1]
+[[vine_models.edges]]
+tree = 3
+edge = 1
+family = "Gumbel"
+rotation = 90
+params = [1.3]
+[[vine_models.edges]]
+tree = 3
+edge = 2
+family = "Gaussian"
+rotation = 0
+params = [0.20]
+[[vine_models.edges]]
+tree = 4
+edge = 1
+family = "Joe"
+rotation = 180
+params = [1.4]
+
+# Nontrivial six-tree structure used in vinecopulib's own RVineStructure tests.
+# Gaussian edges isolate the high-dimensional traversal/structure convention.
+[[vine_models]]
+name = "vinecopulib7"
+order = [4, 3, 7, 1, 2, 5, 6]
+struct_array = [[5, 2, 6, 6, 6, 6], [6, 6, 1, 2, 5], [2, 5, 2, 5], [1, 1, 5], [3, 7], [7]]
+fit_source = false
+
+[[vine_models.edges]]
+tree = 1
+edge = 1
+family = "Gaussian"
+rotation = 0
+params = [0.18]
+[[vine_models.edges]]
+tree = 1
+edge = 2
+family = "Gaussian"
+rotation = 0
+params = [-0.22]
+[[vine_models.edges]]
+tree = 1
+edge = 3
+family = "Gaussian"
+rotation = 0
+params = [0.31]
+[[vine_models.edges]]
+tree = 1
+edge = 4
+family = "Gaussian"
+rotation = 0
+params = [0.44]
+[[vine_models.edges]]
+tree = 1
+edge = 5
+family = "Gaussian"
+rotation = 0
+params = [-0.28]
+[[vine_models.edges]]
+tree = 1
+edge = 6
+family = "Gaussian"
+rotation = 0
+params = [0.36]
+[[vine_models.edges]]
+tree = 2
+edge = 1
+family = "Gaussian"
+rotation = 0
+params = [0.21]
+[[vine_models.edges]]
+tree = 2
+edge = 2
+family = "Gaussian"
+rotation = 0
+params = [-0.33]
+[[vine_models.edges]]
+tree = 2
+edge = 3
+family = "Gaussian"
+rotation = 0
+params = [0.27]
+[[vine_models.edges]]
+tree = 2
+edge = 4
+family = "Gaussian"
+rotation = 0
+params = [0.41]
+[[vine_models.edges]]
+tree = 2
+edge = 5
+family = "Gaussian"
+rotation = 0
+params = [-0.19]
+[[vine_models.edges]]
+tree = 3
+edge = 1
+family = "Gaussian"
+rotation = 0
+params = [0.25]
+[[vine_models.edges]]
+tree = 3
+edge = 2
+family = "Gaussian"
+rotation = 0
+params = [-0.29]
+[[vine_models.edges]]
+tree = 3
+edge = 3
+family = "Gaussian"
+rotation = 0
+params = [0.38]
+[[vine_models.edges]]
+tree = 3
+edge = 4
+family = "Gaussian"
+rotation = 0
+params = [0.16]
+[[vine_models.edges]]
+tree = 4
+edge = 1
+family = "Gaussian"
+rotation = 0
+params = [-0.24]
+[[vine_models.edges]]
+tree = 4
+edge = 2
+family = "Gaussian"
+rotation = 0
+params = [0.34]
+[[vine_models.edges]]
+tree = 4
+edge = 3
+family = "Gaussian"
+rotation = 0
+params = [-0.17]
+[[vine_models.edges]]
+tree = 5
+edge = 1
+family = "Gaussian"
+rotation = 0
+params = [0.3]
+[[vine_models.edges]]
+tree = 5
+edge = 2
+family = "Gaussian"
+rotation = 0
+params = [-0.26]
+[[vine_models.edges]]
+tree = 6
+edge = 1
+family = "Gaussian"
+rotation = 0
+params = [0.23]

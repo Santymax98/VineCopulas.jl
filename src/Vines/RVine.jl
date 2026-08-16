@@ -20,9 +20,8 @@ end
 """
     RVineStructure(order, struct_array; trunc=length(order)-1)
 
-Internal representation of a regular-vine structure. It stores the variable
-order, triangular structure array, optional exchange matrix, and truncation
-level.
+Structure representation for a regular vine. It stores the variable order,
+triangular structure array, optional exchange matrix, and truncation level.
 """
 struct RVineStructure{p,q}
     order::NTuple{p,Int}
@@ -36,8 +35,9 @@ end
     RVineCopula(matrix, edges)
 
 Construct a regular-vine copula from an explicit structure array or from an
-R-vine matrix exchange representation. General R-vine support in v0.1 is more
-experimental than the C-vine and D-vine engines.
+R-vine matrix exchange representation. Standard general R-vine structures are
+validated against the proximity condition at construction time. General R-vine
+evaluation is covered by the external `rvinecopulib` correctness campaign.
 """
 struct RVineCopula{p,q,E} <: AbstractVineCopula{p}
     structure::RVineStructure{p,q}
@@ -45,20 +45,110 @@ struct RVineCopula{p,q,E} <: AbstractVineCopula{p}
     trunc::Int
 end
 
+# -----------------------------------------------------------------------------
+# R-vine structure validation
+# -----------------------------------------------------------------------------
+
+@inline _rvine_state_key(v::Int, D) = (v, Tuple(sort!(Int[x for x in D])))
+
+function _is_legacy_dvine_structure(order, S, p::Int, trunc::Int)
+    @inbounds for t in 1:trunc, i in 1:(p - t)
+        S[t][i] == order[i + 1] || return false
+    end
+    return true
+end
+
+_is_legacy_dvine_structure(st::RVineStructure) =
+    _is_legacy_dvine_structure(st.order, st.struct_array, length(st.order), st.trunc)
+
+function _validate_standard_rvine_structure(order, S, p::Int, trunc::Int)
+    sort!(Int[x for x in order]) == collect(1:p) ||
+        throw(ArgumentError("R-vine order must be a permutation of 1:$p"))
+
+    pos = zeros(Int, p)
+    @inbounds for e in 1:p
+        pos[order[e]] = e
+    end
+
+    # A state (v | D) exists iff it can be obtained recursively from a
+    # lower-tree edge.  Tracking these states is a direct validation of the
+    # proximity condition and is independent of the numerical pair-copulas.
+    states = Set{Any}(_rvine_state_key(v, Int[]) for v in 1:p)
+
+    @inbounds for t in 1:trunc
+        length(S[t]) == p - t ||
+            throw(ArgumentError("struct_array[$t] must have $(p-t) entries"))
+
+        for e in 1:(p - t)
+            a = order[e]
+            b = S[t][e]
+            1 <= b <= p || throw(ArgumentError("invalid R-vine label $b"))
+            pos[b] > e || throw(ArgumentError(
+                "R-vine is not in the standard column convention: label $b in tree $t edge $e " *
+                "must occur to the right of diagonal variable $a"
+            ))
+
+            D = Int[S[r][e] for r in 1:(t - 1)]
+            length(unique(D)) == length(D) || throw(ArgumentError(
+                "conditioning set has duplicate labels at tree $t edge $e"
+            ))
+            (a in D || b in D) && throw(ArgumentError(
+                "conditioned variable appears in its own conditioning set at tree $t edge $e"
+            ))
+
+            ka = _rvine_state_key(a, D)
+            kb = _rvine_state_key(b, D)
+            ka in states || throw(ArgumentError(
+                "R-vine proximity condition failed: missing conditional state $ka at tree $t edge $e"
+            ))
+            kb in states || throw(ArgumentError(
+                "R-vine proximity condition failed: missing conditional state $kb at tree $t edge $e"
+            ))
+
+            oa = _rvine_state_key(a, vcat(D, b))
+            ob = _rvine_state_key(b, vcat(D, a))
+            oa in states && throw(ArgumentError(
+                "invalid R-vine: conditional state $oa is generated more than once"
+            ))
+            ob in states && throw(ArgumentError(
+                "invalid R-vine: conditional state $ob is generated more than once"
+            ))
+            push!(states, oa)
+            push!(states, ob)
+        end
+    end
+    return nothing
+end
+
+function _validate_rvine_structure(order, S, p::Int, trunc::Int)
+    # v0.1 exposed a D-vine-like triangular convention.  Keep that format as
+    # an explicit compatibility case; every other structure must satisfy the
+    # standard conditional-state/proximity convention.
+    _is_legacy_dvine_structure(order, S, p, trunc) && return :legacy_dvine
+    _validate_standard_rvine_structure(order, S, p, trunc)
+    return :standard
+end
+
 function RVineStructure(order::AbstractVector{<:Integer}, struct_array; trunc::Int=length(order)-1, matrix=nothing)
     p = _check_order(order)
     1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    ord = Tuple(Int.(order))
     S = _normalize_struct_array(struct_array, p, trunc)
+    _validate_rvine_structure(ord, S, p, trunc)
     M = matrix === nothing ? nothing : Matrix{Int}(matrix)
-    return RVineStructure{p,trunc}(Tuple(Int.(order)), S, M, trunc)
+    M === nothing || size(M) == (p, p) ||
+        throw(ArgumentError("R-vine exchange matrix must have size ($p, $p)"))
+    return RVineStructure{p,trunc}(ord, S, M, trunc)
 end
 
 function RVineCopula(order::AbstractVector{<:Integer}, struct_array, edges; trunc::Int=length(order)-1)
     p = _check_order(order)
     1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    ord = Tuple(Int.(order))
     S = _normalize_struct_array(struct_array, p, trunc)
+    _validate_rvine_structure(ord, S, p, trunc)
     E = _normalize_edges(edges, p, trunc)
-    st = RVineStructure{p,trunc}(Tuple(Int.(order)), S, nothing, trunc)
+    st = RVineStructure{p,trunc}(ord, S, nothing, trunc)
     return RVineCopula{p,trunc,typeof(E)}(st, E, trunc)
 end
 
@@ -89,8 +179,11 @@ function RVineCopula(matrix::AbstractMatrix{<:Integer}, edges)
     trunc = length(edges)
     order, S, M = _rvine_from_matrix(matrix, trunc)
     p = _check_order(order)
+    ord = Tuple(Int.(order))
+    St = Tuple(S)
+    _validate_rvine_structure(ord, St, p, trunc)
     E = _normalize_edges(edges, p, trunc)
-    st = RVineStructure{p,trunc}(Tuple(order), Tuple(S), M, trunc)
+    st = RVineStructure{p,trunc}(ord, St, M, trunc)
     return RVineCopula{p,trunc,typeof(E)}(st, E, trunc)
 end
 
@@ -150,16 +243,7 @@ end
 @inline _max_pos(S, invord, tree0::Int, edge::Int) = invord[_max_label(S, tree0, edge)]
 @inline _is_direct(S, tree0::Int, edge::Int) = _max_label(S, tree0, edge) == S[tree0+1][edge]
 
-function _looks_like_dvine(vc::RVineCopula{p}) where {p}
-    S = struct_array(vc)
-    ord = order(vc)
-    @inbounds for k in 1:vc.trunc
-        for i in 1:(p-k)
-            S[k][i] == ord[i+1] || return false
-        end
-    end
-    return true
-end
+_looks_like_dvine(vc::RVineCopula) = _is_legacy_dvine_structure(vc.structure)
 
 _as_dvine(vc::RVineCopula) = DVineCopula(collect(order(vc)), [edges(vc)[k] for k in 1:vc.trunc]; trunc=vc.trunc)
 
@@ -331,6 +415,12 @@ function _rvine_edge_description(vc::RVineCopula{p}, k::Int, i::Int) where {p}
 end
 
 function vine_edges(vc::RVineCopula)
+    # The historical compatibility representation repeats `order[i+1]` at
+    # higher tree levels and therefore does not itself encode standard
+    # conditioned/conditioning sets.  Delegate its metadata to the equivalent
+    # mature D-vine representation instead of reporting misleading edges.
+    _looks_like_dvine(vc) && return vine_edges(_as_dvine(vc))
+
     out = VineEdge[]
     for k in 1:vc.trunc, i in 1:length(vc.edges[k])
         push!(out, _rvine_edge_description(vc, k, i))

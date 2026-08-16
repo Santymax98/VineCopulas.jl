@@ -118,6 +118,31 @@
         return RVineCopula(ord, S, E; trunc=2)
     end
 
+    # A genuinely general 5-dimensional R-vine.  Its first tree has edges
+    # 1-2, 2-3, 2-4, 4-5: neither a path (D-vine) nor a star (C-vine).
+    # The standard triangular representation was obtained by deterministic
+    # leaf peeling of the valid proximity sequence
+    #   T2: (1,3|2), (3,4|2), (2,5|4)
+    #   T3: (1,4|2,3), (3,5|2,4)
+    #   T4: (1,5|2,3,4).
+    function rvine5_general(; trunc::Int=4)
+        1 <= trunc <= 4 || throw(ArgumentError("trunc must be in 1:4"))
+        ord = [1, 3, 2, 4, 5]
+        Sfull = [
+            [2, 2, 4, 5],
+            [3, 4, 5],
+            [4, 5],
+            [5],
+        ]
+        Efull = [
+            (gaussian_pair(0.35), clayton_pair(1.4), frank_pair(2.0), gumbel_pair(1.25)),
+            (frank_pair(1.7), gaussian_pair(-0.25), clayton_pair(1.1)),
+            (gumbel_pair(1.3), gaussian_pair(0.20)),
+            (clayton_pair(0.8),),
+        ]
+        return RVineCopula(ord, Sfull[1:trunc], Efull[1:trunc]; trunc=trunc)
+    end
+
     default_points(p::Int) = [fill(x, p) for x in VINE_POINT_GRID]
     default_points(vine::VineCopulas.AbstractVineCopula) = default_points(length(vine))
 

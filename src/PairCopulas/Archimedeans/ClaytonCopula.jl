@@ -4,10 +4,39 @@
 
 @inline function _arch_pair_logpdf(G::Copulas.ClaytonGenerator, u::Real, v::Real)
     θ, uu, vv = promote(float(G.θ), float(u), float(v))
+    θ < -one(θ) && throw(DomainError(θ, "A bivariate Clayton generator requires θ ≥ -1."))
+    iszero(θ) && return zero(θ)
+
+    uu, vv = _clp(uu), _clp(vv)
     lu = log(uu)
     lv = log(vv)
     s = exp(-θ * lu) + exp(-θ * lv) - one(θ)
+
+    # For -1 ≤ θ < 0, Clayton has finite support. Outside the absolutely
+    # continuous support the density is exactly zero. Returning -Inf is both
+    # mathematically correct and avoids DomainError from log(s).
+    s <= zero(s) && return oftype(s, -Inf)
+
     return log1p(θ) - (θ + one(θ)) * (lu + lv) - (2 + inv(θ)) * log(s)
+end
+
+# Closed-form conditional CDF with the same finite-support convention.
+# For C(u,v)=s^(-1/θ), s=u^(-θ)+v^(-θ)-1,
+# h(u|v)=v^(-θ-1)s^(-1/θ-1) on the interior support.
+@inline function _arch_hfunc(G::Copulas.ClaytonGenerator, target::Real, base::Real)
+    θ, tt, bb = promote(float(G.θ), float(target), float(base))
+    θ < -one(θ) && throw(DomainError(θ, "A bivariate Clayton generator requires θ ≥ -1."))
+
+    tt, bb = _clp(tt), _clp(bb)
+    iszero(θ) && return tt
+
+    lt = log(tt)
+    lb = log(bb)
+    s = exp(-θ * lt) + exp(-θ * lb) - one(θ)
+    s <= zero(s) && return zero(s)
+
+    logh = (-θ - one(θ)) * lb + (-inv(θ) - one(θ)) * log(s)
+    return clamp(exp(logh), zero(θ), one(θ))
 end
 
 # =====================================================================

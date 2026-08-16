@@ -1,86 +1,74 @@
-````@raw html
----
-layout: home
-
-hero:
-  name: VineCopulas.jl
-  text: Native Julia vine copula models
-  tagline: Explicit C-vine, D-vine and R-vine copula constructions built on Copulas.jl.
-  image:
-    src: /logo.png
-    alt: VineCopulas.jl
-  actions:
-    - theme: brand
-      text: Getting started
-      link: /getting_started
-    - theme: alt
-      text: Mathematical background
-      link: /manual/mathematical_background
-    - theme: alt
-      text: View on GitHub
-      link: https://github.com/Santymax98/VineCopulas.jl
-features:
-  - title: Explicit vine models
-    details: Construct C-vines, D-vines and supported R-vines directly from bivariate pair-copulas.
-  - title: Copulas.jl ecosystem
-    details: Reuse bivariate families from Copulas.jl and compose them into higher-dimensional dependence models.
-  - title: Transform-based simulation
-    details: Simulate and transform data using Rosenblatt and inverse Rosenblatt maps.
-  - title: Research friendly
-    details: Designed for transparent mathematics, experimentation and future Bayesian/statistical workflows in Julia.
----
-````
-
 # VineCopulas.jl
 
-`VineCopulas.jl` is a native Julia package for explicit vine copula models built on top of [`Copulas.jl`](https://github.com/lrnv/Copulas.jl). It focuses on constructing vine copulas from known bivariate building blocks, evaluating densities, simulating observations, and using conditional distribution transforms.
+`VineCopulas.jl` is a native Julia package for building, fitting, selecting, evaluating, and simulating C-vine, D-vine, and regular-vine copula models on top of `Copulas.jl`.
 
-A vine copula is useful when a single multivariate copula family is too restrictive. Instead of forcing all dependence into one parametric object, a vine decomposes a multivariate copula density into many bivariate pair-copula densities, each placed on an edge of a tree sequence.
+The package follows the `Distributions.jl`/`Copulas.jl` ecosystem: explicit vine models are copulas, pair copulas come from `Copulas.jl`, and fitting is exposed through `fit`.
 
-## What is implemented?
+## What is available
 
-- stable `CVineCopula` and `DVineCopula` model types; experimental `RVineCopula` support for explicit structures.
-- `pdf`, `logpdf`, `rand`, numerical `cdf` and `simulate_qmc`.
-- Rosenblatt and inverse Rosenblatt transforms.
-- Truncated C-vines and D-vines.
-- Pair-copula conditional primitives: `hfunc1`, `hfunc2`, `hinv1`, `hinv2`.
-- Elliptical, Archimedean, BB, survival/rotated and bivariate extreme-value pair-copulas where the required conditional primitives are available. The pair-copula source layout is organized by family to make performance specializations local and auditable.
-- Lightweight model summaries: `loglikelihood`, `npars`, `aic`, and `bic`.
+- C-vine, D-vine, and general R-vine models.
+- `pdf`, `logpdf`, `rand`, numerical `cdf`, Rosenblatt, and inverse Rosenblatt transforms.
+- Pair-copula fitting with family and rotation selection.
+- Sequential fitting for fixed vine structures.
+- Automatic C-vine and D-vine ordering.
+- Dissmann-style R-vine structure selection with maximum spanning trees.
+- AIC, BIC, log-likelihood, Kendall-``\tau``, and Spearman-``\rho`` controls.
+- Truncated vine evaluation and user-controlled fitting truncation.
+- External correctness checks against `rvinecopulib` and reproducible performance benchmarks.
 
-## What is not implemented yet?
+## Quick example
 
-`VineCopulas.jl` v0.1 is not an automatic fitting package. It does not yet provide automatic family selection, parameter estimation, structure selection or truncation selection. These are planned for later versions. See [Simulation vs fitting](manual/simulation_vs_fitting.md) and [Limitations](manual/limitations.md).
-
-## First example
-
-```@example home
+```julia
 using VineCopulas
-using Distributions: logpdf, pdf
+using Distributions
 using Random
 
-C12 = GaussianCopula([1.0 0.5; 0.5 1.0])
-C23 = ClaytonCopula(2, 2.0)
-C13_2 = FrankCopula(2, 3.0)
+rng = MersenneTwister(42)
+truth = DVineCopula(
+    [1, 2, 3],
+    [[GaussianCopula(2, 0.55), ClaytonCopula(2, 1.4)],
+     [FrankCopula(2, 2.0)]],
+)
 
-vine = DVineCopula([1, 2, 3], [[C12, C23], [C13_2]])
-u = [0.2, 0.5, 0.7]
+U = rand(rng, truth, 1_000)
 
-(logpdf(vine, u), pdf(vine, u))
+fitted = fit(
+    DVineCopula,
+    U;
+    family_set=:default,
+    selection_criterion=:bic,
+    allow_rotations=true,
+)
+
+loglikelihood(fitted, U)
+maximum(abs.(inverse_rosenblatt(fitted, rosenblatt(fitted, U)) .- U))
 ```
 
-```@contents
-Pages = [
-    "getting_started.md",
-    "manual/mathematical_background.md",
-    "manual/pair_copula_decomposition.md",
-    "manual/h_functions.md",
-    "manual/rosenblatt.md",
-    "paircopulas/supported_families.md",
-    "examples/minimal_dvine.md",
-    "examples/large_simulation.md",
-    "comparison/rvinecopulib.md",
-    "comparison/benchmarks.md",
-    "citation.md",
-]
-Depth = 2
+Matrices are interpreted as `p × n`: rows are variables and columns are observations.
+
+## Documentation map
+
+The site has six top-level sections:
+
+- **Home** — this overview, quick example, and citation.
+- **Guide** — installation, first models, simulation, examples, compatibility, and conventions.
+- **Bestiary** — supported vine structures and pair-copula families.
+- **Fitting & Selection** — pair fitting, vine fitting, structure selection, and parameter-domain controls.
+- **Benchmarks** — correctness and speed comparisons against `rvinecopulib`.
+- **Developer** — architecture, API, testing, upstream follow-ups, and the roadmap.
+
+The version selector in the documentation provides the development site, the latest stable release, and retained tagged versions.
+
+## Citation
+
+If you use `VineCopulas.jl`, please cite the package metadata in `CITATION.cff`:
+
+```bibtex
+@software{jimenez_vinecopulas,
+  author  = {Santiago Jimenez and contributors},
+  title   = {VineCopulas.jl},
+  url     = {https://github.com/Santymax98/VineCopulas.jl},
+  version = {0.1.1},
+  year    = {2026}
+}
 ```
