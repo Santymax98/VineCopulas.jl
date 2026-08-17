@@ -1,22 +1,30 @@
 # ---------------------------------------------------------------------
-# Clayton pair-copula density fast path
+# Clayton pair-copula fused fast path
 # ---------------------------------------------------------------------
 
-@inline function _arch_pair_logpdf(G::Copulas.ClaytonGenerator, u::Real, v::Real)
+@inline function _clayton_terms(G::Copulas.ClaytonGenerator, u::Real, v::Real)
     θ, uu, vv = promote(float(G.θ), float(u), float(v))
     θ < -one(θ) && throw(DomainError(θ, "A bivariate Clayton generator requires θ ≥ -1."))
-    iszero(θ) && return zero(θ)
-
     uu, vv = _clp(uu), _clp(vv)
     lu = log(uu)
     lv = log(vv)
-    s = exp(-θ * lu) + exp(-θ * lv) - one(θ)
+    s = iszero(θ) ? one(θ) : exp(-θ * lu) + exp(-θ * lv) - one(θ)
+    return θ, uu, vv, lu, lv, s
+end
+
+@inline function _clayton_h_from_terms(θ::Real, lbase::Real, logs::Real)
+    iszero(θ) && throw(ArgumentError("independence must be handled before the Clayton interior formula"))
+    logh = (-θ - one(θ)) * lbase + (-inv(θ) - one(θ)) * logs
+    return clamp(exp(logh), zero(θ), one(θ))
+end
+
+@inline function _arch_pair_logpdf(G::Copulas.ClaytonGenerator, u::Real, v::Real)
+    θ, _, _, lu, lv, s = _clayton_terms(G, u, v)
+    iszero(θ) && return zero(θ)
 
     # For -1 ≤ θ < 0, Clayton has finite support. Outside the absolutely
-    # continuous support the density is exactly zero. Returning -Inf is both
-    # mathematically correct and avoids DomainError from log(s).
+    # continuous support the density is exactly zero.
     s <= zero(s) && return oftype(s, -Inf)
-
     return log1p(θ) - (θ + one(θ)) * (lu + lv) - (2 + inv(θ)) * log(s)
 end
 
@@ -24,19 +32,50 @@ end
 # For C(u,v)=s^(-1/θ), s=u^(-θ)+v^(-θ)-1,
 # h(u|v)=v^(-θ-1)s^(-1/θ-1) on the interior support.
 @inline function _arch_hfunc(G::Copulas.ClaytonGenerator, target::Real, base::Real)
-    θ, tt, bb = promote(float(G.θ), float(target), float(base))
-    θ < -one(θ) && throw(DomainError(θ, "A bivariate Clayton generator requires θ ≥ -1."))
-
-    tt, bb = _clp(tt), _clp(bb)
+    θ, tt, _, lt, lb, s = _clayton_terms(G, target, base)
     iszero(θ) && return tt
-
-    lt = log(tt)
-    lb = log(bb)
-    s = exp(-θ * lt) + exp(-θ * lb) - one(θ)
     s <= zero(s) && return zero(s)
+    return _clayton_h_from_terms(θ, lb, log(s))
+end
 
-    logh = (-θ - one(θ)) * lb + (-inv(θ) - one(θ)) * log(s)
-    return clamp(exp(logh), zero(θ), one(θ))
+@inline function _arch_hfuncs(G::Copulas.ClaytonGenerator, u::Real, v::Real)
+    θ, uu, vv, lu, lv, s = _clayton_terms(G, u, v)
+    iszero(θ) && return uu, vv
+    s <= zero(s) && return zero(s), zero(s)
+    logs = log(s)
+    return _clayton_h_from_terms(θ, lv, logs), _clayton_h_from_terms(θ, lu, logs)
+end
+
+@inline function _arch_pair_step(G::Copulas.ClaytonGenerator, u::Real, v::Real)
+    θ, uu, vv, lu, lv, s = _clayton_terms(G, u, v)
+    iszero(θ) && return zero(θ), uu, vv
+    s <= zero(s) && return oftype(s, -Inf), zero(s), zero(s)
+
+    logs = log(s)
+    logc = log1p(θ) - (θ + one(θ)) * (lu + lv) - (2 + inv(θ)) * logs
+    h1 = _clayton_h_from_terms(θ, lv, logs)
+    h2 = _clayton_h_from_terms(θ, lu, logs)
+    return logc, h1, h2
+end
+
+@inline function _arch_pair_logpdf_h1(G::Copulas.ClaytonGenerator, u::Real, v::Real)
+    θ, uu, _, lu, lv, s = _clayton_terms(G, u, v)
+    iszero(θ) && return zero(θ), uu
+    s <= zero(s) && return oftype(s, -Inf), zero(s)
+
+    logs = log(s)
+    logc = log1p(θ) - (θ + one(θ)) * (lu + lv) - (2 + inv(θ)) * logs
+    return logc, _clayton_h_from_terms(θ, lv, logs)
+end
+
+@inline function _arch_pair_logpdf_h2(G::Copulas.ClaytonGenerator, u::Real, v::Real)
+    θ, _, vv, lu, lv, s = _clayton_terms(G, u, v)
+    iszero(θ) && return zero(θ), vv
+    s <= zero(s) && return oftype(s, -Inf), zero(s)
+
+    logs = log(s)
+    logc = log1p(θ) - (θ + one(θ)) * (lu + lv) - (2 + inv(θ)) * logs
+    return logc, _clayton_h_from_terms(θ, lu, logs)
 end
 
 # =====================================================================

@@ -88,19 +88,20 @@ function _logpdf_internal(vc::CVineCopula{p}, U::AbstractMatrix{<:Real}) where {
     buf = Vector{Float64}(undef, 2)
     @inbounds for k in 1:vc.trunc
         root = k
+        propagate = k < vc.trunc
         for i in 1:(p-k)
             child = k + i
             C = vc.edges[k][i]
-            for col in 1:n
-                ll[col] += _pair_logpdf(C, W[root,col], W[child,col], buf)
-            end
-        end
-        # Update children: child | root, conditioned on previous roots.
-        for i in 1:(p-k)
-            child = k + i
-            C = vc.edges[k][i]
-            for col in 1:n
-                W[child,col] = hfunc2(C, W[root,col], W[child,col])
+            rootvals = @view W[root,:]
+            childvals = @view W[child,:]
+            if propagate
+                # The batched helper is also a function barrier: mixed-family
+                # edge containers pay dynamic dispatch once per edge, not once
+                # per observation. `childvals` may safely alias the h₂ output.
+                _pair_logpdf_h2_add!(ll, childvals, C, rootvals, childvals, buf)
+            else
+                # No later tree consumes conditionals from the last active tree.
+                _pair_logpdf_add!(ll, C, rootvals, childvals, buf)
             end
         end
     end

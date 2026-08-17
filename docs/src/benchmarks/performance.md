@@ -97,4 +97,8 @@ Student-t is kept outside the standard table:
 bash benchmarks/tcopula_study/run_t_study.sh
 ```
 
-Its current runtime is dominated by scalar Student-t CDF and quantile evaluations, so it is easier to diagnose separately than to mix it into the primary family comparison.
+The v0.1.1 reference run predates fused pair kernels. In that implementation, an active D-/R-vine edge evaluated density, `hfunc1`, and `hfunc2` independently, requiring six base ``t_ν`` quantiles where two are sufficient. The fused Student pair step reuses those two quantiles for all three outputs.
+
+The focused study reports both the independent and fused patterns, allocation counts, several degrees of freedom, and tail-heavy inputs. For Float32/Float64 inputs the Student hot path also uses direct Rmath `qt`/`pt` calls, while StatsFuns remains the legacy/comparison implementation and the fallback for nonstandard `Real` wrappers. This removes the allocation-heavy incomplete-beta inverse from ordinary vine evaluation without introducing an approximation.
+
+A post-optimization Apple-Silicon/Julia-1.12.6 run reduced Student D-vine vectorized log-density from the pre-fusion `38.8/1192.6/3059 ms` reference values to about `11.5/142.9/473.9 ms` for `(p,trunc)=(2,1),(5,4),(20,2)`. Against the same `rvinecopulib` benchmark this leaves gaps of about `5.1×`, `2.55×`, and `2.59×`, respectively. The multi-tree cases therefore closed most of the previous 17–21× gap while preserving max absolute log-density agreement at roughly `1e-10` or better. End-to-end Student D-vine log-density now uses only 11 Julia allocations in all three cases; the remaining runtime is dominated by scalar Student CDF/quantile work rather than vine-engine allocation. Re-run the focused study and the correctness gate on the target machine before treating these machine-specific numbers as release benchmarks.

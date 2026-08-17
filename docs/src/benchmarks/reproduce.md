@@ -69,7 +69,26 @@ FAMILY=gumbel MODEL=D P=10 N=10000 TRUNC=2 \
   bash benchmarks/run_one.sh
 ```
 
-## 4. Fitting speed
+## 4. Focused kernel and allocation diagnostics
+
+To isolate the optimizations used by the vine engines from the full benchmark battery, run:
+
+```bash
+julia --project=benchmarks benchmarks/diagnostics/fused_pair_kernels.jl
+julia --project=benchmarks benchmarks/diagnostics/vine_engine_allocations.jl
+```
+
+The first command compares the historical three-independent-primitive pattern with the fused pair step for Gaussian, Student, Clayton, Frank, and Gumbel. The second reports end-to-end `logpdf` time, memory, and allocations for homogeneous and mixed C-, D-, and standard R-vines over several dimensions and truncation levels. Set `N` and `SAMPLES` in the environment to change its workload.
+
+The Student-specific study remains separate because scalar Student-t CDF/quantile calls can dominate even after repeated base quantiles are removed:
+
+```bash
+bash benchmarks/tcopula_study/run_t_study.sh
+```
+
+Its diagnostics cover several degrees of freedom, central probabilities, extreme tails, Rmath-versus-StatsFuns scalar kernels, backend round-trip checks plus an exact ν=2 tail check, primitive allocations, and fused versus independent density/h-function evaluation.
+
+## 5. Fitting speed
 
 Run both selector spaces:
 
@@ -95,7 +114,7 @@ benchmarks/reports/fitting_benchmark_common.md
 benchmarks/reports/fitting_benchmark_default.md
 ```
 
-## 5. Full speed suite
+## 6. Full speed suite
 
 After correctness has already been established:
 

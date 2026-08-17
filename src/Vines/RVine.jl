@@ -267,24 +267,30 @@ function _rvine_logpdf_internal(vc::RVineCopula{p}, U::AbstractMatrix{<:Real}) w
     @inbounds for j in 1:p
         @views W[j,:] .= _clp.(X[order(vc)[j],:])
     end
-    H1 = [zeros(Float64, n) for _ in 1:p]
-    H2 = [copy(@view W[j,:]) for j in 1:p]
+    H1 = zeros(Float64, p, n)
+    H2 = copy(W)
     ll = zeros(Float64, n)
     buf = Vector{Float64}(undef, 2)
     @inbounds for tree0 in 0:(q-1)
+        propagate = tree0 < q - 1
         for edge in 1:(p-tree0-1)
             C = vc.edges[tree0+1][edge]
-            left = H2[edge]
             mpos = _max_pos(S, invord, tree0, edge)
-            right = _is_direct(S, tree0, edge) ? H2[mpos] : H1[mpos]
-            for col in 1:n
-                ll[col] += _pair_logpdf(C, left[col], right[col], buf)
-            end
-            out1 = H1[edge]
-            out2 = H2[edge]
-            for col in 1:n
-                out1[col] = hfunc1(C, left[col], right[col])
-                out2[col] = hfunc2(C, left[col], right[col])
+            direct = _is_direct(S, tree0, edge)
+            if propagate
+                for col in 1:n
+                    u = H2[edge,col]
+                    v = direct ? H2[mpos,col] : H1[mpos,col]
+                    logc, h1, h2 = _pair_step(C, u, v, buf)
+                    ll[col] += logc
+                    H1[edge,col] = h1
+                    H2[edge,col] = h2
+                end
+            else
+                for col in 1:n
+                    v = direct ? H2[mpos,col] : H1[mpos,col]
+                    ll[col] += _pair_logpdf(C, H2[edge,col], v, buf)
+                end
             end
         end
     end
@@ -351,8 +357,7 @@ function _rvine_inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::RV
                 mpos = invord_nat[m]
                 z2 = _is_direct(S, tree0, k) ? _fetch_v(Vi, i, mpos, :Vi) : _fetch_v(Vd, i, mpos, :Vd)
                 C = vc.edges[tree0+1][k]
-                Vd[i-1,k] = hfunc1(C, z1, z2)
-                Vi[i-1,k] = hfunc2(C, z1, z2)
+                Vd[i-1,k], Vi[i-1,k] = _pair_hfuncs(C, z1, z2)
             end
         end
     end
@@ -392,8 +397,7 @@ function _rvine_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::RVineCopul
                 mpos = invord_nat[m]
                 z2 = _is_direct(S, tree0, k) ? _fetch_v(Vi, i, mpos, :Vi) : _fetch_v(Vd, i, mpos, :Vd)
                 C = vc.edges[tree0+1][k]
-                Vd[i-1,k] = hfunc1(C, z1, z2)
-                Vi[i-1,k] = hfunc2(C, z1, z2)
+                Vd[i-1,k], Vi[i-1,k] = _pair_hfuncs(C, z1, z2)
             end
             Z[k,col] = _fetch_v(Vd, k, k, :Vd)
         end

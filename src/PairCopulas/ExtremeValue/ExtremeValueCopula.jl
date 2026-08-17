@@ -160,6 +160,24 @@ end
     return Distributions.cdf(_ev_conditional(C, u, Int8(1)), v)
 end
 
+# Smooth extreme-value families can produce both h-functions from one Pickands
+# evaluation. Singular/distortion tails retain their Copulas.jl conditional
+# path because atoms require generalized conditional distributions.
+@inline function _pair_hfuncs(C::Copulas.ExtremeValueCopula{2}, u::Real, v::Real)
+    uu, vv = _clp(u), _clp(v)
+    logh1, logh2 = _ev_loghfuncs(C, uu, vv)
+    return _clp(exp(logh1)), _clp(exp(logh2))
+end
+
+@inline function _pair_hfuncs(
+    C::Copulas.ExtremeValueCopula{2,TT},
+    u::Real,
+    v::Real,
+) where {TT<:_EVDistortionTail}
+    uu, vv = _clp(u), _clp(v)
+    return _clp(_ev_hfunc1(C, uu, vv)), _clp(_ev_hfunc2(C, uu, vv))
+end
+
 function hfunc1(C::Copulas.ExtremeValueCopula{2}, uv::Tuple{<:Real,<:Real})
     u, v = _clp(uv[1]), _clp(uv[2])
     return _clp(_ev_hfunc1(C, u, v))

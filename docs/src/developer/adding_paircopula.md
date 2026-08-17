@@ -46,6 +46,21 @@ hinv2(C, q, u)
 when doing so materially improves performance, allocation behavior,
 numerical stability, tail behavior, or handling of singular distributions.
 
+For families with expensive coordinate transforms, the internal fused hooks
+can additionally be specialized:
+
+```julia
+_pair_hfuncs(C, u, v)
+_pair_step(C, u, v, buf)
+_pair_logpdf_h1(C, u, v, buf)
+_pair_logpdf_h2(C, u, v, buf)
+```
+
+Generic implementations already compose the standalone primitives, so these
+methods are performance hooks rather than a new compatibility requirement. A
+specialization should reuse the same transformed coordinates and must return
+values numerically consistent with the standalone density/h-function methods.
+
 Specialized methods must remain consistent with the generic conditional
 definitions
 

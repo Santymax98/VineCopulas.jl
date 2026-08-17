@@ -87,54 +87,61 @@ function _logpdf_internal(vc::DVineCopula{p}, U::AbstractMatrix{<:Real}) where {
     ll = zeros(Float64, n)
     buf = Vector{Float64}(undef, 2)
     @inbounds for k in 1:vc.trunc
-        # Pair (i, i+k | i+1:i+k-1) uses L[i] and R[i+k].
+        # Pair (i, i+k | i+1:i+k-1) uses L[i] and R[i+k].  Within one
+        # tree every written L[i] / R[i+k] slot is unique, so conditionals can
+        # replace the consumed states in place without copying full matrices.
+        propagate = k < vc.trunc
         for i in 1:(p-k)
             C = vc.edges[k][i]
-            for col in 1:n
-                ll[col] += _pair_logpdf(C, L[i,col], R[i+k,col], buf)
+            left = @view L[i,:]
+            right = @view R[i+k,:]
+            if propagate
+                # Dispatch on a heterogeneous pair container happens once at
+                # this function barrier. Both input rows may alias the outputs.
+                _pair_step_add!(ll, left, right, C, left, right, buf)
+            else
+                _pair_logpdf_add!(ll, C, left, right, buf)
             end
-        end
-        if k < vc.trunc
-            Lnext = copy(L)
-            Rnext = copy(R)
-            for i in 1:(p-k)
-                C = vc.edges[k][i]
-                for col in 1:n
-                    uL = L[i,col]
-                    uR = R[i+k,col]
-                    Lnext[i,col] = hfunc1(C, uL, uR)
-                    Rnext[i+k,col] = hfunc2(C, uL, uR)
-                end
-            end
-            L, R = Lnext, Rnext
         end
     end
     return ll
 end
 
-function _dvine_left_conditionals(vc::DVineCopula{p}, X::AbstractMatrix{<:Real}, i::Int) where {p}
-    # L[m] = u_{m | m+1:(i-1)} is only needed when i-m <= trunc. Restricting
-    # the recurrence to that window avoids accessing absent tree levels in a
-    # truncated D-vine.
+function _dvine_left_conditionals!(
+    Lwork::Matrix{Float64},
+    Rwork::Vector{Float64},
+    vc::DVineCopula{p},
+    X::AbstractMatrix{<:Real},
+    i::Int,
+) where {p}
+    # Lwork[m,:] = u_{m | m+1:(i-1)} is needed only in the active truncation
+    # window. A single Rwork vector carries the right conditional down each
+    # recurrence, replacing the previous vector-of-vectors construction.
     n = size(X, 2)
+    size(Lwork) == (p, n) || throw(DimensionMismatch("Lwork has incompatible size"))
+    length(Rwork) == n || throw(DimensionMismatch("Rwork has incompatible length"))
     first = max(1, i - vc.trunc)
-    L = [copy(@view X[m, :]) for m in 1:(i-1)]
 
-    for t in (first+1):(i-1)
-        R = Vector{Vector{Float64}}(undef, t)
-        R[t] = copy(@view X[t, :])
+    @inbounds for m in first:(i-1), col in 1:n
+        Lwork[m,col] = X[m,col]
+    end
+
+    @inbounds for t in (first+1):(i-1)
+        for col in 1:n
+            Rwork[col] = X[t,col]
+        end
         for m in (t-1):-1:first
             C = vc.edges[t-m][m]
-            newL, newR = similar(L[m]), similar(R[m+1])
-            @inbounds for col in 1:n
-                uL, uR = _clp(L[m][col]), _clp(R[m+1][col])
-                newL[col] = hfunc1(C, uL, uR)
-                newR[col] = hfunc2(C, uL, uR)
+            for col in 1:n
+                uL = _clp(Lwork[m,col])
+                uR = _clp(Rwork[col])
+                h1, h2 = _pair_hfuncs(C, uL, uR)
+                Lwork[m,col] = h1
+                Rwork[col] = h2
             end
-            L[m], R[m] = newL, newR
         end
     end
-    return L
+    return first
 end
 
 function _rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::DVineCopula{p}, U::AbstractMatrix{<:Real}) where {p}
@@ -145,17 +152,17 @@ function _rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::DVineCopula{p}, 
         @views X[j,:] .= _clp.(Ux[vc.order[j],:])
     end
     Z = Matrix{Float64}(undef, p, n)
+    Lwork = Matrix{Float64}(undef, p, n)
+    Rwork = Vector{Float64}(undef, n)
     @inbounds Z[1,:] .= X[1,:]
     @inbounds for i in 2:p
-        L = _dvine_left_conditionals(vc, X, i)
+        first = _dvine_left_conditionals!(Lwork, Rwork, vc, X, i)
         @views Z[i,:] .= X[i,:]
         # z_i = F_{i | 1:(i-1)}. Apply hfunc2 from nearest to farthest left.
-        for m in (i-1):-1:1
-            i-m <= vc.trunc || continue
+        for m in (i-1):-1:first
             C = vc.edges[i-m][m]
-            cond = L[m]
             for col in 1:n
-                Z[i,col] = hfunc2(C, cond[col], Z[i,col])
+                Z[i,col] = hfunc2(C, Lwork[m,col], Z[i,col])
             end
         end
     end
@@ -174,17 +181,17 @@ function _inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::DVineCop
         @views W[j,:] .= _clp.(Zx[vc.order[j],:])
     end
     X = Matrix{Float64}(undef, p, n)
+    Lwork = Matrix{Float64}(undef, p, n)
+    Rwork = Vector{Float64}(undef, n)
     @inbounds X[1,:] .= W[1,:]
     @inbounds for i in 2:p
-        L = _dvine_left_conditionals(vc, X, i)
+        first = _dvine_left_conditionals!(Lwork, Rwork, vc, X, i)
         @views X[i,:] .= W[i,:]
         # Invert from farthest conditioned pair to nearest.
-        for m in 1:(i-1)
-            i-m <= vc.trunc || continue
+        for m in first:(i-1)
             C = vc.edges[i-m][m]
-            cond = L[m]
             for col in 1:n
-                X[i,col] = hinv2(C, X[i,col], cond[col])
+                X[i,col] = hinv2(C, X[i,col], Lwork[m,col])
             end
         end
     end

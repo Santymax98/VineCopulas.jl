@@ -1,3 +1,40 @@
+````@raw html
+---
+layout: home
+
+title: VineCopulas.jl Documentation
+
+description: Flexible vine copula models for Julia, built on Copulas.jl.
+
+hero:
+  name: VineCopulas.jl
+  text: Flexible vine copula models for Julia
+  tagline: Build, fit, select, evaluate, and simulate C-vines, D-vines, and R-vines on top of Copulas.jl.
+  image:
+    src: logo.png
+    alt: VineCopulas.jl
+  actions:
+    - theme: brand
+      text: Getting started
+      link: guide/getting_started
+    - theme: alt
+      text: Fitting & Selection
+      link: fitting/overview
+    - theme: alt
+      text: Benchmarks
+      link: benchmarks/overview
+
+features:
+  - title: C-, D-, and R-vines
+    details: Explicit and fitted vine copula models with flexible pair-copula families and truncation support.
+  - title: Fitting & selection
+    details: Pair-family, parameter, rotation, and dependence-structure selection through a unified Julia interface.
+  - title: Fast vine engines
+    details: Fused pair kernels, reusable work buffers, and allocation-conscious C-, D-, and R-vine traversals.
+  - title: Copulas.jl ecosystem
+    details: Built directly on Copulas.jl and the broader Distributions.jl statistical ecosystem.
+---
+````
 # VineCopulas.jl
 
 `VineCopulas.jl` is a native Julia package for building, fitting, selecting, evaluating, and simulating C-vine, D-vine, and regular-vine copula models on top of `Copulas.jl`.
