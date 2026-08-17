@@ -4,7 +4,7 @@ title: "VineCopulas.jl: Native Julia vine copula models built on Copulas.jl"
 authors:
   - family-names: "Jimenez"
     given-names: "Santiago"
-version: "0.1.1"
+version: "0.1.2"
 date-released: 2026-08-16
 license: "MIT"
 repository-code: "https://github.com/Santymax98/VineCopulas.jl"
