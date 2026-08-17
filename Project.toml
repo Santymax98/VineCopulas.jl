@@ -1,6 +1,6 @@
 name = "VineCopulas"
 uuid = "58f8e485-d1fe-48aa-8792-3d6ba0b7fb45"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Santiago Jimenez <santymax9807@gmail.com> and contributors"]
 
 [deps]
