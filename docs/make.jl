@@ -72,6 +72,7 @@ makedocs(;
         ],
         "Developer" => [
             "Architecture" => "developer/architecture.md",
+            "Pair-copula contract" => "developer/pair_contract.md",
             "Public API" => "developer/public_api.md",
             "Internal API" => "developer/internal_api.md",
             "Adding a pair copula" => "developer/adding_paircopula.md",

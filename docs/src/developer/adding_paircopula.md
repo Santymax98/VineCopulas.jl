@@ -1,7 +1,11 @@
 # Adding a pair copula
 
+This page is a workflow checklist. For the architectural contract behind
+these requirements, see [Pair-copula contract](pair_contract.md).
+
 A bivariate `Copulas.jl` copula can be used inside a vine when its density and
-conditional operations are reliable.
+conditional operations are reliable. It does not need a VineCopulas-specific
+family enum or wrapper.
 
 Support for **evaluation**, **specialized kernels**, and **automatic fitting
 and selection** are separate levels of integration.
@@ -24,7 +28,7 @@ quantile(D2, q)
 ```
 
 `VineCopulas.jl` uses these operations to provide generic pair-copula density
-and conditional fallbacks.
+and conditional fallbacks. This is the semantic compatibility layer.
 
 Therefore a new `Copulas.jl` family does not necessarily require duplicated
 `hfunc1`, `hfunc2`, `hinv1`, or `hinv2` implementations.
@@ -86,8 +90,13 @@ and
 h_2(u,h_2^{-1}(q,u)) \approx q.
 ```
 
-Singular families should instead satisfy the appropriate generalized-inverse
-conditions.
+Singular or nonsmooth families should instead satisfy the appropriate
+generalized-inverse conditions.
+
+Internal fused hooks are not currently public extension points. They are
+available inside the package so hot vine traversals can avoid repeated work,
+but external code should treat them as private unless they are explicitly
+stabilized in a future release.
 
 ## Fitting and selection support
 
