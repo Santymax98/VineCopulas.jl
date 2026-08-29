@@ -27,7 +27,19 @@ struct RVineStructure{p,q} <: AbstractVineStructure{p}
     order::NTuple{p,Int}
     struct_array::NTuple{q,Vector{Int}}
     matrix::Union{Nothing,Matrix{Int}}
-    trunc::Int
+
+    function RVineStructure{p,q}(
+        order::NTuple{p,Int},
+        struct_array::NTuple{q,Vector{Int}},
+        matrix::Union{Nothing,Matrix{Int}},
+    ) where {p,q}
+        1 <= q <= p - 1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+        sort(collect(order)) == collect(1:p) ||
+            throw(ArgumentError("R-vine order must be a permutation of 1:$p"))
+        matrix === nothing || size(matrix) == (p, p) ||
+            throw(ArgumentError("R-vine exchange matrix must have size ($p, $p)"))
+        return new{p,q}(order, struct_array, matrix)
+    end
 end
 
 """
@@ -59,7 +71,7 @@ function _is_legacy_dvine_structure(order, S, p::Int, trunc::Int)
 end
 
 _is_legacy_dvine_structure(st::RVineStructure) =
-    _is_legacy_dvine_structure(st.order, st.struct_array, length(st.order), st.trunc)
+    _is_legacy_dvine_structure(st.order, st.struct_array, length(st.order), truncation(st))
 
 function _validate_standard_rvine_structure(order, S, p::Int, trunc::Int)
     sort!(Int[x for x in order]) == collect(1:p) ||
@@ -138,7 +150,7 @@ function RVineStructure(order::AbstractVector{<:Integer}, struct_array; trunc::I
     M = matrix === nothing ? nothing : Matrix{Int}(matrix)
     M === nothing || size(M) == (p, p) ||
         throw(ArgumentError("R-vine exchange matrix must have size ($p, $p)"))
-    return RVineStructure{p,trunc}(ord, S, M, trunc)
+    return RVineStructure{p,trunc}(ord, S, M)
 end
 
 function RVineCopula(order::AbstractVector{<:Integer}, struct_array, edges; trunc::Int=length(order)-1)
@@ -148,7 +160,7 @@ function RVineCopula(order::AbstractVector{<:Integer}, struct_array, edges; trun
     S = _normalize_struct_array(struct_array, p, trunc)
     _validate_rvine_structure(ord, S, p, trunc)
     E = _normalize_edges(edges, p, trunc)
-    st = RVineStructure{p,trunc}(ord, S, nothing, trunc)
+    st = RVineStructure{p,trunc}(ord, S, nothing)
     return RVineCopula{p,trunc,typeof(E)}(st, E, trunc)
 end
 
@@ -188,7 +200,7 @@ function RVineCopula(matrix::AbstractMatrix{<:Integer}, edges)
     St = Tuple(S)
     _validate_rvine_structure(ord, St, p, trunc)
     E = _normalize_edges(edges, p, trunc)
-    st = RVineStructure{p,trunc}(ord, St, M, trunc)
+    st = RVineStructure{p,trunc}(ord, St, M)
     return RVineCopula{p,trunc,typeof(E)}(st, E, trunc)
 end
 
@@ -212,10 +224,10 @@ edges(vc::RVineCopula) = vc.edges
 
 """Return the number of active trees in an `RVineCopula`."""
 truncation(vc::RVineCopula) = vc.trunc
-truncation(st::RVineStructure) = st.trunc
+truncation(::RVineStructure{p,q}) where {p,q} = q
 
 function truncate(st::RVineStructure{p}, level::Integer) where {p}
-    q = _check_truncate_level(level, p, st.trunc)
+    q = _check_truncate_level(level, p, truncation(st))
     S = st.struct_array[1:q]
     return RVineStructure(collect(st.order), S; trunc=q, matrix=st.matrix)
 end
@@ -226,7 +238,7 @@ function truncate(vc::RVineCopula{p}, level::Integer) where {p}
 end
 
 Base.show(io::IO, vc::RVineCopula{p}) where {p} = print(io, "RVineCopula(p=$p, trunc=$(vc.trunc))")
-Base.show(io::IO, st::RVineStructure{p}) where {p} = print(io, "RVineStructure(p=$p, trunc=$(st.trunc))")
+Base.show(io::IO, st::RVineStructure{p}) where {p} = print(io, "RVineStructure(p=$p, trunc=$(truncation(st)))")
 
 """
     rvine_matrix(vc::RVineCopula)

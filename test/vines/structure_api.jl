@@ -27,6 +27,25 @@
     end
 end
 
+@testitem "Structure API – structure truncation has a single source of truth" tags=[:Structure, :Vine, :Truncation] setup=[M] begin
+    using Test
+    using VineCopulas
+
+    @test truncation(CVineStructure{4,1}((1, 2, 3, 4))) == 1
+    @test truncation(DVineStructure{4,1}((1, 2, 3, 4))) == 1
+    @test_throws MethodError CVineStructure{4,1}((1, 2, 3, 4), 3)
+    @test_throws MethodError DVineStructure{4,1}((1, 2, 3, 4), 3)
+    @test_throws ArgumentError CVineStructure{4,0}((1, 2, 3, 4))
+    @test_throws ArgumentError CVineStructure{4,4}((1, 2, 3, 4))
+    @test_throws ArgumentError DVineStructure{4,0}((1, 2, 3, 4))
+    @test_throws ArgumentError DVineStructure{4,4}((1, 2, 3, 4))
+
+    st = RVineStructure([1, 2, 3, 4], [[2, 3, 4], [2, 3]]; trunc=2)
+    @test truncation(st) == 2
+    @test_throws MethodError RVineStructure{4,2}((1, 2, 3, 4), ([2, 3, 4], [2, 3]), nothing, 3)
+    @test_throws ArgumentError RVineStructure{4,0}((1, 2, 3, 4), (), nothing)
+end
+
 @testitem "Structure API – truncate preserves public vine types" tags=[:Structure, :Vine, :Truncation] setup=[M] begin
     using Test
     using Distributions

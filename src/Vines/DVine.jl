@@ -6,13 +6,19 @@
 """Structure-only description of a D-vine path order and active truncation level."""
 struct DVineStructure{p,q} <: AbstractVineStructure{p}
     order::NTuple{p,Int}
-    trunc::Int
+
+    function DVineStructure{p,q}(order::NTuple{p,Int}) where {p,q}
+        1 <= q <= p - 1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+        sort(collect(order)) == collect(1:p) ||
+            throw(ArgumentError("order debe ser una permutación de 1:$p"))
+        return new{p,q}(order)
+    end
 end
 
 function DVineStructure(order::AbstractVector{<:Integer}; trunc::Int=length(order)-1)
     p = _check_order(order)
     1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
-    return DVineStructure{p,trunc}(Tuple(Int.(order)), trunc)
+    return DVineStructure{p,trunc}(Tuple(Int.(order)))
 end
 
 """
@@ -72,7 +78,7 @@ order(vc::DVineCopula) = vc.order
 order(st::DVineStructure) = st.order
 
 """Return a `DVineStructure` describing the D-vine path order and truncation."""
-structure(vc::DVineCopula{p,q}) where {p,q} = DVineStructure{p,q}(vc.order, vc.trunc)
+structure(vc::DVineCopula{p,q}) where {p,q} = DVineStructure{p,q}(vc.order)
 
 """
     edges(vine)
@@ -89,11 +95,11 @@ Return the number of active trees in the vine. A full `p`-dimensional vine has
 truncation level `p - 1`.
 """
 truncation(vc::DVineCopula) = vc.trunc
-truncation(st::DVineStructure) = st.trunc
+truncation(::DVineStructure{p,q}) where {p,q} = q
 
 function truncate(st::DVineStructure{p}, level::Integer) where {p}
-    q = _check_truncate_level(level, p, st.trunc)
-    return DVineStructure{p,q}(st.order, q)
+    q = _check_truncate_level(level, p, truncation(st))
+    return DVineStructure{p,q}(st.order)
 end
 
 function truncate(vc::DVineCopula{p}, level::Integer) where {p}
@@ -102,7 +108,7 @@ function truncate(vc::DVineCopula{p}, level::Integer) where {p}
 end
 
 Base.show(io::IO, vc::DVineCopula{p}) where {p} = print(io, "DVineCopula(p=$p, trunc=$(vc.trunc))")
-Base.show(io::IO, st::DVineStructure{p}) where {p} = print(io, "DVineStructure(p=$p, trunc=$(st.trunc))")
+Base.show(io::IO, st::DVineStructure{p}) where {p} = print(io, "DVineStructure(p=$p, trunc=$(truncation(st)))")
 
 function _logpdf_internal(vc::DVineCopula{p}, u::AbstractVector{<:Real}) where {p}
     _check_vector_dim(p, u)

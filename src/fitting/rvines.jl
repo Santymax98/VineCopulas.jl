@@ -355,11 +355,12 @@ end
 function _standardize_fixed_rvine_structure(st::RVineStructure)
     _is_legacy_dvine_structure(st) || return st, false
     p = length(st.order)
+    q = truncation(st)
     S = [
         Int[st.order[i + t] for i in 1:(p - t)]
-        for t in 1:st.trunc
+        for t in 1:q
     ]
-    return RVineStructure(collect(st.order), S; trunc=st.trunc), true
+    return RVineStructure(collect(st.order), S; trunc=q), true
 end
 
 
@@ -380,7 +381,7 @@ function _fit_fixed_rvine(
 )
     p, n = size(X)
     ord = collect(st.order)
-    q = st.trunc
+    q = truncation(st)
     S = [collect(st.struct_array[t]) for t in 1:q]
     length(ord) == p || throw(DimensionMismatch("structure dimension does not match data"))
 
@@ -494,9 +495,9 @@ function Copulas._fit(
         structure isa RVineStructure || throw(ArgumentError(
             "structure must be an RVineStructure or nothing"
         ))
-        q = structure.trunc
+        q = truncation(structure)
         trunc !== nothing && Int(trunc) != q && throw(ArgumentError(
-            "when structure is supplied, trunc must match structure.trunc"
+            "when structure is supplied, trunc must match truncation(structure)"
         ))
         st_fit, was_legacy = _standardize_fixed_rvine_structure(structure)
         vc, total_iterations, all_converged = _fit_fixed_rvine(
