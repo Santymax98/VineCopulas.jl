@@ -22,3 +22,8 @@ The broader set is useful for explicit experiments and user-specified candidate 
 ## Direct construction
 
 Automatic-selection membership does not limit explicit vine models. Any compatible bivariate `Copulas.jl` copula can be placed on an edge when the required conditional operations are available through the specialized or generic interface.
+
+!!! warning
+    Do not treat `DEFAULT_PAIR_FAMILIES` as a complete list of copulas that can
+    appear in a vine. It is the default automatic-selection set, not the
+    mathematical compatibility boundary.

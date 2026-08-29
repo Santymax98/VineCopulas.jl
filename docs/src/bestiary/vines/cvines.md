@@ -2,6 +2,10 @@
 
 A C-vine assigns a root variable to each tree. The first root connects to every other variable, the second root connects the remaining variables conditional on the first, and so on.
 
+Use a C-vine when some variables naturally act as central drivers of dependence.
+The first root is especially important because it appears in every first-tree
+edge.
+
 ## Explicit construction
 
 ```julia
@@ -27,3 +31,8 @@ fit(CVineCopula, U; tree_criterion=:tau)
 ```
 
 The fit is sequential: pair copulas are estimated tree by tree and their h-functions generate the conditional data required by the next tree.
+
+!!! tip
+    A C-vine order is easiest to explain when the first few roots have a domain
+    interpretation, such as market-wide risk factors, central sensors, or shared
+    environmental drivers.

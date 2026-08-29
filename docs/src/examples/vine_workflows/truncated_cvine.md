@@ -1,4 +1,4 @@
-# Truncated C-vine
+# Manual C-vine with Truncation
 
 A truncated C-vine uses only the first `trunc` trees. Higher-order pair-copulas are omitted.
 

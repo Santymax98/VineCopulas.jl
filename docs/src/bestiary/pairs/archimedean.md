@@ -11,4 +11,4 @@ JoeCopula(2, 1.6)
 
 Clayton, Gumbel, and Joe use rotations in automatic selection to represent alternative tail orientations and negative association. Frank already spans both association signs in its base bivariate parameterization.
 
-The public constructors keep the parameter domains defined by `Copulas.jl`. Automatic vine selection can use a narrower candidate domain; see [Controls and parameter domains](../../fitting/controls.md).
+The public constructors keep the parameter domains defined by `Copulas.jl`. Automatic vine selection can use a narrower candidate domain; see [Fitting and selection](../../manual/fitting_selection.md).

@@ -45,7 +45,7 @@ rvine_matrix
 
 These functions are public convenience names for pair conditional CDFs and
 conditional quantiles. Their generic semantics are defined by the
-`Copulas.condition` interface; see [Pair-copula contract](pair_contract.md).
+`Copulas.condition` interface; see [Pair-copula contract](../developer/pair_contract.md).
 
 ```@docs
 hfunc1
