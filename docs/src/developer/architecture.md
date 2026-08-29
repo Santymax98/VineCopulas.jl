@@ -55,6 +55,18 @@ Reusable mathematical behavior for an individual pair-copula family should gener
 
 `CVineCopula`, `DVineCopula`, and `RVineCopula` own structure validation and traversal. Evaluation code does not perform model selection. Density traversal requests only the fused subset required by the next tree: C-vines propagate one conditional, D-vines propagate both, and the standard R-vine execution plan uses per-edge liveness. The final active tree computes density only because no later pair consumes its conditional outputs.
 
+Vine structure is a first-class but deliberately small abstraction. `AbstractVineStructure` covers `CVineStructure`, `DVineStructure`, and `RVineStructure`; structure objects own ordering and active truncation depth, while vine copulas own the pair-copula array and probabilistic behavior. The common public operations are:
+
+```julia
+structure(vine)
+order(vine_or_structure)
+edges(vine)
+truncation(vine_or_structure)
+truncate(vine_or_structure, level)
+```
+
+This keeps the existing `CVineCopula`, `DVineCopula`, and `RVineCopula` user API intact while giving fitting, serialization, plotting, and future conditional-simulation work a stable structural handle. The abstraction is intentionally not a replacement object model: pair families remain Julia copula objects, not enum entries.
+
 Work buffers are owned by each call. D-vine density updates disjoint active states in place rather than copying the complete left/right matrices at every tree; Rosenblatt and inverse Rosenblatt reuse call-local work arrays. This keeps the engines reentrant and thread-safe while reducing allocation pressure.
 
 ## Fitting layer

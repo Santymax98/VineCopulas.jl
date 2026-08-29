@@ -15,6 +15,7 @@ import StatsFuns
 
 using Reexport
 @reexport using Copulas
+import Base: truncate
 import Copulas: rosenblatt, inverse_rosenblatt
 
 """
@@ -24,6 +25,15 @@ Alias for `Copulas.Copula{2}`. Pair-copulas are the bivariate building blocks
 used on vine edges.
 """
 const PairCopula = Copulas.Copula{2}
+
+"""
+    AbstractVineStructure{p}
+
+Abstract supertype for structural descriptions of `p`-dimensional vines.
+Structure objects store variable ordering and active tree depth without owning
+the pair-copula families or parameters.
+"""
+abstract type AbstractVineStructure{p} end
 
 """
     AbstractVineCopula{p} <: Copulas.Copula{p}
@@ -75,16 +85,21 @@ include("stats.jl")
 
 export PairCopula,
        VineCopula,
+       AbstractVineStructure,
        AbstractVineCopula,
+       CVineStructure,
+       DVineStructure,
+       RVineStructure,
        CVineCopula,
        DVineCopula,
        RVineCopula,
-       RVineStructure,
        VineEdge,
+       structure,
        order,
        edges,
        struct_array,
        truncation,
+       truncate,
        rvine_matrix,
        hfunc1,
        hfunc2,

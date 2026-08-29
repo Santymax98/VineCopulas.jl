@@ -23,7 +23,7 @@ end
 Structure representation for a regular vine. It stores the variable order,
 triangular structure array, optional exchange matrix, and truncation level.
 """
-struct RVineStructure{p,q}
+struct RVineStructure{p,q} <: AbstractVineStructure{p}
     order::NTuple{p,Int}
     struct_array::NTuple{q,Vector{Int}}
     matrix::Union{Nothing,Matrix{Int}}
@@ -152,6 +152,11 @@ function RVineCopula(order::AbstractVector{<:Integer}, struct_array, edges; trun
     return RVineCopula{p,trunc,typeof(E)}(st, E, trunc)
 end
 
+function RVineCopula(structure::RVineStructure{p,q}, edges) where {p,q}
+    E = _normalize_edges(edges, p, q)
+    return RVineCopula{p,q,typeof(E)}(structure, E, q)
+end
+
 # Lightweight matrix parser compatible with the package's natural-order triangular array.
 function _rvine_from_matrix(M0::AbstractMatrix{<:Integer}, trunc::Int)
     size(M0, 1) == size(M0, 2) || throw(ArgumentError("R-vine matrix must be square"))
@@ -189,6 +194,10 @@ end
 
 """Return the variable order used by an `RVineCopula`."""
 order(vc::RVineCopula) = vc.structure.order
+order(st::RVineStructure) = st.order
+
+"""Return the `RVineStructure` describing an `RVineCopula`."""
+structure(vc::RVineCopula) = vc.structure
 
 """
     struct_array(vine)
@@ -196,14 +205,28 @@ order(vc::RVineCopula) = vc.structure.order
 Return the triangular structure array used by an `RVineCopula`.
 """
 struct_array(vc::RVineCopula) = vc.structure.struct_array
+struct_array(st::RVineStructure) = st.struct_array
 
 """Return the triangular array of pair-copulas used by an `RVineCopula`."""
 edges(vc::RVineCopula) = vc.edges
 
 """Return the number of active trees in an `RVineCopula`."""
 truncation(vc::RVineCopula) = vc.trunc
+truncation(st::RVineStructure) = st.trunc
+
+function truncate(st::RVineStructure{p}, level::Integer) where {p}
+    q = _check_truncate_level(level, p, st.trunc)
+    S = st.struct_array[1:q]
+    return RVineStructure(collect(st.order), S; trunc=q, matrix=st.matrix)
+end
+
+function truncate(vc::RVineCopula{p}, level::Integer) where {p}
+    st = truncate(structure(vc), level)
+    return RVineCopula(st, vc.edges[1:truncation(st)])
+end
 
 Base.show(io::IO, vc::RVineCopula{p}) where {p} = print(io, "RVineCopula(p=$p, trunc=$(vc.trunc))")
+Base.show(io::IO, st::RVineStructure{p}) where {p} = print(io, "RVineStructure(p=$p, trunc=$(st.trunc))")
 
 """
     rvine_matrix(vc::RVineCopula)

@@ -11,6 +11,12 @@ st = RVineStructure(order, struct_array)
 model = fit(RVineCopula, U; structure=st)
 ```
 
+The structure can also be paired directly with an explicit edge array:
+
+```julia
+model = RVineCopula(st, edges)
+```
+
 ## Automatic structure selection
 
 ```julia
