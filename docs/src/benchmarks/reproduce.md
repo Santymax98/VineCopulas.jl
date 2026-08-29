@@ -74,11 +74,28 @@ FAMILY=gumbel MODEL=D P=10 N=10000 TRUNC=2 \
 To isolate the optimizations used by the vine engines from the full benchmark battery, run:
 
 ```bash
+julia --project=benchmarks benchmarks/diagnostics/condition_fallback.jl
 julia --project=benchmarks benchmarks/diagnostics/fused_pair_kernels.jl
 julia --project=benchmarks benchmarks/diagnostics/vine_engine_allocations.jl
 ```
 
-The first command compares the historical three-independent-primitive pattern with the fused pair step for Gaussian, Student, Clayton, Frank, and Gumbel. The second reports end-to-end `logpdf` time, memory, and allocations for homogeneous and mixed C-, D-, and standard R-vines over several dimensions and truncation levels. Set `N` and `SAMPLES` in the environment to change its workload.
+The condition fallback diagnostic compares `hfunc1`, `hfunc2`, `hinv1`, and `hinv2` with the canonical `cdf`/`quantile` routes through `Copulas.condition`. The fused-kernel diagnostic compares the historical three-independent-primitive pattern with the fused pair step for Gaussian, Student, Clayton, Frank, and Gumbel. The vine-engine diagnostic reports end-to-end `logpdf` time, memory, and allocations for homogeneous and mixed C-, D-, and standard R-vines over several dimensions and truncation levels. Set `N` and `SAMPLES` in the environment to change its workload.
+
+For a quick smoke run:
+
+```bash
+SMOKE=1 julia --project=benchmarks benchmarks/diagnostics/condition_fallback.jl
+```
+
+Useful filters include:
+
+```bash
+MATRIX=full FAMILIES=gaussian,student,clayton SAMPLES=20 \
+  OUT=benchmarks/reports/condition_fallback.csv \
+  julia --project=benchmarks benchmarks/diagnostics/condition_fallback.jl
+```
+
+The default `MATRIX=core` keeps this diagnostic short; use `MATRIX=full` when characterizing BB and extreme-value paths before changing specializations.
 
 The Student-specific study remains separate because scalar Student-t CDF/quantile calls can dominate even after repeated base quantiles are removed:
 

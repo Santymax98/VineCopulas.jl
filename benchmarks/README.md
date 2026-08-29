@@ -65,11 +65,20 @@ Each mode measures pair selection, fixed-structure R-vine fitting, and automatic
 ## Focused engine diagnostics
 
 ```bash
+julia --project=benchmarks benchmarks/diagnostics/condition_fallback.jl
 julia --project=benchmarks benchmarks/diagnostics/fused_pair_kernels.jl
 julia --project=benchmarks benchmarks/diagnostics/vine_engine_allocations.jl
 ```
 
-These isolate fused pair-kernel speedups and C-/D-/R-vine allocation behavior from the larger benchmark campaign.
+These isolate the pair-copula boundary with `Copulas.condition`, fused pair-kernel speedups, and C-/D-/R-vine allocation behavior from the larger benchmark campaign.
+
+For a quick local smoke run:
+
+```bash
+SMOKE=1 julia --project=benchmarks benchmarks/diagnostics/condition_fallback.jl
+```
+
+The default `MATRIX=core` keeps the run focused on FGM, Gaussian, Student, Clayton, Frank, Gumbel, and Joe. Set `MATRIX=full` to include BB and extreme-value families, `FAMILIES=gaussian,student,clayton` to narrow the matrix, `SAMPLES=20` to increase measurement stability, or `OUT=benchmarks/reports/condition_fallback.csv` to persist the results.
 
 ## Student-t study
 
