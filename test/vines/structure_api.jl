@@ -46,6 +46,50 @@ end
     @test_throws ArgumentError RVineStructure{4,0}((1, 2, 3, 4), (), nothing)
 end
 
+@testitem "Structure API – order tuples round-trip through public constructors" tags=[:Structure, :Vine] setup=[M] begin
+    using Test
+    using VineCopulas
+
+    cv = CVineStructure((1, 2, 3, 4); trunc=2)
+    @test CVineStructure(order(cv); trunc=truncation(cv)) == cv
+
+    dv = DVineStructure((1, 2, 3, 4); trunc=2)
+    @test DVineStructure(order(dv); trunc=truncation(dv)) == dv
+
+    rv = RVineStructure((1, 2, 3, 4), ([2, 3, 4], [2, 3]); trunc=2)
+    rv2 = RVineStructure(order(rv), struct_array(rv); trunc=truncation(rv))
+    @test order(rv2) == order(rv)
+    @test truncation(rv2) == truncation(rv)
+    @test struct_array(rv2) == struct_array(rv)
+
+    for (vine, CT) in (
+        (M.cvine4(), CVineCopula),
+        (M.dvine4(), DVineCopula),
+        (M.rvine5_general(), RVineCopula),
+    )
+        rebuilt = if vine isa RVineCopula
+            CT(order(vine), struct_array(vine), edges(vine); trunc=truncation(vine))
+        else
+            CT(order(vine), edges(vine); trunc=truncation(vine))
+        end
+        @test order(rebuilt) == order(vine)
+        @test truncation(rebuilt) == truncation(vine)
+    end
+end
+
+@testitem "Structure API – unsupported abstract vines do not advertise capabilities" tags=[:Structure, :Vine] begin
+    using Test
+    using VineCopulas
+
+    struct UnsupportedVineForStructureTest <: AbstractVineCopula{2} end
+    vine = UnsupportedVineForStructureTest()
+
+    @test !applicable(structure, vine)
+    @test !applicable(order, vine)
+    @test !applicable(truncation, vine)
+    @test !applicable(truncate, vine, 1)
+end
+
 @testitem "Structure API – truncate preserves public vine types" tags=[:Structure, :Vine, :Truncation] setup=[M] begin
     using Test
     using Distributions

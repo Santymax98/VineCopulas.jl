@@ -21,7 +21,8 @@ end
     RVineStructure(order, struct_array; trunc=length(order)-1)
 
 Structure representation for a regular vine. It stores the variable order,
-triangular structure array, optional exchange matrix, and truncation level.
+triangular structure array, and optional exchange matrix. The truncation level
+is encoded by the type parameter `q` and by the length of `struct_array`.
 """
 struct RVineStructure{p,q} <: AbstractVineStructure{p}
     order::NTuple{p,Int}
@@ -33,7 +34,7 @@ struct RVineStructure{p,q} <: AbstractVineStructure{p}
         struct_array::NTuple{q,Vector{Int}},
         matrix::Union{Nothing,Matrix{Int}},
     ) where {p,q}
-        1 <= q <= p - 1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+        1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
         sort(collect(order)) == collect(1:p) ||
             throw(ArgumentError("R-vine order must be a permutation of 1:$p"))
         matrix === nothing || size(matrix) == (p, p) ||
@@ -141,9 +142,9 @@ function _validate_rvine_structure(order, S, p::Int, trunc::Int)
     return :standard
 end
 
-function RVineStructure(order::AbstractVector{<:Integer}, struct_array; trunc::Int=length(order)-1, matrix=nothing)
+function RVineStructure(order::_OrderInput, struct_array; trunc::Int=length(order)-1, matrix=nothing)
     p = _check_order(order)
-    1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
     ord = Tuple(Int.(order))
     S = _normalize_struct_array(struct_array, p, trunc)
     _validate_rvine_structure(ord, S, p, trunc)
@@ -153,9 +154,9 @@ function RVineStructure(order::AbstractVector{<:Integer}, struct_array; trunc::I
     return RVineStructure{p,trunc}(ord, S, M)
 end
 
-function RVineCopula(order::AbstractVector{<:Integer}, struct_array, edges; trunc::Int=length(order)-1)
+function RVineCopula(order::_OrderInput, struct_array, edges; trunc::Int=length(order)-1)
     p = _check_order(order)
-    1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
     ord = Tuple(Int.(order))
     S = _normalize_struct_array(struct_array, p, trunc)
     _validate_rvine_structure(ord, S, p, trunc)
@@ -174,7 +175,7 @@ function _rvine_from_matrix(M0::AbstractMatrix{<:Integer}, trunc::Int)
     size(M0, 1) == size(M0, 2) || throw(ArgumentError("R-vine matrix must be square"))
     M = Matrix{Int}(M0)
     p = size(M, 1)
-    1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
     # Prefer non-zero anti-diagonal; otherwise fall back to diagonal.
     anti = [M[p-j+1,j] for j in 1:p]
     if all(x -> 1 <= x <= p, anti) && length(unique(anti)) == p

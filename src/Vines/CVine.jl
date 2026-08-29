@@ -7,16 +7,16 @@ struct CVineStructure{p,q} <: AbstractVineStructure{p}
     order::NTuple{p,Int}
 
     function CVineStructure{p,q}(order::NTuple{p,Int}) where {p,q}
-        1 <= q <= p - 1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+        1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
         sort(collect(order)) == collect(1:p) ||
-            throw(ArgumentError("order debe ser una permutación de 1:$p"))
+            throw(ArgumentError("order must be a permutation of 1:$p"))
         return new{p,q}(order)
     end
 end
 
-function CVineStructure(order::AbstractVector{<:Integer}; trunc::Int=length(order)-1)
+function CVineStructure(order::_OrderInput; trunc::Int=length(order)-1)
     p = _check_order(order)
-    1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
     return CVineStructure{p,trunc}(Tuple(Int.(order)))
 end
 
@@ -53,9 +53,9 @@ function CVineCopula(; order, paircopulas, trunc = length(order) - 1)
     return CVineCopula(ord, pcs; trunc = trunc)
 end
 
-function CVineCopula(order::AbstractVector{<:Integer}, edges; trunc::Int=length(order)-1)
+function CVineCopula(order::_OrderInput, edges; trunc::Int=length(order)-1)
     p = _check_order(order)
-    1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
     E = _normalize_edges(edges, p, trunc)
     return CVineCopula{p,trunc,typeof(E)}(Tuple(Int.(order)), E, trunc)
 end

@@ -8,16 +8,14 @@ Base.length(::AbstractVineCopula{p}) where {p} = p
 
 Return the vine's structural description without the pair-copula array.
 """
-structure(::AbstractVineCopula) =
-    throw(ArgumentError("structure no implementado para este tipo de vine"))
+function structure end
 
 """
     order(vine_or_structure)
 
 Return the variable order used by a vine copula or vine structure.
 """
-order(::Union{AbstractVineCopula,AbstractVineStructure}) =
-    throw(ArgumentError("order no implementado para este tipo de vine"))
+function order end
 
 """
     truncation(vine_or_structure)
@@ -25,13 +23,12 @@ order(::Union{AbstractVineCopula,AbstractVineStructure}) =
 Return the number of active trees in the vine. A full `p`-dimensional vine has
 truncation level `p - 1`.
 """
-truncation(::Union{AbstractVineCopula,AbstractVineStructure}) =
-    throw(ArgumentError("truncation no implementado para este tipo de vine"))
+function truncation end
 
 function _check_truncate_level(level::Integer, p::Int, current::Int)
     q = Int(level)
     1 <= q <= min(current, p - 1) ||
-        throw(ArgumentError("level debe estar en 1:$(min(current, p - 1))"))
+        throw(ArgumentError("level must be in 1:$(min(current, p - 1))"))
     return q
 end
 
@@ -41,8 +38,7 @@ end
 Return a copy of a vine or vine structure retaining only trees `1:level`.
 Truncation cannot restore trees that are absent from the input object.
 """
-truncate(::Union{AbstractVineCopula,AbstractVineStructure}, ::Integer) =
-    throw(ArgumentError("truncate no implementado para este tipo de vine"))
+truncate
 
 # -------------------- CDF controls --------------------
 

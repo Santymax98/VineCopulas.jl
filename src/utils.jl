@@ -136,14 +136,16 @@ end
     return -yy
 end
 
-function _check_order(order::AbstractVector{<:Integer})
+const _OrderInput = Union{AbstractVector{<:Integer},Tuple{Vararg{Integer}}}
+
+function _check_order(order::_OrderInput)
     p = length(order)
-    p >= 2 || throw(ArgumentError("order debe tener longitud al menos 2"))
+    p >= 2 || throw(ArgumentError("order must have length at least 2"))
     seen = falses(p)
     @inbounds for v0 in order
         v = Int(v0)
-        1 <= v <= p || throw(ArgumentError("order debe ser una permutación de 1:$p"))
-        seen[v] && throw(ArgumentError("order contiene índices repetidos"))
+        1 <= v <= p || throw(ArgumentError("order must be a permutation of 1:$p"))
+        seen[v] && throw(ArgumentError("order contains repeated indices"))
         seen[v] = true
     end
     return p
