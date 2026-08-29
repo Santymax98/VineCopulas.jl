@@ -20,3 +20,12 @@ edges(model)
 ```
 
 Use `truncate(model, q)` to create a new vine with only trees ``1,\ldots,q`` when those trees are already present in `model`.
+
+!!! tip
+    Start with C- or D-vines when the variable order has a scientific meaning.
+    Start with R-vines when the structure itself should be learned from data.
+
+!!! warning
+    A vine structure is not a fitted statistical result. Diagnostics such as
+    convergence, selected criterion, and selection trace belong to fitted-result
+    metadata, not to `CVineStructure`, `DVineStructure`, or `RVineStructure`.

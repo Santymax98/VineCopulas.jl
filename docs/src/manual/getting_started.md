@@ -52,7 +52,9 @@ fitted = fit(
 )
 ```
 
-For a fixed structure, pass the desired order or `RVineStructure` explicitly. See [Fitting & Selection](../fitting/overview.md) for the complete controls.
+For a fixed structure, pass the desired order or `RVineStructure` explicitly.
+See [Fitting and selection](fitting_selection.md) for the complete
+controls.
 
 ## Data layout
 

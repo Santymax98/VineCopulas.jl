@@ -1,4 +1,4 @@
-# Simulation and transforms
+# Simulation and Transforms
 
 ## Simulation
 
@@ -32,6 +32,11 @@ inverse_rosenblatt!(dest, vine, Z)
 ```
 
 For **standard general R-vines** truncated below full depth, density evaluation and fitting are available, but Rosenblatt/inverse Rosenblatt transforms are not yet implemented. Because `rand`, `simulate_qmc`, and the numerical CDF use the inverse Rosenblatt transform, those operations currently require a full-depth standard general R-vine. Truncated C- and D-vines are not subject to this limitation.
+
+!!! warning
+    This limitation is structural, not cosmetic. A truncated general R-vine must
+    still define a coherent traversal plan for transforms before `rand`,
+    `simulate_qmc`, or simulation-based CDF estimation can use it.
 
 ## Numerical CDF
 

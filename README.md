@@ -8,9 +8,15 @@
 
 `VineCopulas.jl` provides native Julia C-vine, D-vine, and regular-vine copula models built on top of [`Copulas.jl`](https://github.com/lrnv/Copulas.jl). It supports explicit construction, evaluation, simulation, Rosenblatt transforms, sequential parameter fitting, pair-family and rotation selection, and data-driven vine-structure selection.
 
+The package is intended as the vine layer of the Julia copula ecosystem:
+`Copulas.jl` owns individual copula families and distribution-level semantics,
+while `VineCopulas.jl` owns vine structures, pair-copula composition, traversal,
+and vine-specific fitting/selection algorithms.
+
 ## Highlights
 
 - `CVineCopula`, `DVineCopula`, and general `RVineCopula` models.
+- First-class `CVineStructure`, `DVineStructure`, and `RVineStructure` objects.
 - `pdf`, `logpdf`, `rand`, numerical `cdf`, Rosenblatt, and inverse Rosenblatt transforms.
 - Pair-copula fitting and selection by log-likelihood, AIC, or BIC.
 - Rotated/survival pair-copulas and an optional independence candidate.
@@ -51,16 +57,39 @@ maximum(abs.(inverse_rosenblatt(fitted, rosenblatt(fitted, U)) .- U))
 
 Data matrices use the `p × n` convention: rows are variables and columns are observations.
 
+## Architecture in one minute
+
+Vines decompose a high-dimensional copula density into bivariate pair-copula
+terms evaluated at recursively computed conditional probabilities. In
+`VineCopulas.jl`, those pair-copulas are ordinary `Copulas.Copula{2}` objects:
+
+```julia
+PairCopula === Copulas.Copula{2}
+```
+
+The public h-function API uses standard vine terminology:
+
+```julia
+hfunc1(C, u, v)
+hfunc2(C, u, v)
+hinv1(C, q, v)
+hinv2(C, q, u)
+```
+
+Semantically these correspond to conditional CDFs and conditional quantiles
+through `Copulas.condition`. Family-specific and fused implementations may be
+used as fast paths when they are faster or more stable.
+
 ## Documentation
 
-The documentation is organized into six top-level sections:
+The documentation is organized into:
 
 - **Home** — package overview, quick example, and citation.
-- **Guide** — installation, first models, simulation, examples, and compatibility.
-- **Bestiary** — vine structures and pair-copula families.
-- **Fitting & Selection** — pair fitting, vine fitting, structure learning, and selection controls.
-- **Benchmarks** — correctness and performance against `rvinecopulib`.
-- **Developer** — architecture, API, testing, upstream notes, and roadmap.
+- **Manual** — foundations, pair-copula semantics, transforms, fitting/selection, and benchmarks.
+- **Bestiary** — catalog of supported vine structures and pair-copula families.
+- **Examples** — practical workflows with small reproducible examples.
+- **Developer Guide** — architecture, extension contracts, testing, release process, and roadmap.
+- **API** — public reference, internal non-stable reference, and references.
 
 Use the [stable documentation](https://santymax98.github.io/VineCopulas.jl/stable/) for the latest registered release or the [development documentation](https://santymax98.github.io/VineCopulas.jl/dev/) for `main`.
 
@@ -81,9 +110,9 @@ PARITY_N=800 PARITY_FIT_MODE=common \
 
 Evaluation and fitting speed benchmarks are kept separate from correctness checks. See [`benchmarks/README.md`](benchmarks/README.md) for the short commands and report format.
 
-## Scope
+## Current scope
 
-Version 0.1.1 focuses on sequential fitting and structure selection for simplified vines. Automatic data-driven truncation selection, observation weights, missing/discrete-data fitting, nonparametric pair-copula selection, and joint full-vine maximum-likelihood estimation remain outside the current scope.
+The 0.1 series focuses on sequential fitting and structure selection for simplified vines. Automatic data-driven truncation selection, observation weights, missing/discrete-data fitting, nonparametric pair-copula selection, and joint full-vine maximum-likelihood estimation remain outside the current scope.
 
 Automatic selection may use narrower **candidate parameter domains** than the mathematical domains exposed by `Copulas.jl`. Those bounds align the selection problem with `vinecopulib`; they do not restrict direct construction or direct use of the underlying pair-copulas.
 

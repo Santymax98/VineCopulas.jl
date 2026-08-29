@@ -4,9 +4,9 @@ The roadmap is intentionally short and is not tied to version numbers. Correctne
 
 ## Main priority: performance
 
-- Use the [performance benchmarks](../benchmarks/performance.md) as the baseline for optimization work and keep every result reproducible through the [benchmark workflow](../benchmarks/reproduce.md).
+- Use the [benchmark manual](../manual/benchmarks.md) as the baseline for optimization work and keep every result reproducible through the benchmark workflow.
 - Reduce fitting time, especially for the default family search. The practical goal is to close the gap to `rvinecopulib` and, where possible, match or outperform it without weakening correctness or API clarity.
-- Profile before optimizing. Performance changes should show a measurable improvement in the benchmark suite while the [correctness gate](../benchmarks/correctness.md) remains green.
+- Profile before optimizing. Performance changes should show a measurable improvement in the benchmark suite while the correctness gate remains green.
 - Prioritize pair-family selection, repeated likelihood and h-function calculations, Student-t bottlenecks, allocations, and reusable intermediate state.
 - Explore parallel family or edge fitting only where benchmarks show a clear benefit.
 

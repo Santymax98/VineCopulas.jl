@@ -18,7 +18,7 @@ GumbelCopula(2, θ)
 
 continues to use the corresponding `Copulas.jl` domain.
 
-Automatic vine selection can use narrower **candidate parameter domains**. These bounds are internal to model selection and are chosen to align the candidate space with `vinecopulib` where external parity is required. They do not redefine the public copula families. See [Controls and parameter domains](../fitting/controls.md).
+Automatic vine selection can use narrower **candidate parameter domains**. These bounds are internal to model selection and are chosen to align the candidate space with `vinecopulib` where external parity is required. They do not redefine the public copula families. See [Fitting and selection](fitting_selection.md).
 
 ## rvinecopulib
 

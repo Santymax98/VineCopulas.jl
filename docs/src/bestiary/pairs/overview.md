@@ -5,3 +5,8 @@ Pair copulas are the bivariate building blocks attached to vine edges. `PairCopu
 The default automatic-selection set is intentionally smaller than the complete parametric catalog. It receives the strongest external correctness coverage and includes Gaussian, Student-t, Clayton, Gumbel, Frank, Joe, BB1, BB6, BB7, and BB8. Independence is controlled separately.
 
 Use `family_set=:all` to expose the broader parametric set, or pass an explicit tuple of families when the candidate set is part of the model specification.
+
+!!! note
+    This bestiary describes pair-copulas as vine building blocks. For the full
+    mathematical treatment of a family, including domains and standalone
+    distribution behavior, use the `Copulas.jl` documentation.

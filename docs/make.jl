@@ -4,6 +4,9 @@ using DocumenterVitepress
 
 DocMeta.setdocmeta!(VineCopulas, :DocTestSetup, :(using VineCopulas); recursive=true)
 
+# Keep plotting examples headless-friendly in local builds and CI.
+ENV["GKSwstype"] = get(ENV, "GKSwstype", "100")
+
 # Avoid deployment auto-detection during local builds while preserving the
 # normal Documenter decision on CI.
 deploy_decision = get(ENV, "CI", "false") == "true" ?
@@ -23,20 +26,14 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
-        "Guide" => [
-            "Getting started" => "guide/getting_started.md",
-            "Core concepts" => "guide/concepts.md",
-            "Simulation and transforms" => "guide/transforms.md",
-            "Examples" => [
-                "Minimal D-vine" => "guide/examples/minimal_dvine.md",
-                "Mixed D-vine" => "guide/examples/mixed_dvine.md",
-                "Truncated C-vine" => "guide/examples/truncated_cvine.md",
-                "Extreme-value vine" => "guide/examples/extreme_value_vine.md",
-                "Large simulation" => "guide/examples/large_simulation.md",
-                "Plots" => "guide/examples/plots.md",
-            ],
-            "Compatibility" => "guide/compatibility.md",
-            "Conventions" => "guide/conventions.md",
+        "Manual" => [
+            "Getting started" => "manual/getting_started.md",
+            "Foundations" => "manual/foundations.md",
+            "Pair copulas in vines" => "manual/pair_copulas.md",
+            "Simulation and transforms" => "manual/simulation_transforms.md",
+            "Fitting and selection" => "manual/fitting_selection.md",
+            "Benchmarks" => "manual/benchmarks.md",
+            "Compatibility" => "manual/compatibility.md",
         ],
         "Bestiary" => [
             "Vine structures" => [
@@ -57,29 +54,32 @@ makedocs(;
                 "Extreme-value families" => "bestiary/pairs/extreme_value.md",
             ],
         ],
-        "Fitting & Selection" => [
-            "Overview" => "fitting/overview.md",
-            "Pair-copula selection" => "fitting/pair_selection.md",
-            "Vine fitting" => "fitting/vine_fitting.md",
-            "Structure selection" => "fitting/structure_selection.md",
-            "Controls and parameter domains" => "fitting/controls.md",
+        "Examples" => [
+            "Minimal D-vine" => "examples/vine_workflows/minimal_dvine.md",
+            "Manual C-vine" => "examples/vine_workflows/truncated_cvine.md",
+            "Mixed pair families" => "examples/vine_workflows/mixed_dvine.md",
+            "Fit an R-vine from data" => "examples/vine_workflows/fit_rvine.md",
+            "Fixed-structure fitting" => "examples/vine_workflows/fixed_structure_fitting.md",
+            "AIC/BIC comparison" => "examples/vine_workflows/model_comparison.md",
+            "Extreme-value vine" => "examples/vine_workflows/extreme_value_vine.md",
+            "Large simulation" => "examples/vine_workflows/large_simulation.md",
+            "Plots" => "examples/vine_workflows/plots.md",
         ],
-        "Benchmarks" => [
-            "Overview" => "benchmarks/overview.md",
-            "Correctness" => "benchmarks/correctness.md",
-            "Performance" => "benchmarks/performance.md",
-            "Reproducing results" => "benchmarks/reproduce.md",
-        ],
-        "Developer" => [
+        "Developer Guide" => [
             "Architecture" => "developer/architecture.md",
             "Pair-copula contract" => "developer/pair_contract.md",
-            "Public API" => "developer/public_api.md",
-            "Internal API" => "developer/internal_api.md",
+            "Structure API" => "developer/structure_api.md",
+            "Fitting architecture" => "developer/fitting_architecture.md",
             "Adding a pair copula" => "developer/adding_paircopula.md",
             "Testing" => "developer/testing.md",
             "Copulas.jl follow-ups" => "developer/copulas_followups.md",
             "Release checklist" => "developer/release.md",
             "Roadmap" => "developer/roadmap.md",
+        ],
+        "API" => [
+            "Public" => "api/public.md",
+            "Internal (non-stable)" => "api/internal.md",
+            "References" => "references.md",
         ],
     ],
     checkdocs=:none,
