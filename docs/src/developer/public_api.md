@@ -7,13 +7,16 @@ CurrentModule = VineCopulas
 ## Core types
 
 ```@docs
+AbstractVineStructure
 AbstractVineCopula
 VineCopula
 PairCopula
+CVineStructure
+DVineStructure
+RVineStructure
 CVineCopula
 DVineCopula
 RVineCopula
-RVineStructure
 VineEdge
 ```
 
@@ -29,10 +32,12 @@ Fitting is exposed through `Distributions.fit`, for example `fit(PairCopula, U)`
 ## Structure accessors
 
 ```@docs
+structure
 order
 edges
 struct_array
 truncation
+truncate
 rvine_matrix
 ```
 

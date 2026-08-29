@@ -2,8 +2,27 @@
 # Convention for edges[k][i]: pair-copula C_{root, child | previous roots},
 # where root = order[k] and child = order[k+i]. The copula coordinates are (root, child).
 
+"""Structure-only description of a C-vine order and active truncation level."""
+struct CVineStructure{p,q} <: AbstractVineStructure{p}
+    order::NTuple{p,Int}
+
+    function CVineStructure{p,q}(order::NTuple{p,Int}) where {p,q}
+        1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
+        sort(collect(order)) == collect(1:p) ||
+            throw(ArgumentError("order must be a permutation of 1:$p"))
+        return new{p,q}(order)
+    end
+end
+
+function CVineStructure(order::_OrderInput; trunc::Int=length(order)-1)
+    p = _check_order(order)
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
+    return CVineStructure{p,trunc}(Tuple(Int.(order)))
+end
+
 """
     CVineCopula(order, edges; trunc=length(order)-1)
+    CVineCopula(structure::CVineStructure, edges)
 
 Construct a canonical vine copula from a variable `order` and a triangular
 collection of bivariate pair-copulas. The entry `edges[k][i]` represents the
@@ -34,11 +53,16 @@ function CVineCopula(; order, paircopulas, trunc = length(order) - 1)
     return CVineCopula(ord, pcs; trunc = trunc)
 end
 
-function CVineCopula(order::AbstractVector{<:Integer}, edges; trunc::Int=length(order)-1)
+function CVineCopula(order::_OrderInput, edges; trunc::Int=length(order)-1)
     p = _check_order(order)
-    1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
     E = _normalize_edges(edges, p, trunc)
     return CVineCopula{p,trunc,typeof(E)}(Tuple(Int.(order)), E, trunc)
+end
+
+function CVineCopula(structure::CVineStructure{p,q}, edges) where {p,q}
+    E = _normalize_edges(edges, p, q)
+    return CVineCopula{p,q,typeof(E)}(structure.order, E, q)
 end
 
 function CVineCopula(edges; order=nothing, trunc::Int=length(edges))
@@ -53,6 +77,10 @@ end
 Return the variable order used by a vine copula.
 """
 order(vc::CVineCopula) = vc.order
+order(st::CVineStructure) = st.order
+
+"""Return a `CVineStructure` describing the C-vine ordering and truncation."""
+structure(vc::CVineCopula{p,q}) where {p,q} = CVineStructure{p,q}(vc.order)
 
 """
     edges(vine)
@@ -69,8 +97,20 @@ Return the number of active trees in the vine. A full `p`-dimensional vine has
 truncation level `p - 1`.
 """
 truncation(vc::CVineCopula) = vc.trunc
+truncation(::CVineStructure{p,q}) where {p,q} = q
+
+function truncate(st::CVineStructure{p}, level::Integer) where {p}
+    q = _check_truncate_level(level, p, truncation(st))
+    return CVineStructure{p,q}(st.order)
+end
+
+function truncate(vc::CVineCopula{p}, level::Integer) where {p}
+    st = truncate(structure(vc), level)
+    return CVineCopula(st, vc.edges[1:truncation(st)])
+end
 
 Base.show(io::IO, vc::CVineCopula{p}) where {p} = print(io, "CVineCopula(p=$p, trunc=$(vc.trunc))")
+Base.show(io::IO, st::CVineStructure{p}) where {p} = print(io, "CVineStructure(p=$p, trunc=$(truncation(st)))")
 
 function _logpdf_internal(vc::CVineCopula{p}, u::AbstractVector{<:Real}) where {p}
     _check_vector_dim(p, u)

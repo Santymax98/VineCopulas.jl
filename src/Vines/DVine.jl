@@ -3,8 +3,27 @@
 # left = order[i], right = order[i+k] and conditioning set order[i+1:i+k-1].
 # Copula coordinates are (left, right).
 
+"""Structure-only description of a D-vine path order and active truncation level."""
+struct DVineStructure{p,q} <: AbstractVineStructure{p}
+    order::NTuple{p,Int}
+
+    function DVineStructure{p,q}(order::NTuple{p,Int}) where {p,q}
+        1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
+        sort(collect(order)) == collect(1:p) ||
+            throw(ArgumentError("order must be a permutation of 1:$p"))
+        return new{p,q}(order)
+    end
+end
+
+function DVineStructure(order::_OrderInput; trunc::Int=length(order)-1)
+    p = _check_order(order)
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
+    return DVineStructure{p,trunc}(Tuple(Int.(order)))
+end
+
 """
     DVineCopula(order, edges; trunc=length(order)-1)
+    DVineCopula(structure::DVineStructure, edges)
 
 Construct a drawable/path vine copula from a variable `order` and a triangular
 collection of bivariate pair-copulas. The entry `edges[k][i]` represents the
@@ -32,11 +51,16 @@ function DVineCopula(; order, paircopulas, trunc = length(order) - 1)
     return DVineCopula(ord, pcs; trunc = trunc)
 end
 
-function DVineCopula(order::AbstractVector{<:Integer}, edges; trunc::Int=length(order)-1)
+function DVineCopula(order::_OrderInput, edges; trunc::Int=length(order)-1)
     p = _check_order(order)
-    1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
     E = _normalize_edges(edges, p, trunc)
     return DVineCopula{p,trunc,typeof(E)}(Tuple(Int.(order)), E, trunc)
+end
+
+function DVineCopula(structure::DVineStructure{p,q}, edges) where {p,q}
+    E = _normalize_edges(edges, p, q)
+    return DVineCopula{p,q,typeof(E)}(structure.order, E, q)
 end
 
 function DVineCopula(edges; order=nothing, trunc::Int=length(edges))
@@ -51,6 +75,10 @@ end
 Return the variable order used by a vine copula.
 """
 order(vc::DVineCopula) = vc.order
+order(st::DVineStructure) = st.order
+
+"""Return a `DVineStructure` describing the D-vine path order and truncation."""
+structure(vc::DVineCopula{p,q}) where {p,q} = DVineStructure{p,q}(vc.order)
 
 """
     edges(vine)
@@ -67,8 +95,20 @@ Return the number of active trees in the vine. A full `p`-dimensional vine has
 truncation level `p - 1`.
 """
 truncation(vc::DVineCopula) = vc.trunc
+truncation(::DVineStructure{p,q}) where {p,q} = q
+
+function truncate(st::DVineStructure{p}, level::Integer) where {p}
+    q = _check_truncate_level(level, p, truncation(st))
+    return DVineStructure{p,q}(st.order)
+end
+
+function truncate(vc::DVineCopula{p}, level::Integer) where {p}
+    st = truncate(structure(vc), level)
+    return DVineCopula(st, vc.edges[1:truncation(st)])
+end
 
 Base.show(io::IO, vc::DVineCopula{p}) where {p} = print(io, "DVineCopula(p=$p, trunc=$(vc.trunc))")
+Base.show(io::IO, st::DVineStructure{p}) where {p} = print(io, "DVineStructure(p=$p, trunc=$(truncation(st)))")
 
 function _logpdf_internal(vc::DVineCopula{p}, u::AbstractVector{<:Real}) where {p}
     _check_vector_dim(p, u)

@@ -21,13 +21,26 @@ end
     RVineStructure(order, struct_array; trunc=length(order)-1)
 
 Structure representation for a regular vine. It stores the variable order,
-triangular structure array, optional exchange matrix, and truncation level.
+triangular structure array, and optional exchange matrix. The truncation level
+is encoded by the type parameter `q` and by the length of `struct_array`.
 """
-struct RVineStructure{p,q}
+struct RVineStructure{p,q} <: AbstractVineStructure{p}
     order::NTuple{p,Int}
     struct_array::NTuple{q,Vector{Int}}
     matrix::Union{Nothing,Matrix{Int}}
-    trunc::Int
+
+    function RVineStructure{p,q}(
+        order::NTuple{p,Int},
+        struct_array::NTuple{q,Vector{Int}},
+        matrix::Union{Nothing,Matrix{Int}},
+    ) where {p,q}
+        1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
+        sort(collect(order)) == collect(1:p) ||
+            throw(ArgumentError("R-vine order must be a permutation of 1:$p"))
+        matrix === nothing || size(matrix) == (p, p) ||
+            throw(ArgumentError("R-vine exchange matrix must have size ($p, $p)"))
+        return new{p,q}(order, struct_array, matrix)
+    end
 end
 
 """
@@ -59,7 +72,7 @@ function _is_legacy_dvine_structure(order, S, p::Int, trunc::Int)
 end
 
 _is_legacy_dvine_structure(st::RVineStructure) =
-    _is_legacy_dvine_structure(st.order, st.struct_array, length(st.order), st.trunc)
+    _is_legacy_dvine_structure(st.order, st.struct_array, length(st.order), truncation(st))
 
 function _validate_standard_rvine_structure(order, S, p::Int, trunc::Int)
     sort!(Int[x for x in order]) == collect(1:p) ||
@@ -129,27 +142,32 @@ function _validate_rvine_structure(order, S, p::Int, trunc::Int)
     return :standard
 end
 
-function RVineStructure(order::AbstractVector{<:Integer}, struct_array; trunc::Int=length(order)-1, matrix=nothing)
+function RVineStructure(order::_OrderInput, struct_array; trunc::Int=length(order)-1, matrix=nothing)
     p = _check_order(order)
-    1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
     ord = Tuple(Int.(order))
     S = _normalize_struct_array(struct_array, p, trunc)
     _validate_rvine_structure(ord, S, p, trunc)
     M = matrix === nothing ? nothing : Matrix{Int}(matrix)
     M === nothing || size(M) == (p, p) ||
         throw(ArgumentError("R-vine exchange matrix must have size ($p, $p)"))
-    return RVineStructure{p,trunc}(ord, S, M, trunc)
+    return RVineStructure{p,trunc}(ord, S, M)
 end
 
-function RVineCopula(order::AbstractVector{<:Integer}, struct_array, edges; trunc::Int=length(order)-1)
+function RVineCopula(order::_OrderInput, struct_array, edges; trunc::Int=length(order)-1)
     p = _check_order(order)
-    1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
     ord = Tuple(Int.(order))
     S = _normalize_struct_array(struct_array, p, trunc)
     _validate_rvine_structure(ord, S, p, trunc)
     E = _normalize_edges(edges, p, trunc)
-    st = RVineStructure{p,trunc}(ord, S, nothing, trunc)
+    st = RVineStructure{p,trunc}(ord, S, nothing)
     return RVineCopula{p,trunc,typeof(E)}(st, E, trunc)
+end
+
+function RVineCopula(structure::RVineStructure{p,q}, edges) where {p,q}
+    E = _normalize_edges(edges, p, q)
+    return RVineCopula{p,q,typeof(E)}(structure, E, q)
 end
 
 # Lightweight matrix parser compatible with the package's natural-order triangular array.
@@ -157,7 +175,7 @@ function _rvine_from_matrix(M0::AbstractMatrix{<:Integer}, trunc::Int)
     size(M0, 1) == size(M0, 2) || throw(ArgumentError("R-vine matrix must be square"))
     M = Matrix{Int}(M0)
     p = size(M, 1)
-    1 <= trunc <= p-1 || throw(ArgumentError("trunc debe estar en 1:$(p-1)"))
+    1 <= trunc <= p-1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
     # Prefer non-zero anti-diagonal; otherwise fall back to diagonal.
     anti = [M[p-j+1,j] for j in 1:p]
     if all(x -> 1 <= x <= p, anti) && length(unique(anti)) == p
@@ -183,12 +201,16 @@ function RVineCopula(matrix::AbstractMatrix{<:Integer}, edges)
     St = Tuple(S)
     _validate_rvine_structure(ord, St, p, trunc)
     E = _normalize_edges(edges, p, trunc)
-    st = RVineStructure{p,trunc}(ord, St, M, trunc)
+    st = RVineStructure{p,trunc}(ord, St, M)
     return RVineCopula{p,trunc,typeof(E)}(st, E, trunc)
 end
 
 """Return the variable order used by an `RVineCopula`."""
 order(vc::RVineCopula) = vc.structure.order
+order(st::RVineStructure) = st.order
+
+"""Return the `RVineStructure` describing an `RVineCopula`."""
+structure(vc::RVineCopula) = vc.structure
 
 """
     struct_array(vine)
@@ -196,14 +218,28 @@ order(vc::RVineCopula) = vc.structure.order
 Return the triangular structure array used by an `RVineCopula`.
 """
 struct_array(vc::RVineCopula) = vc.structure.struct_array
+struct_array(st::RVineStructure) = st.struct_array
 
 """Return the triangular array of pair-copulas used by an `RVineCopula`."""
 edges(vc::RVineCopula) = vc.edges
 
 """Return the number of active trees in an `RVineCopula`."""
 truncation(vc::RVineCopula) = vc.trunc
+truncation(::RVineStructure{p,q}) where {p,q} = q
+
+function truncate(st::RVineStructure{p}, level::Integer) where {p}
+    q = _check_truncate_level(level, p, truncation(st))
+    S = st.struct_array[1:q]
+    return RVineStructure(collect(st.order), S; trunc=q, matrix=st.matrix)
+end
+
+function truncate(vc::RVineCopula{p}, level::Integer) where {p}
+    st = truncate(structure(vc), level)
+    return RVineCopula(st, vc.edges[1:truncation(st)])
+end
 
 Base.show(io::IO, vc::RVineCopula{p}) where {p} = print(io, "RVineCopula(p=$p, trunc=$(vc.trunc))")
+Base.show(io::IO, st::RVineStructure{p}) where {p} = print(io, "RVineStructure(p=$p, trunc=$(truncation(st)))")
 
 """
     rvine_matrix(vc::RVineCopula)

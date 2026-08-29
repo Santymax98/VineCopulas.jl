@@ -8,7 +8,17 @@ For a ``p``-dimensional model, full depth is ``p-1``.
 model = fit(RVineCopula, U; trunc=2)
 ```
 
-or construct an explicit truncated C- or D-vine directly.
+or construct an explicit truncated vine directly. An already constructed model
+can also be structurally reduced:
+
+```julia
+truncated = truncate(model, 2)
+truncation(truncated)
+```
+
+`truncate(model, q)` returns a new model with the same public vine type, the same
+variable order, and the first ``q`` pair-copula trees. It cannot expand a model
+whose higher trees were not stored.
 
 Truncation is a structural property of the vine and must not be confused with **candidate parameter bounds** used by automatic family selection. Parameter bounds restrict an optimizer's search space; vine truncation removes higher trees from the model.
 

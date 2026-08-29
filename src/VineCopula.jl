@@ -1,6 +1,44 @@
 # Core interface shared by all vine copulas.
 
+Base.length(::AbstractVineStructure{p}) where {p} = p
 Base.length(::AbstractVineCopula{p}) where {p} = p
+
+"""
+    structure(vine)
+
+Return the vine's structural description without the pair-copula array.
+"""
+function structure end
+
+"""
+    order(vine_or_structure)
+
+Return the variable order used by a vine copula or vine structure.
+"""
+function order end
+
+"""
+    truncation(vine_or_structure)
+
+Return the number of active trees in the vine. A full `p`-dimensional vine has
+truncation level `p - 1`.
+"""
+function truncation end
+
+function _check_truncate_level(level::Integer, p::Int, current::Int)
+    q = Int(level)
+    1 <= q <= min(current, p - 1) ||
+        throw(ArgumentError("level must be in 1:$(min(current, p - 1))"))
+    return q
+end
+
+"""
+    truncate(vine_or_structure, level)
+
+Return a copy of a vine or vine structure retaining only trees `1:level`.
+Truncation cannot restore trees that are absent from the input object.
+"""
+truncate
 
 # -------------------- CDF controls --------------------
 
