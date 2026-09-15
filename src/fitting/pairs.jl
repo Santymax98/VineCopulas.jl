@@ -168,7 +168,7 @@ function _VinePositiveClayton(d::Integer, theta::Real)
     return _VinePositiveClayton(Copulas.ClaytonCopula(2, theta))
 end
 
-Distributions.params(C::_VinePositiveClayton) = (; theta=Float64(C.C.G.θ))
+Distributions.params(C::_VinePositiveClayton) = (; theta=Float64(Distributions.params(C.C).θ))
 Distributions._logpdf(C::_VinePositiveClayton, u) = Distributions.logpdf(C.C, u)
 
 Copulas._example(::Type{_VinePositiveClayton}, d::Int) = _VinePositiveClayton(d, 1.0)
@@ -325,7 +325,7 @@ function _VineBoundedGumbel(d::Integer, theta::Real)
         throw(ArgumentError("vine-selection Gumbel theta must lie in ($_VINE_GUMBEL_LO, $_VINE_GUMBEL_HI)"))
     return _VineBoundedGumbel(Copulas.GumbelCopula(2, theta))
 end
-Distributions.params(C::_VineBoundedGumbel) = (; theta=Float64(C.C.G.θ))
+Distributions.params(C::_VineBoundedGumbel) = (; theta=Float64(Distributions.params(C.C).θ))
 Distributions._logpdf(C::_VineBoundedGumbel, u) = Distributions.logpdf(C.C, u)
 Copulas._example(::Type{_VineBoundedGumbel}, d::Int) = _VineBoundedGumbel(d, 1.5)
 Copulas._unbound_params(::Type{_VineBoundedGumbel}, d::Int, theta::NamedTuple) =
@@ -347,7 +347,7 @@ function _VineBoundedJoe(d::Integer, theta::Real)
         throw(ArgumentError("vine-selection Joe theta must lie in ($_VINE_JOE_LO, $_VINE_JOE_HI)"))
     return _VineBoundedJoe(Copulas.JoeCopula(2, theta))
 end
-Distributions.params(C::_VineBoundedJoe) = (; theta=Float64(C.C.G.θ))
+Distributions.params(C::_VineBoundedJoe) = (; theta=Float64(Distributions.params(C.C).θ))
 Distributions._logpdf(C::_VineBoundedJoe, u) = Distributions.logpdf(C.C, u)
 Copulas._example(::Type{_VineBoundedJoe}, d::Int) = _VineBoundedJoe(d, 1.5)
 Copulas._unbound_params(::Type{_VineBoundedJoe}, d::Int, theta::NamedTuple) =
@@ -451,17 +451,17 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method:
     elseif FT <: Copulas.ClaytonCopula && method === :mle
         W, meta = Copulas._fit(_VinePositiveClayton, Uf, Val{:mle}(); pair_kwargs...)
         C0 = W.C
-        meta = (; meta..., θ̂=(; θ=C0.G.θ))
+        meta = (; meta..., θ̂=(; θ=Distributions.params(C0).θ))
     elseif FT <: Copulas.FrankCopula && method === :mle
         C0, meta = _fit_vine_frank(Uf; pair_kwargs...)
     elseif FT <: Copulas.GumbelCopula && method === :mle
         W, meta = Copulas._fit(_VineBoundedGumbel, Uf, Val{:mle}(); pair_kwargs...)
         C0 = W.C
-        meta = (; meta..., θ̂=(; θ=C0.G.θ))
+        meta = (; meta..., θ̂=(; θ=Distributions.params(C0).θ))
     elseif FT <: Copulas.JoeCopula && method === :mle
         W, meta = Copulas._fit(_VineBoundedJoe, Uf, Val{:mle}(); pair_kwargs...)
         C0 = W.C
-        meta = (; meta..., θ̂=(; θ=C0.G.θ))
+        meta = (; meta..., θ̂=(; θ=Distributions.params(C0).θ))
     elseif method === :mle && (
         FT <: Copulas.BB1Copula || FT <: Copulas.BB6Copula ||
         FT <: Copulas.BB7Copula || FT <: Copulas.BB8Copula

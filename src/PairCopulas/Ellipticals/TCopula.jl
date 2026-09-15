@@ -66,7 +66,7 @@ end
 @inline _tcopula_df(C::CT) where {ν,S,CT<:Copulas.TCopula{2,ν,S}} =
     _tcopula_df(C, Val(:df in fieldnames(CT)), Val(ν))
 
-@inline _tcopula_df(C, ::Val{true}, ::Val) = C.df
+@inline _tcopula_df(C, ::Val{true}, ::Val) = Distributions.params(C).ν
 @inline _tcopula_df(C, ::Val{false}, ::Val{ν}) where {ν} = Val(ν)
 
 @inline function _t_pair_inputs(
@@ -74,7 +74,7 @@ end
     u::Real,
     v::Real,
 ) where {ν,S}
-    ρ = C.Σ[1, 2]
+    ρ = Distributions.params(C).Σ[1, 2]
     ρ2 = ρ * ρ
     den = one(ρ2) - ρ2
     df = _tcopula_df(C)
@@ -176,7 +176,7 @@ end
     target::Real,
     base::Real,
 ) where {ν,S}
-    ρ = C.Σ[1, 2]
+    ρ = Distributions.params(C).Σ[1, 2]
     ρ2 = ρ * ρ
     den = one(ρ2) - ρ2
     df = _tcopula_df(C)
@@ -193,7 +193,7 @@ end
     df = _tcopula_df(C)
     νf = _t_float(df)
 
-    ρ = C.Σ[1, 2]
+    ρ = Distributions.params(C).Σ[1, 2]
     ρ2 = ρ * ρ
 
     t2 = _t_quantile(df, base)

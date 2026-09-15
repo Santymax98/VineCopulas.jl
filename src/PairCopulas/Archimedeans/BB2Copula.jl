@@ -8,17 +8,17 @@
 # family-named helper APIs.
 
 @inline function _arch_coordinate(G::Copulas.BB2Generator, u::Real)
-    θ, δ, uu = promote(float(G.θ), float(G.δ), float(u))
+    θ, δ, uu = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(u))
     return δ * expm1(-θ * log(uu))
 end
 
 @inline function _arch_probability(G::Copulas.BB2Generator, L::Real)
-    θ, δ, LL = promote(float(G.θ), float(G.δ), float(L))
+    θ, δ, LL = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(L))
     return exp(-log1p(LL / δ) / θ)
 end
 
 @inline function _arch_logderivative(G::Copulas.BB2Generator, L::Real)
-    θ, δ, LL = promote(float(G.θ), float(G.δ), float(L))
+    θ, δ, LL = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(L))
     return -log(θ) - log(δ) - LL - (one(LL) + inv(θ)) * log1p(LL / δ)
 end
 
@@ -29,7 +29,7 @@ function _arch_inverse_logderivative(G::Copulas.BB2Generator, logm::Real)
     lm == -T(Inf) && return T(Inf)
     lm == T(Inf) && return zero(T)
 
-    θ, δ = T(G.θ), T(G.δ)
+    θ, δ = T(Distributions.params(G).θ), T(Distributions.params(G).δ)
     a = one(T) + inv(θ)
     logv = -log(a) + (δ + (a - one(T)) * log(δ) - log(θ) - lm) / a
     return max(a * exp(_log_lambertw_exp(logv)) - δ, zero(T))
