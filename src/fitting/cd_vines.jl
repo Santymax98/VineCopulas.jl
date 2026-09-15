@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Common vine fit metadata
+# Common vine parameter metadata
 # -----------------------------------------------------------------------------
 
 function _vine_parameter_metadata(vc::AbstractVineCopula)
@@ -62,9 +62,6 @@ function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothi
     # sequential, so the final order is not known when early trees are fit.
     # Keying by label lets us reorder every level exactly once at the end.
     levels = Vector{Dict{Int,_PairSelection}}(undef, q)
-    total_iterations = 0
-    all_converged = true
-
     for t in 1:q
         root = explicit_order ? ord[t] : _cvine_choose_root(remaining, cond, tree_criterion)
 
@@ -84,8 +81,6 @@ function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothi
             fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
                 preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
             level[child] = fit
-            total_iterations += fit.iterations
-            all_converged &= fit.converged
         end
         # Update U_child | root only when another fitted tree will consume
         # those pseudo-observations.
@@ -254,20 +249,16 @@ function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothi
     1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
 
     if order === nothing
-        ord, used_order_method = _select_dvine_order(X, tree_criterion; order_method=order_method, exact_order_max=exact_order_max,)
+        ord, _ = _select_dvine_order(X, tree_criterion; order_method=order_method, exact_order_max=exact_order_max,)
     else
         ord = collect(Int, order)
         _check_order(ord) == p || throw(ArgumentError("order dimension does not match data"))
-        used_order_method = :fixed
     end
 
     n = size(X, 2)
     L = [copy(@view X[ord[j], :]) for j in 1:p]
     R = [copy(v) for v in L]
     levels = Vector{Vector{_PairSelection}}(undef, q)
-    total_iterations = 0
-    all_converged = true
-
     for t in 1:q
         m = p - t
         level = Vector{_PairSelection}(undef, m)
@@ -280,8 +271,6 @@ function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothi
             level[i] = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
                 allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs,
                 strict=strict, trace=trace, force_independence=dep < threshold,)
-            total_iterations += level[i].iterations
-            all_converged &= level[i].converged
         end
 
         levels[t] = level

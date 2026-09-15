@@ -391,9 +391,6 @@ function _fit_fixed_rvine(
     end
 
     levels = Vector{Vector{_PairSelection}}(undef, q)
-    total_iterations = 0
-    all_converged = true
-
     for t in 1:q
         level = Vector{_PairSelection}(undef, p - t)
         @inbounds for e in 1:(p - t)
@@ -429,9 +426,6 @@ function _fit_fixed_rvine(
                 force_independence=dep < threshold,
             )
             level[e] = fit
-            total_iterations += fit.iterations
-            all_converged &= fit.converged
-
             if t < q
                 oa = _state_key(a, vcat(D, b))
                 ob = _state_key(b, vcat(D, a))
@@ -452,7 +446,7 @@ function _fit_fixed_rvine(
     ]
     vc = RVineCopula(ord, S, edgelevels; trunc=q)
 
-    return vc, total_iterations, all_converged
+    return vc
 end
 
 # -----------------------------------------------------------------------------
@@ -498,8 +492,8 @@ function Copulas._fit(
         trunc !== nothing && Int(trunc) != q && throw(ArgumentError(
             "when structure is supplied, trunc must match truncation(structure)"
         ))
-        st_fit, was_legacy = _standardize_fixed_rvine_structure(structure)
-        vc, total_iterations, all_converged = _fit_fixed_rvine(
+        st_fit, _ = _standardize_fixed_rvine_structure(structure)
+        vc = _fit_fixed_rvine(
             X, st_fit;
             family_set=family_set,
             pair_method=pair_method,
@@ -513,7 +507,6 @@ function Copulas._fit(
             strict=strict,
             trace=trace,
         )
-        structure_method = was_legacy ? :fixed_legacy_dvine_normalized : :fixed
     else
         q = isnothing(trunc) ? p - 1 : Int(trunc)
         1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
@@ -535,9 +528,6 @@ function Copulas._fit(
         ord, S, edgelevels = _rvine_peel(trees, p, q)
         vc = RVineCopula(ord, S, edgelevels; trunc=q)
 
-        total_iterations = sum(e.fit.iterations for tree in trees for e in tree)
-        all_converged = all(e.fit.converged for tree in trees for e in tree)
-        structure_method = :dissmann_mst
     end
 
     # Compile once here as a structural validation. Runtime methods below
