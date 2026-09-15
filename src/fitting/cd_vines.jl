@@ -5,7 +5,6 @@
 function _vine_parameter_metadata(vc::AbstractVineCopula)
     vals = Float64[]
     names = String[]
-    esum = NamedTuple[]
 
     for ve in vine_edges(vc)
         C = ve.copula
@@ -17,10 +16,8 @@ function _vine_parameter_metadata(vc::AbstractVineCopula)
             push!(names, "T$(ve.tree):E$(ve.index):$(fam):$(nm)")
             push!(vals, val)
         end
-        push!(esum, (tree=ve.tree, edge=ve.index, conditioned=ve.conditioned, conditioning=Tuple(ve.conditioning),
-            family=fam, rotation=_rotation_of(C), npars=length(pvals),))
     end
-    return names, vals, esum
+    return names, vals
 end
 
 # -----------------------------------------------------------------------------

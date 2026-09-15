@@ -978,12 +978,12 @@ Distributions.loglikelihood(vc::AbstractVineCopula,U::AbstractMatrix{<:Real},) =
 # expose human-readable edge-wise names through the public StatsBase model
 # interface.
 function Copulas.StatsBase.coef(M::Copulas.CopulaModel{<:AbstractVineCopula},)
-    _, values, _ = _vine_parameter_metadata(Copulas.fitted_distribution(M))
+    _, values = _vine_parameter_metadata(Copulas.fitted_distribution(M))
     return values
 end
 
 function Copulas.StatsBase.coefnames(M::Copulas.CopulaModel{<:AbstractVineCopula},)
-    names, _, _ = _vine_parameter_metadata(Copulas.fitted_distribution(M))
+    names, _ = _vine_parameter_metadata(Copulas.fitted_distribution(M))
     return names
 end
 
