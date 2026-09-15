@@ -250,7 +250,8 @@ function _fit_vine_frank(U; xtol::Real=1.0e-10)
 end
 
 function Copulas._fit(::Type{_VinePositiveClayton}, U, ::Val{:mle}; xtol::Real=1.0e-10)
-    return _fit_vine_scalar_bounded(_VinePositiveClayton, U, _VINE_CLAYTON_LO, _VINE_CLAYTON_HI; xtol=xtol)
+    C, _ = _fit_vine_scalar_bounded(_VinePositiveClayton, U, _VINE_CLAYTON_LO, _VINE_CLAYTON_HI; xtol=xtol,)
+    return C
 end
 
 # Student-t, Gumbel, and Joe use finite parameter ranges in vinecopulib.
@@ -335,7 +336,8 @@ Copulas._rebound_params(::Type{_VineBoundedGumbel}, d::Int, alpha::AbstractVecto
 Copulas._available_fitting_methods(::Type{_VineBoundedGumbel}, d) = d == 2 ? (:mle,) : Tuple{}()
 
 function Copulas._fit(::Type{_VineBoundedGumbel}, U, ::Val{:mle}; xtol::Real=1.0e-10)
-    return _fit_vine_scalar_bounded(_VineBoundedGumbel, U, _VINE_GUMBEL_LO, _VINE_GUMBEL_HI; xtol=xtol)
+    C, _ = _fit_vine_scalar_bounded(_VineBoundedGumbel, U, _VINE_GUMBEL_LO, _VINE_GUMBEL_HI; xtol=xtol,)
+    return C
 end
 
 struct _VineBoundedJoe{C<:PairCopula} <: Copulas.Copula{2}
@@ -445,35 +447,34 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method:
     if FT <: Copulas.GaussianCopula && method === :mle
         C0, meta = _fit_vine_gaussian(Uf; pair_kwargs...)
     elseif FT <: Copulas.TCopula && method === :mle
-        W, meta = Copulas._fit(_VineBoundedStudent, Uf, Val{:mle}(); pair_kwargs...)
+        W = Distributions.fit(_VineBoundedStudent, Uf; method=:mle, pair_kwargs...,)
         C0 = W.C
-        meta = (; meta..., θ̂=Distributions.params(C0))
+        meta = (; θ̂=Distributions.params(C0))
     elseif FT <: Copulas.ClaytonCopula && method === :mle
-        W, meta = Copulas._fit(_VinePositiveClayton, Uf, Val{:mle}(); pair_kwargs...)
+        W, meta = _fit_vine_scalar_bounded(_VinePositiveClayton, Uf, _VINE_CLAYTON_LO, _VINE_CLAYTON_HI; pair_kwargs...,)
         C0 = W.C
         meta = (; meta..., θ̂=(; θ=Distributions.params(C0).θ))
     elseif FT <: Copulas.FrankCopula && method === :mle
         C0, meta = _fit_vine_frank(Uf; pair_kwargs...)
     elseif FT <: Copulas.GumbelCopula && method === :mle
-        W, meta = Copulas._fit(_VineBoundedGumbel, Uf, Val{:mle}(); pair_kwargs...)
+        W, meta = _fit_vine_scalar_bounded(_VineBoundedGumbel, Uf, _VINE_GUMBEL_LO, _VINE_GUMBEL_HI; pair_kwargs...,)
         C0 = W.C
         meta = (; meta..., θ̂=(; θ=Distributions.params(C0).θ))
     elseif FT <: Copulas.JoeCopula && method === :mle
-        W, meta = Copulas._fit(_VineBoundedJoe, Uf, Val{:mle}(); pair_kwargs...)
+        W = Distributions.fit(_VineBoundedJoe, Uf; method=:mle, pair_kwargs...,)
         C0 = W.C
-        meta = (; meta..., θ̂=(; θ=Distributions.params(C0).θ))
+        meta = (; θ̂=(; θ=Distributions.params(C0).θ))
     elseif method === :mle && (
         FT <: Copulas.BB1Copula || FT <: Copulas.BB6Copula ||
         FT <: Copulas.BB7Copula || FT <: Copulas.BB8Copula
     )
         C0, meta = _fit_vine_bb(FT, Uf; pair_kwargs...)
     else
-        C0, meta = Copulas._fit(FT, Uf, Val{method}(); pair_kwargs...)
+        C0 = Distributions.fit(FT, Uf; method=method, pair_kwargs...,)
+        meta = (;)
     end
 
-    C0 isa PairCopula || throw(ArgumentError(
-        "family $FT did not produce a bivariate copula when fitted to 2×n data"
-    ))
+    C0 isa PairCopula || throw(ArgumentError("family $FT did not produce a bivariate copula when fitted to 2×n data"))
     C = isempty(flips) ? C0 : Copulas.SurvivalCopula(C0, flips)
 
     # A rotation is fitted by reflecting the data and fitting the unrotated
@@ -559,14 +560,10 @@ Copulas._available_fitting_methods(::Type{PairCopula}, d) = d == 2 ? (:select,) 
 
 function Copulas._fit(::Type{PairCopula}, U, ::Val{:select}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
     allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, pair_kwargs::NamedTuple=NamedTuple(),
-    strict::Bool=false, trace::Bool=false, full_metadata::Bool=true,)
+    strict::Bool=false, trace::Bool=false,)
     fit = _select_pair(U; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
         preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
-
-    full_metadata || return fit.copula, (;)
-    return fit.copula, (θ̂=fit.theta, selected_family=fit.family, rotation=fit.rotation, pair_method=fit.method, selection_criterion=selection_criterion,
-        selected_score=fit.score, family_set=family_set, allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence,
-        candidate_failures=nothing, converged=fit.converged, iterations=fit.iterations,) # keep full model lightweight by default
+    return fit.copula
 end
 
 # -----------------------------------------------------------------------------

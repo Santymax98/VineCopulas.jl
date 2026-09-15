@@ -23,15 +23,6 @@ function _vine_parameter_metadata(vc::AbstractVineCopula)
     return names, vals, esum
 end
 
-function _vine_meta(vc::AbstractVineCopula; selection_criterion, pair_method, family_set, allow_rotations, preselect, include_independence=true,
-    threshold=0.0, tree_criterion=nothing, order_method=nothing, structure_method=nothing, tree_algorithm=nothing, converged=true, iterations=0,)
-    names, vals, esum = _vine_parameter_metadata(vc)
-    return (θ̂=(parameters=vals,), coefnames=names, edges=esum, order=collect(order(vc)), truncation=truncation(vc), selection_criterion=selection_criterion,
-        pair_method=pair_method, family_set=family_set, allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence,
-        threshold=threshold, tree_criterion=tree_criterion, order_method=order_method, structure_method=structure_method, tree_algorithm=tree_algorithm,
-        converged=converged, iterations=iterations,)
-end
-
 # -----------------------------------------------------------------------------
 # C-vine sequential fitting
 # -----------------------------------------------------------------------------
@@ -53,7 +44,7 @@ end
 
 function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default,
     selection_criterion::Symbol=:bic, tree_criterion::Symbol=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
-    threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false, full_metadata::Bool=true,)
+    threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
@@ -118,11 +109,7 @@ function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothi
         for t in 1:q
     ]
     vc = CVineCopula(ord, edgelevels; trunc=q)
-    full_metadata || return vc, (;)
-    meta = _vine_meta(vc; selection_criterion=selection_criterion, pair_method=pair_method, family_set=family_set, allow_rotations=allow_rotations,
-        preselect=preselect, include_independence=include_independence, threshold=threshold, tree_criterion=tree_criterion, order_method=(explicit_order ? :fixed : :root_sum),
-        structure_method=:cvine, converged=all_converged, iterations=total_iterations,)
-    return vc, meta
+    return vc
 end
 
 # -----------------------------------------------------------------------------
@@ -257,7 +244,7 @@ end
 function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothing, trunc=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
     family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion::Symbol=:tau, allow_rotations::Bool=true,
     preselect::Bool=true, include_independence::Bool=true, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), 
-    strict::Bool=false, trace::Bool=false, full_metadata::Bool=true,)
+    strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
@@ -315,9 +302,5 @@ function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothi
     ]
     vc = DVineCopula(ord, edgelevels; trunc=q)
 
-    full_metadata || return vc, (;)
-    meta = _vine_meta(vc; selection_criterion=selection_criterion, pair_method=pair_method, family_set=family_set, allow_rotations=allow_rotations,
-        preselect=preselect, include_independence=include_independence, threshold=threshold, tree_criterion=tree_criterion, order_method=used_order_method,
-        structure_method=:dvine, converged=all_converged, iterations=total_iterations,)
-    return vc, meta
+    return vc
 end
