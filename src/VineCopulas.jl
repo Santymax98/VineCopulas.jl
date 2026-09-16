@@ -1,5 +1,6 @@
 module VineCopulas
 
+import ADTypes
 import Random
 import Rmath
 import Distributions

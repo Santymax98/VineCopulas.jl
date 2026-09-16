@@ -26,24 +26,25 @@ end
 
 Copulas._available_fitting_methods(::Type{<:CVineCopula}, d) = d >= 2 ? (:sequential,) : Tuple{}()
 
-function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, criterion::Symbol)
+function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, criterion::Symbol, weights=nothing)
     length(labels) == 1 && return labels[1]
     # Every unordered pair contributes to the score of both endpoints. Compute
     # it once rather than twice.
     scores = zeros(Float64, length(labels))
     @inbounds for j in 2:length(labels), i in 1:j-1
-        w = _tree_dependence(cond[labels[i]], cond[labels[j]], criterion)
+        w = _tree_dependence(cond[labels[i]], cond[labels[j]], criterion, weights)
         scores[i] += w
         scores[j] += w
     end
     return labels[argmax(scores)]
 end
 
-function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default,
+function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothing, trunc=nothing, weights=nothing, family_set=:default, pair_method::Symbol=:default,
     selection_criterion::Symbol=:bic, tree_criterion::Symbol=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
     threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
+    w = _fit_weights(weights, size(X, 2))
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
     threshold = _check_threshold(threshold)
@@ -60,7 +61,7 @@ function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothi
     # Keying by label lets us reorder every level exactly once at the end.
     levels = Vector{Dict{Int,_PairSelection}}(undef, q)
     for t in 1:q
-        root = explicit_order ? ord[t] : _cvine_choose_root(remaining, cond, tree_criterion)
+        root = explicit_order ? ord[t] : _cvine_choose_root(remaining, cond, tree_criterion, w)
 
         if !explicit_order
             push!(ord, root)
@@ -71,11 +72,11 @@ function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothi
         level = Dict{Int,_PairSelection}()
 
         @inbounds for child in children
-            dep = _tree_dependence(cond[root], cond[child], tree_criterion)
+            dep = _tree_dependence(cond[root], cond[child], tree_criterion, w)
             pdata = Matrix{Float64}(undef, 2, size(X, 2))
             pdata[1, :] .= cond[root]
             pdata[2, :] .= cond[child]
-            fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
+            fit = _select_pair(pdata; weights=w, family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
                 preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
             level[child] = fit
         end
@@ -110,11 +111,11 @@ end
 
 Copulas._available_fitting_methods(::Type{<:DVineCopula}, d) = d >= 2 ? (:sequential,) : Tuple{}()
 
-function _dependence_matrix(X::Matrix{Float64}, criterion::Symbol)
+function _dependence_matrix(X::Matrix{Float64}, criterion::Symbol, weights=nothing)
     p = size(X, 1)
     W = zeros(Float64, p, p)
     @inbounds for j in 2:p, i in 1:j-1
-        w = _tree_dependence(view(X, i, :), view(X, j, :), criterion)
+        w = _tree_dependence(view(X, i, :), view(X, j, :), criterion, weights)
         W[i, j] = w
         W[j, i] = w
     end
@@ -218,10 +219,10 @@ function _greedy_path(W::AbstractMatrix{<:Real})
     return path
 end
 
-function _select_dvine_order(X::Matrix{Float64}, criterion::Symbol; order_method::Symbol=:auto, exact_order_max::Int=12,)
+function _select_dvine_order(X::Matrix{Float64}, criterion::Symbol, weights=nothing; order_method::Symbol=:auto, exact_order_max::Int=12,)
     p = size(X, 1)
     exact_order_max >= 2 || throw(ArgumentError("exact_order_max must be at least 2"))
-    W = _dependence_matrix(X, criterion)
+    W = _dependence_matrix(X, criterion, weights)
 
     method = order_method
     if method === :auto
@@ -233,12 +234,13 @@ function _select_dvine_order(X::Matrix{Float64}, criterion::Symbol; order_method
     throw(ArgumentError("order_method must be :auto, :exact, :greedy, or :natural"))
 end
 
-function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothing, trunc=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
+function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothing, trunc=nothing, weights=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
     family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion::Symbol=:tau, allow_rotations::Bool=true,
     preselect::Bool=true, include_independence::Bool=true, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), 
     strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
+    w = _fit_weights(weights, size(X, 2))
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
     threshold = _check_threshold(threshold)
@@ -246,7 +248,7 @@ function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothi
     1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
 
     if order === nothing
-        ord, _ = _select_dvine_order(X, tree_criterion; order_method=order_method, exact_order_max=exact_order_max,)
+        ord, _ = _select_dvine_order(X, tree_criterion, w; order_method=order_method, exact_order_max=exact_order_max,)
     else
         ord = collect(Int, order)
         _check_order(ord) == p || throw(ArgumentError("order dimension does not match data"))
@@ -261,11 +263,11 @@ function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothi
         level = Vector{_PairSelection}(undef, m)
 
         @inbounds for i in 1:m
-            dep = _tree_dependence(L[i], R[i + t], tree_criterion)
+            dep = _tree_dependence(L[i], R[i + t], tree_criterion, w)
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= L[i]
             pdata[2, :] .= R[i + t]
-            level[i] = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
+            level[i] = _select_pair(pdata; weights=w, family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
                 allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs,
                 strict=strict, trace=trace, force_independence=dep < threshold,)
         end
