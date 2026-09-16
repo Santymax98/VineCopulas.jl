@@ -2,6 +2,12 @@
 
 All notable changes to `VineCopulas.jl` are documented here. Version numbers follow Julia package registration conventions.
 
+## [Unreleased]
+
+### Added
+
+- `threaded=true` on `fit` for `PairCopula`, `CVineCopula`, `DVineCopula` and `RVineCopula` fits the edges of each tree, and the family candidates of each edge, on tasks. The result is identical to the sequential fit on any thread count: every candidate writes its own slot and the winner is read off the slots in family order. `strict=true` raises the sequential error, and `trace=true` prints the sequential lines in edge order. Off by default.
+
 ## [0.1.2] - 2026-08-16
 
 ### Added

@@ -144,11 +144,16 @@ function _fit_rvine_candidates(
     pair_kwargs,
     strict,
     trace,
+    threaded::Bool,
     need_h::Bool,
 )
     out = Vector{_RVFitEdge}(undef, length(selected))
+    bufs = _edge_trace_buffers(length(selected), threaded, trace)
 
-    @inbounds for i in eachindex(selected)
+    # Every edge reads its two conditional states from the previous tree and
+    # writes only its own slot of `out`, so the edges of one tree fit
+    # independently.
+    _run_indexed!(length(selected), threaded) do i
         c = selected[i]
         pdata = Matrix{Float64}(undef, 2, nobs)
         pdata[1, :] .= c.u_a
@@ -166,6 +171,8 @@ function _fit_rvine_candidates(
             strict=strict,
             trace=trace,
             force_independence=c.weight < threshold,
+            threaded=threaded,
+            trace_io=_edge_trace_io(bufs, i),
         )
 
         C = fit.copula
@@ -184,6 +191,7 @@ function _fit_rvine_candidates(
             C, h_a, h_b, fit,
         )
     end
+    _flush_edge_trace!(bufs)
     return out
 end
 
@@ -201,6 +209,7 @@ function _select_rvine_trees(
     pair_kwargs,
     strict,
     trace,
+    threaded::Bool,
 )
     p, n = size(X)
     trees = Vector{Vector{_RVFitEdge}}(undef, q)
@@ -219,6 +228,7 @@ function _select_rvine_trees(
         pair_kwargs=pair_kwargs,
         strict=strict,
         trace=trace,
+        threaded=threaded,
         need_h=(q > 1),
     )
 
@@ -237,6 +247,7 @@ function _select_rvine_trees(
             pair_kwargs=pair_kwargs,
             strict=strict,
             trace=trace,
+            threaded=threaded,
             need_h=(t < q),
         )
     end
@@ -378,6 +389,7 @@ function _fit_fixed_rvine(
     pair_kwargs,
     strict,
     trace,
+    threaded::Bool,
 )
     p, n = size(X)
     ord = collect(st.order)
@@ -392,8 +404,14 @@ function _fit_fixed_rvine(
 
     levels = Vector{Vector{_PairSelection}}(undef, q)
     for t in 1:q
-        level = Vector{_PairSelection}(undef, p - t)
-        @inbounds for e in 1:(p - t)
+        m = p - t
+        level = Vector{_PairSelection}(undef, m)
+
+        # Resolve every edge's conditional states first, sequentially, so a
+        # structure error is raised before any fit runs and in edge order.
+        us_a = Vector{Vector{Float64}}(undef, m)
+        us_b = Vector{Vector{Float64}}(undef, m)
+        @inbounds for e in 1:m
             a = ord[e]
             b = S[t][e]
             D = Int[S[r][e] for r in 1:(t - 1)]
@@ -405,14 +423,23 @@ function _fit_fixed_rvine(
             haskey(states, kb) || throw(ArgumentError(
                 "invalid standard R-vine structure/proximity condition: missing conditional state $kb"
             ))
-            ua = states[ka]
-            ub = states[kb]
+            us_a[e] = states[ka]
+            us_b[e] = states[kb]
+        end
+
+        # The edges of tree t read states conditioned on t-1 variables and
+        # write states conditioned on t, so no edge of a tree reads what
+        # another edge of the same tree writes: fit them all, then propagate.
+        bufs = _edge_trace_buffers(m, threaded, trace)
+        _run_indexed!(m, threaded) do e
+            ua = us_a[e]
+            ub = us_b[e]
             dep = _tree_dependence(ua, ub, tree_criterion)
 
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= ua
             pdata[2, :] .= ub
-            fit = _select_pair(
+            level[e] = _select_pair(
                 pdata;
                 family_set=family_set,
                 pair_method=pair_method,
@@ -424,15 +451,23 @@ function _fit_fixed_rvine(
                 strict=strict,
                 trace=trace,
                 force_independence=dep < threshold,
+                threaded=threaded,
+                trace_io=_edge_trace_io(bufs, e),
             )
-            level[e] = fit
-            if t < q
+        end
+        _flush_edge_trace!(bufs)
+
+        if t < q
+            @inbounds for e in 1:m
+                a = ord[e]
+                b = S[t][e]
+                D = Int[S[r][e] for r in 1:(t - 1)]
                 oa = _state_key(a, vcat(D, b))
                 ob = _state_key(b, vcat(D, a))
                 ha = Vector{Float64}(undef, n)
                 hb = Vector{Float64}(undef, n)
-                C = fit.copula
-                _pair_hfuncs!(ha, hb, C, ua, ub)
+                C = level[e].copula
+                _pair_hfuncs!(ha, hb, C, us_a[e], us_b[e])
                 states[oa] = ha
                 states[ob] = hb
             end
@@ -474,6 +509,7 @@ function Copulas._fit(
     pair_kwargs::NamedTuple=NamedTuple(),
     strict::Bool=false,
     trace::Bool=false,
+    threaded::Bool=false,
 )
     p = size(U0, 1)
     X = _fit_data(U0, p)
@@ -506,6 +542,7 @@ function Copulas._fit(
             pair_kwargs=pair_kwargs,
             strict=strict,
             trace=trace,
+            threaded=threaded,
         )
     else
         q = isnothing(trunc) ? p - 1 : Int(trunc)
@@ -524,6 +561,7 @@ function Copulas._fit(
             pair_kwargs=pair_kwargs,
             strict=strict,
             trace=trace,
+            threaded=threaded,
         )
         ord, S, edgelevels = _rvine_peel(trees, p, q)
         vc = RVineCopula(ord, S, edgelevels; trunc=q)

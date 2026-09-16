@@ -41,7 +41,7 @@ end
 
 function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default,
     selection_criterion::Symbol=:bic, tree_criterion::Symbol=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
-    threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
+    threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false, threaded::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
@@ -68,17 +68,24 @@ function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothi
         deleteat!(remaining, findfirst(==(root), remaining))
 
         children = explicit_order ? collect(ord[(t+1):p]) : copy(remaining)
-        level = Dict{Int,_PairSelection}()
 
-        @inbounds for child in children
+        # Every child edge reads `cond[root]` and its own `cond[child]` and
+        # writes its own slot; the in-place h-function update below runs only
+        # after all of them have finished.
+        fits = Vector{_PairSelection}(undef, length(children))
+        bufs = _edge_trace_buffers(length(children), threaded, trace)
+        _run_indexed!(length(children), threaded) do k
+            child = children[k]
             dep = _tree_dependence(cond[root], cond[child], tree_criterion)
             pdata = Matrix{Float64}(undef, 2, size(X, 2))
             pdata[1, :] .= cond[root]
             pdata[2, :] .= cond[child]
-            fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
-                preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
-            level[child] = fit
+            fits[k] = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
+                preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,
+                threaded=threaded, trace_io=_edge_trace_io(bufs, k),)
         end
+        _flush_edge_trace!(bufs)
+        level = Dict{Int,_PairSelection}(children[k] => fits[k] for k in eachindex(children))
         # Update U_child | root only when another fitted tree will consume
         # those pseudo-observations.
         if t < q
@@ -235,8 +242,8 @@ end
 
 function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothing, trunc=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
     family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion::Symbol=:tau, allow_rotations::Bool=true,
-    preselect::Bool=true, include_independence::Bool=true, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), 
-    strict::Bool=false, trace::Bool=false,)
+    preselect::Bool=true, include_independence::Bool=true, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(),
+    strict::Bool=false, trace::Bool=false, threaded::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
@@ -260,15 +267,19 @@ function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothi
         m = p - t
         level = Vector{_PairSelection}(undef, m)
 
-        @inbounds for i in 1:m
+        # Within a D-vine tree the edges read disjoint state vectors and the
+        # in-place h-function update below runs only after every fit is done.
+        bufs = _edge_trace_buffers(m, threaded, trace)
+        _run_indexed!(m, threaded) do i
             dep = _tree_dependence(L[i], R[i + t], tree_criterion)
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= L[i]
             pdata[2, :] .= R[i + t]
             level[i] = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
                 allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs,
-                strict=strict, trace=trace, force_independence=dep < threshold,)
+                strict=strict, trace=trace, force_independence=dep < threshold, threaded=threaded, trace_io=_edge_trace_io(bufs, i),)
         end
+        _flush_edge_trace!(bufs)
 
         levels[t] = level
 
