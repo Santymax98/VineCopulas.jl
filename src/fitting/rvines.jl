@@ -140,6 +140,8 @@ function _fit_rvine_candidates(
     allow_rotations,
     preselect,
     include_independence,
+    independence_test,
+    independence_level,
     threshold,
     pair_kwargs,
     strict,
@@ -162,6 +164,8 @@ function _fit_rvine_candidates(
             allow_rotations=allow_rotations,
             preselect=preselect,
             include_independence=include_independence,
+            independence_test=independence_test,
+            independence_level=independence_level,
             pair_kwargs=pair_kwargs,
             strict=strict,
             trace=trace,
@@ -197,6 +201,8 @@ function _select_rvine_trees(
     allow_rotations,
     preselect,
     include_independence,
+    independence_test,
+    independence_level,
     threshold,
     pair_kwargs,
     strict,
@@ -215,6 +221,8 @@ function _select_rvine_trees(
         allow_rotations=allow_rotations,
         preselect=preselect,
         include_independence=include_independence,
+        independence_test=independence_test,
+        independence_level=independence_level,
         threshold=threshold,
         pair_kwargs=pair_kwargs,
         strict=strict,
@@ -233,6 +241,8 @@ function _select_rvine_trees(
             allow_rotations=allow_rotations,
             preselect=preselect,
             include_independence=include_independence,
+            independence_test=independence_test,
+            independence_level=independence_level,
             threshold=threshold,
             pair_kwargs=pair_kwargs,
             strict=strict,
@@ -373,6 +383,8 @@ function _fit_fixed_rvine(
     allow_rotations,
     preselect,
     include_independence,
+    independence_test,
+    independence_level,
     threshold,
     tree_criterion,
     pair_kwargs,
@@ -420,6 +432,8 @@ function _fit_fixed_rvine(
                 allow_rotations=allow_rotations,
                 preselect=preselect,
                 include_independence=include_independence,
+                independence_test=independence_test,
+                independence_level=independence_level,
                 pair_kwargs=pair_kwargs,
                 strict=strict,
                 trace=trace,
@@ -470,6 +484,8 @@ function Copulas._fit(
     allow_rotations::Bool=true,
     preselect::Bool=true,
     include_independence::Bool=true,
+    independence_test::Symbol=:none,
+    independence_level::Real=0.05,
     threshold::Real=0.0,
     pair_kwargs::NamedTuple=NamedTuple(),
     strict::Bool=false,
@@ -479,6 +495,8 @@ function Copulas._fit(
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
+    _check_independence_test(independence_test)
+    _check_independence_level(independence_level)
     threshold = _check_threshold(threshold)
     tree_algorithm in (:mst, :kruskal) || throw(ArgumentError(
         "tree_algorithm currently supports :mst or :kruskal (same deterministic Kruskal engine)"
@@ -501,6 +519,8 @@ function Copulas._fit(
             allow_rotations=allow_rotations,
             preselect=preselect,
             include_independence=include_independence,
+            independence_test=independence_test,
+            independence_level=independence_level,
             threshold=threshold,
             tree_criterion=tree_criterion,
             pair_kwargs=pair_kwargs,
@@ -520,6 +540,8 @@ function Copulas._fit(
             allow_rotations=allow_rotations,
             preselect=preselect,
             include_independence=include_independence,
+            independence_test=independence_test,
+            independence_level=independence_level,
             threshold=threshold,
             pair_kwargs=pair_kwargs,
             strict=strict,

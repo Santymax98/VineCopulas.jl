@@ -42,6 +42,8 @@
 # - fixed or Dissmann-style automatic R-vine structure
 # - Kendall tau-b or Spearman rho tree weights
 # - user-specified truncation and dependence threshold
+# - Kendall-tau inversion (`pair_method=:itau`) inside the vine selection boxes
+# - asymptotic Kendall independence test per edge (`independence_test=:kendall`)
 #
 # Intentionally deferred
 # ----------------------
@@ -144,6 +146,21 @@ end
         "threshold must lie in [0,1] because tree dependence scores are absolute rank correlations"
     ))
     return t
+end
+
+@inline function _check_independence_test(test::Symbol)
+    test in (:none, :kendall) || throw(ArgumentError(
+        "independence_test must be :none or :kendall"
+    ))
+    return test
+end
+
+@inline function _check_independence_level(level::Real)
+    a = Float64(level)
+    0.0 < a < 1.0 || throw(ArgumentError(
+        "independence_level must lie in (0,1) because it is a test size"
+    ))
+    return a
 end
 
 function _fit_data(U::AbstractMatrix{<:Real}, p::Int)
@@ -309,6 +326,20 @@ function _kendall_tau_b(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
     n2 = _tie_pairs(y)
     denom = sqrt(float((n0 - n1) * (n0 - n2)))
     return iszero(denom) ? 0.0 : S / denom
+end
+
+"""
+    _kendall_independence_pvalue(τhat, n)
+
+Two-sided p-value of the asymptotic Kendall independence test. Under
+independence the sample tau of `n` continuous observations is approximately
+normal with variance `2(2n+5) / (9n(n-1))`, so the statistic is
+`3 τhat √(n(n-1)) / √(2(2n+5))`. This is the `indeptest` of vinecopulib.
+"""
+function _kendall_independence_pvalue(τhat::Real, n::Integer)
+    n >= 2 || throw(ArgumentError("the Kendall independence test needs at least two observations"))
+    z = 3 * τhat * sqrt(n * (n - 1)) / sqrt(2 * (2n + 5))
+    return 2 * StatsFuns.normccdf(abs(z))
 end
 
 function _average_ranks(x::AbstractVector{<:Real})
