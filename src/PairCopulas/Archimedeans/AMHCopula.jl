@@ -3,7 +3,7 @@
 # =====================================================================
 
 @inline function _inv_ϕ¹(G::Copulas.AMHGenerator, y::Real)
-    θ, m = promote(float(G.θ), _negative_derivative_magnitude(y, "AMH"))
+    θ, m = promote(float(Distributions.params(G).θ), _negative_derivative_magnitude(y, "AMH"))
     T = typeof(θ)
     iszero(m) && return T(Inf)
     isinf(m) && throw(DomainError(y, "The target lies outside the range of the AMH derivative."))

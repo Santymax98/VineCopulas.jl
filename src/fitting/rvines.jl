@@ -89,7 +89,7 @@ function _maximum_spanning_tree(candidates::Vector{_RVCandidate}, nvertices::Int
     return selected
 end
 
-function _rvine_tree1_candidates(X::Matrix{Float64}, criterion::Symbol)
+function _rvine_tree1_candidates(X::Matrix{Float64}, criterion::Symbol, weights=nothing)
     p, _ = size(X)
     out = _RVCandidate[]
     sizehint!(out, _choose2(p))
@@ -98,13 +98,13 @@ function _rvine_tree1_candidates(X::Matrix{Float64}, criterion::Symbol)
         uj = @view X[j, :]
         push!(out, _RVCandidate(
             i, j, i, j, Int[], ui, uj,
-            _tree_dependence(ui, uj, criterion)
+            _tree_dependence(ui, uj, criterion, weights)
         ))
     end
     return out
 end
 
-function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion::Symbol)
+function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion::Symbol, weights=nothing)
     m = length(prev)
     level = isempty(prev) ? 0 : length(prev[1].D) + 2
     out = _RVCandidate[]
@@ -125,7 +125,7 @@ function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion::Symbol)
         ub = _edge_conditional(e2, b)
         push!(out, _RVCandidate(
             i, j, a, b, D, ua, ub,
-            _tree_dependence(ua, ub, criterion)
+            _tree_dependence(ua, ub, criterion, weights)
         ))
     end
     return out
@@ -134,6 +134,7 @@ end
 function _fit_rvine_candidates(
     selected::Vector{_RVCandidate},
     nobs::Int;
+    weights,
     family_set,
     pair_method,
     selection_criterion,
@@ -156,6 +157,7 @@ function _fit_rvine_candidates(
 
         fit = _select_pair(
             pdata;
+            weights=weights,
             family_set=family_set,
             pair_method=pair_method,
             selection_criterion=selection_criterion,
@@ -190,6 +192,7 @@ end
 function _select_rvine_trees(
     X::Matrix{Float64},
     q::Int;
+    weights,
     family_set,
     pair_method,
     selection_criterion,
@@ -205,10 +208,11 @@ function _select_rvine_trees(
     p, n = size(X)
     trees = Vector{Vector{_RVFitEdge}}(undef, q)
 
-    candidates = _rvine_tree1_candidates(X, tree_criterion)
+    candidates = _rvine_tree1_candidates(X, tree_criterion, weights)
     selected = _maximum_spanning_tree(candidates, p)
     trees[1] = _fit_rvine_candidates(
         selected, n;
+        weights=weights,
         family_set=family_set,
         pair_method=pair_method,
         selection_criterion=selection_criterion,
@@ -223,10 +227,11 @@ function _select_rvine_trees(
     )
 
     for t in 2:q
-        candidates = _rvine_next_candidates(trees[t - 1], tree_criterion)
+        candidates = _rvine_next_candidates(trees[t - 1], tree_criterion, weights)
         selected = _maximum_spanning_tree(candidates, length(trees[t - 1]))
         trees[t] = _fit_rvine_candidates(
             selected, n;
+            weights=weights,
             family_set=family_set,
             pair_method=pair_method,
             selection_criterion=selection_criterion,
@@ -367,6 +372,7 @@ end
 function _fit_fixed_rvine(
     X::Matrix{Float64},
     st::RVineStructure;
+    weights,
     family_set,
     pair_method,
     selection_criterion,
@@ -391,9 +397,6 @@ function _fit_fixed_rvine(
     end
 
     levels = Vector{Vector{_PairSelection}}(undef, q)
-    total_iterations = 0
-    all_converged = true
-
     for t in 1:q
         level = Vector{_PairSelection}(undef, p - t)
         @inbounds for e in 1:(p - t)
@@ -410,13 +413,14 @@ function _fit_fixed_rvine(
             ))
             ua = states[ka]
             ub = states[kb]
-            dep = _tree_dependence(ua, ub, tree_criterion)
+            dep = _tree_dependence(ua, ub, tree_criterion, weights)
 
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= ua
             pdata[2, :] .= ub
             fit = _select_pair(
                 pdata;
+                weights=weights,
                 family_set=family_set,
                 pair_method=pair_method,
                 selection_criterion=selection_criterion,
@@ -429,9 +433,6 @@ function _fit_fixed_rvine(
                 force_independence=dep < threshold,
             )
             level[e] = fit
-            total_iterations += fit.iterations
-            all_converged &= fit.converged
-
             if t < q
                 oa = _state_key(a, vcat(D, b))
                 ob = _state_key(b, vcat(D, a))
@@ -452,7 +453,7 @@ function _fit_fixed_rvine(
     ]
     vc = RVineCopula(ord, S, edgelevels; trunc=q)
 
-    return vc, total_iterations, all_converged
+    return vc
 end
 
 # -----------------------------------------------------------------------------
@@ -468,6 +469,7 @@ function Copulas._fit(
     ::Val{:sequential};
     structure=nothing,
     trunc=nothing,
+    weights=nothing,
     family_set=:default,
     pair_method::Symbol=:default,
     selection_criterion::Symbol=:bic,
@@ -480,10 +482,10 @@ function Copulas._fit(
     pair_kwargs::NamedTuple=NamedTuple(),
     strict::Bool=false,
     trace::Bool=false,
-    full_metadata::Bool=true,
 )
     p = size(U0, 1)
     X = _fit_data(U0, p)
+    w = _fit_weights(weights, size(X, 2))
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
     threshold = _check_threshold(threshold)
@@ -499,9 +501,10 @@ function Copulas._fit(
         trunc !== nothing && Int(trunc) != q && throw(ArgumentError(
             "when structure is supplied, trunc must match truncation(structure)"
         ))
-        st_fit, was_legacy = _standardize_fixed_rvine_structure(structure)
-        vc, total_iterations, all_converged = _fit_fixed_rvine(
+        st_fit, _ = _standardize_fixed_rvine_structure(structure)
+        vc = _fit_fixed_rvine(
             X, st_fit;
+            weights=w,
             family_set=family_set,
             pair_method=pair_method,
             selection_criterion=selection_criterion,
@@ -514,13 +517,13 @@ function Copulas._fit(
             strict=strict,
             trace=trace,
         )
-        structure_method = was_legacy ? :fixed_legacy_dvine_normalized : :fixed
     else
         q = isnothing(trunc) ? p - 1 : Int(trunc)
         1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
 
         trees = _select_rvine_trees(
             X, q;
+            weights=w,
             family_set=family_set,
             pair_method=pair_method,
             selection_criterion=selection_criterion,
@@ -536,9 +539,6 @@ function Copulas._fit(
         ord, S, edgelevels = _rvine_peel(trees, p, q)
         vc = RVineCopula(ord, S, edgelevels; trunc=q)
 
-        total_iterations = sum(e.fit.iterations for tree in trees for e in tree)
-        all_converged = all(e.fit.converged for tree in trees for e in tree)
-        structure_method = :dissmann_mst
     end
 
     # Compile once here as a structural validation. Runtime methods below
@@ -546,24 +546,7 @@ function Copulas._fit(
     # storing/caching plans in the core type.
     _compile_standard_rvine(vc)
 
-    full_metadata || return vc, (;)
-    meta = _vine_meta(
-        vc;
-        selection_criterion=selection_criterion,
-        pair_method=pair_method,
-        family_set=family_set,
-        allow_rotations=allow_rotations,
-        preselect=preselect,
-        include_independence=include_independence,
-        threshold=threshold,
-        tree_criterion=tree_criterion,
-        order_method=nothing,
-        structure_method=structure_method,
-        tree_algorithm=tree_algorithm,
-        converged=all_converged,
-        iterations=total_iterations,
-    )
-    return vc, meta
+    return vc
 end
 
 # -----------------------------------------------------------------------------
@@ -993,134 +976,43 @@ end
 # a time. Vines already provide batched p×n logpdf methods, so use them
 # directly. This matters especially for a standard R-vine because it compiles
 # the conditional-state plan once per matrix rather than once per observation.
-Distributions.loglikelihood(
-    vc::AbstractVineCopula,
-    u::AbstractVector{<:Real},
-) = Distributions.logpdf(vc, u)
-
-Distributions.loglikelihood(
-    vc::AbstractVineCopula,
-    U::AbstractMatrix{<:Real},
-) = sum(Distributions.logpdf(vc, U))
-
-# -----------------------------------------------------------------------------
-# Ecosystem-native quick fit
-# -----------------------------------------------------------------------------
-#
-# Copulas.jl's generic quick route already avoids the final likelihood/vcov
-# work, but its generic implementation still asks `_fit` for metadata. These
-# more-specific methods preserve the same public API while skipping O(p²)
-# edge-summary construction for quick vine fits.
-
-function Distributions.fit(
-    ::Type{PairCopula},
-    U;
-    method::Symbol=:default,
-    kwargs...
-)
-    d = size(U, 1)
-    m = Copulas._find_method(PairCopula, d, method)
-    C, _ = Copulas._fit(
-        PairCopula, U, Val{m}();
-        full_metadata=false,
-        kwargs...
-    )
-    return C
-end
-
-function Distributions.fit(
-    VT::Type{<:AbstractVineCopula},
-    U;
-    method::Symbol=:default,
-    kwargs...
-)
-    d = size(U, 1)
-    m = Copulas._find_method(VT, d, method)
-    C, _ = Copulas._fit(
-        VT, U, Val{m}();
-        full_metadata=false,
-        kwargs...
-    )
-    return C
-end
+Distributions.loglikelihood(vc::AbstractVineCopula, u::AbstractVector{<:Real},) = Distributions.logpdf(vc, u)
+Distributions.loglikelihood(vc::AbstractVineCopula,U::AbstractMatrix{<:Real},) = sum(Distributions.logpdf(vc, U))
 
 # -----------------------------------------------------------------------------
 # CopulaModel integration
 # -----------------------------------------------------------------------------
 
-# Sequential vine estimation and post-selection pair fitting do not currently
-# expose a statistically valid covariance matrix. Returning `nothing` is more
-# honest than reporting a block-diagonal covariance that ignores selection and
-# pseudo-observation uncertainty.
-function Copulas._vcov(
-    ::Type{PairCopula},
-    U::AbstractMatrix,
-    θ::NamedTuple;
-    method::Symbol,
-    override=nothing,
-)
-    return nothing, (; vcov_method=:post_selection_unavailable)
+# Vine copulas are structural models whose free numerical coefficients are the
+# parameters of their active pair-copula edges.  Keep the coefficient vector
+# compact instead of constructing a potentially enormous NamedTuple type, and
+# expose human-readable edge-wise names through the public StatsBase model
+# interface.
+function Copulas.StatsBase.coef(M::Copulas.CopulaModel{<:AbstractVineCopula},)
+    _, values = _vine_parameter_metadata(Copulas.fitted_distribution(M))
+    return values
 end
 
-function Copulas._vcov(
-    ::Type{<:AbstractVineCopula},
-    U::AbstractMatrix,
-    θ::NamedTuple;
-    method::Symbol,
-    override=nothing,
-)
-    return nothing, (; vcov_method=:sequential_unavailable)
+function Copulas.StatsBase.coefnames(M::Copulas.CopulaModel{<:AbstractVineCopula},)
+    names, _ = _vine_parameter_metadata(Copulas.fitted_distribution(M))
+    return names
 end
 
-# Vine models keep θ̂ compact as one parameter vector to avoid enormous
-# NamedTuple types in high dimensions. Supply human-readable edge-wise names
-# through one targeted StatsBase interface specialization.
-function Copulas.StatsBase.coefnames(
-    M::Copulas.CopulaModel{<:AbstractVineCopula}
-)
-    return get(M.method_details, :coefnames, String[])
-end
+# Avoid the generic Copulas.jl summary for vine models: generic dependence
+# measures such as multivariate Spearman's rho may require expensive numerical
+# integration.  A vine summary should remain structural and deterministic.
+function Base.show(io::IO, M::Copulas.CopulaModel{<:AbstractVineCopula},)
+    vc = Copulas.fitted_distribution(M)
 
-# A vine-specific summary while keeping the public model type CopulaModel.
-function Base.show(io::IO, M::Copulas.CopulaModel{<:AbstractVineCopula})
-    vc = M.result
     println(io, "CopulaModel: ", nameof(typeof(vc)))
     println(io, "  dimension:            ", length(vc))
-    println(io, "  method:               ", M.method)
-    println(io, "  observations:         ", M.n)
+    println(io, "  method:               ", Copulas.fitting_method(M))
+    println(io, "  observations:         ", Copulas.StatsBase.nobs(M))
     println(io, "  truncation:           ", truncation(vc))
     println(io, "  order:                ", collect(order(vc)))
     println(io, "  pair copulas:         ", sum(length, edges(vc)))
     println(io, "  parameters:           ", Copulas.StatsBase.dof(M))
-    println(io, "  loglikelihood:        ", M.ll)
+    println(io, "  loglikelihood:        ", Distributions.loglikelihood(M))
     println(io, "  AIC:                  ", Copulas.StatsBase.aic(M))
-    println(io, "  BIC:                  ", Copulas.StatsBase.bic(M))
-    println(io, "  converged:            ", M.converged)
-    println(io, "  iterations:           ", M.iterations)
-    sm = get(M.method_details, :structure_method, nothing)
-    sm === nothing || println(io, "  structure method:     ", sm)
-    tc = get(M.method_details, :tree_criterion, nothing)
-    tc === nothing || println(io, "  tree criterion:       ", tc)
-    sc = get(M.method_details, :selection_criterion, nothing)
-    sc === nothing || println(io, "  family criterion:     ", sc)
-    ta = get(M.method_details, :tree_algorithm, nothing)
-    ta === nothing || println(io, "  tree algorithm:       ", ta)
-    th = get(M.method_details, :threshold, 0.0)
-    iszero(th) || println(io, "  threshold:            ", th)
-
-    es = get(M.method_details, :edges, nothing)
-    if es !== nothing
-        println(io, "  edges:")
-        for e in es
-            cond = isempty(e.conditioning) ? "" : " | " * join(e.conditioning, ",")
-            println(
-                io,
-                "    T", e.tree, ":E", e.edge, "  ",
-                e.conditioned[1], "-", e.conditioned[2], cond,
-                "  ", e.family,
-                e.rotation == 0 ? "" : " rot=$(e.rotation)°",
-                "  k=", e.npars,
-            )
-        end
-    end
+    print(io,   "  BIC:                  ", Copulas.StatsBase.bic(M))
 end

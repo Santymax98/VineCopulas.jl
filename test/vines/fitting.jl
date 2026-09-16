@@ -32,12 +32,11 @@
         selection_criterion=:bic,
         allow_rotations=false,
     )
-    @test F.result isa Copulas.Copula{2}
-    @test F.method == :select
-    @test isfinite(F.ll)
+    @test Copulas.fitted_distribution(F) isa Copulas.Copula{2}
+    @test Copulas.fitting_method(F) == :select
+    @test isfinite(Distributions.loglikelihood(F))
     @test isfinite(Copulas.StatsBase.aic(F))
     @test isfinite(Copulas.StatsBase.bic(F))
-    @test Copulas.StatsBase.vcov(F) === nothing
 end
 
 @testitem "Fit API – rotated pair selection" tags=[:Fit, :PairCopula, :Rotation] setup=[M] begin
@@ -61,9 +60,9 @@ end
         preselect=true,
         include_independence=true,
     )
-    @test F.result isa Copulas.SurvivalCopula
-    @test get(F.method_details, :rotation, 0) in (90, 270)
-    @test F.ll > 0
+    @test Copulas.fitted_distribution(F) isa Copulas.SurvivalCopula
+    @test VineCopulas._rotation_of(Copulas.fitted_distribution(F)) in (90, 270)
+    @test Distributions.loglikelihood(F) > 0
 end
 
 @testitem "Fit API – Clayton vine-selection domain is finite and positive" tags=[:Fit, :PairCopula, :Rotation, :Regression] setup=[M] begin
@@ -93,11 +92,11 @@ end
         strict=true,
     )
 
-    base = F.result isa SurvivalCopula ? F.result.C : F.result
+    base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
     θ = Distributions.params(base).θ
     @test 1.0e-10 < θ < 28.0
-    @test isfinite(F.ll)
-    @test get(F.method_details, :rotation, -1) in (0, 90, 180, 270)
+    @test isfinite(Distributions.loglikelihood(F))
+    @test VineCopulas._rotation_of(Copulas.fitted_distribution(F)) in (0, 90, 180, 270)
 
     # The broader Copulas.jl family remains available outside vine selection.
     @test ClaytonCopula(2, -0.25) isa Copulas.Copula{2}
@@ -130,10 +129,10 @@ end
         strict=true,
     )
 
-    p = Distributions.params(F.result)
+    p = Distributions.params(Copulas.fitted_distribution(F))
     @test abs(p.Σ[1, 2]) < 1.0
     @test 2.0 < p.ν < 50.0
-    @test isfinite(F.ll)
+    @test isfinite(Distributions.loglikelihood(F))
 
     # Direct Copulas.jl construction keeps the broader nu > 0 domain.
     @test TCopula(1.25, Sigma) isa Copulas.Copula{2}
@@ -167,11 +166,11 @@ end
             strict=true,
         )
 
-        base = F.result isa SurvivalCopula ? F.result.C : F.result
+        base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
         theta = Distributions.params(base).θ
         @test 1.0 < theta < hi
-        @test isfinite(F.ll)
-        @test get(F.method_details, :rotation, -1) in (0, 90, 180, 270)
+        @test isfinite(Distributions.loglikelihood(F))
+        @test VineCopulas._rotation_of(Copulas.fitted_distribution(F)) in (0, 90, 180, 270)
     end
 end
 
@@ -216,16 +215,16 @@ end
         strict=true,
     )
 
-    @test F.result isa GaussianCopula
-    rho = Distributions.params(F.result).Σ[1, 2]
+    @test Copulas.fitted_distribution(F) isa GaussianCopula
+    rho = Distributions.params(Copulas.fitted_distribution(F)).Σ[1, 2]
     @test rho ≈ 0.5561662333 atol=5.0e-5
-    @test F.ll ≈ 5.140188517 atol=2.0e-6
+    @test Distributions.loglikelihood(F) ≈ 5.140188517 atol=2.0e-6
 
     # Check local optimality directly in copula likelihood, not merely against
     # a particular external optimizer implementation.
     for delta in (-0.02, -0.005, 0.005, 0.02)
         Cδ = GaussianCopula(2, rho + delta)
-        @test F.ll >= Distributions.loglikelihood(Cδ, U) - 1.0e-8
+        @test Distributions.loglikelihood(F) >= Distributions.loglikelihood(Cδ, U) - 1.0e-8
     end
 end
 
@@ -257,10 +256,10 @@ end
             strict=true,
         )
 
-        base = F.result isa SurvivalCopula ? F.result.C : F.result
+        base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
         theta = Distributions.params(base).θ
         @test theta > guard
-        @test isfinite(F.ll)
+        @test isfinite(Distributions.loglikelihood(F))
     end
 end
 
@@ -313,13 +312,13 @@ end
             include_independence=false,
             strict=true,
         )
-        base = F.result isa SurvivalCopula ? F.result.C : F.result
+        base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
         vals = collect(values(Distributions.params(base)))
         @test length(vals) == 2
         @test all(isfinite, vals)
         @test lo[1] < vals[1] < hi[1]
         @test lo[2] < vals[2] < hi[2]
-        @test isfinite(F.ll)
+        @test isfinite(Distributions.loglikelihood(F))
     end
 end
 
@@ -355,13 +354,12 @@ end
         family_set=fams,
         allow_rotations=false,
     )
-    @test F.result isa CVineCopula
-    @test F.method == :sequential
+    @test Copulas.fitted_distribution(F) isa CVineCopula
+    @test Copulas.fitting_method(F) == :sequential
     @test length(Copulas.StatsBase.coef(F)) == Copulas.StatsBase.dof(F)
     @test length(Copulas.StatsBase.coefnames(F)) == Copulas.StatsBase.dof(F)
     @test isfinite(Copulas.StatsBase.aic(F))
     @test isfinite(Copulas.StatsBase.bic(F))
-    @test Copulas.StatsBase.vcov(F) === nothing
 
     Cauto = fit(
         CVineCopula,
@@ -404,10 +402,9 @@ end
         family_set=(GaussianCopula, ClaytonCopula),
         allow_rotations=false,
     )
-    @test F.result isa DVineCopula
-    @test F.method == :sequential
-    @test get(F.method_details, :order_method, nothing) == :fixed
-    @test Copulas.StatsBase.vcov(F) === nothing
+    @test Copulas.fitted_distribution(F) isa DVineCopula
+    @test Copulas.fitting_method(F) == :sequential
+    @test order(Copulas.fitted_distribution(F)) == order(C)
 end
 
 @testitem "R-vine DAG – standard nonidentity order" tags=[:Fit, :Vine, :RVine, :Rosenblatt, :Regression] setup=[M] begin
@@ -533,10 +530,10 @@ end
         family_set=(GaussianCopula, ClaytonCopula),
         allow_rotations=false,
     )
-    @test F.result isa RVineCopula
-    @test get(F.method_details, :structure_method, nothing) == :fixed
+    @test Copulas.fitted_distribution(F) isa RVineCopula
+    @test collect(order(Copulas.fitted_distribution(F))) == ord
+    @test struct_array(Copulas.fitted_distribution(F)) == S
     @test length(Copulas.StatsBase.coefnames(F)) == Copulas.StatsBase.dof(F)
-    @test Copulas.StatsBase.vcov(F) === nothing
 end
 
 @testitem "Fit API – fixed branching general R-vine" tags=[:Fit, :Vine, :RVine, :Structure, :Regression] setup=[M] begin
@@ -633,11 +630,15 @@ end
         selection_criterion=:bic,
         allow_rotations=false,
     )
-    @test F.result isa RVineCopula
-    @test truncation(F.result) == 2
-    @test get(F.method_details, :structure_method, nothing) == :dissmann_mst
-    @test get(F.method_details, :tree_criterion, nothing) == :tau
-    @test isfinite(F.ll)
+    @test Copulas.fitted_distribution(F) isa RVineCopula
+    @test truncation(Copulas.fitted_distribution(F)) == 2
+    @test VineCopulas._validate_rvine_structure(
+        order(Copulas.fitted_distribution(F)),
+        struct_array(Copulas.fitted_distribution(F)),
+        4,
+        2,
+    ) == :standard
+    @test isfinite(Distributions.loglikelihood(F))
     @test isfinite(Copulas.StatsBase.aic(F))
     @test isfinite(Copulas.StatsBase.bic(F))
 end
@@ -704,10 +705,9 @@ end
         allow_rotations=false,
     )
 
-    @test F.result isa RVineCopula
-    @test get(F.method_details, :structure_method, nothing) == :fixed_legacy_dvine_normalized
-    @test struct_array(F.result) == ([2,3], [3])
-    @test VineCopulas._compile_standard_rvine(F.result).p == 3
+    @test Copulas.fitted_distribution(F) isa RVineCopula
+    @test struct_array(Copulas.fitted_distribution(F)) == ([2,3], [3])
+    @test VineCopulas._compile_standard_rvine(Copulas.fitted_distribution(F)).p == 3
 end
 
 @testitem "Fit internals – Kendall tau-b and exact D-vine path" tags=[:Fit, :Numerical, :Structure] setup=[M] begin
@@ -782,4 +782,193 @@ end
         exact_order_max=1,
         family_set=(GaussianCopula,),
     )
+end
+
+@testitem "Fit internals – weighted Kendall tau and Spearman rho" tags=[:Fit, :Numerical, :Weights] setup=[M] begin
+    using Test
+    using Copulas
+    using VineCopulas
+    using StableRNGs
+
+    # Tied fixture: uniform weights reproduce the unweighted statistics exactly.
+    x = [0.1, 0.1, 0.4, 0.6, 0.6, 0.9, 0.95]
+    y = [0.2, 0.3, 0.3, 0.7, 0.65, 0.8, 0.99]
+    @test VineCopulas._kendall_tau_w(x, y, ones(7)) == VineCopulas._kendall_tau_b(x, y)
+    @test VineCopulas._spearman_rho_w(x, y, ones(7)) == VineCopulas._spearman_rho(x, y)
+    @test VineCopulas._tie_pairs_w(x, ones(7)) == VineCopulas._tie_pairs(x)
+
+    # Untied fixture.
+    rng = StableRNG(4101)
+    xr = rand(rng, 60)
+    yr = 0.6 .* xr .+ 0.4 .* rand(rng, 60)
+    @test VineCopulas._kendall_tau_w(xr, yr, ones(60)) == VineCopulas._kendall_tau_b(xr, yr)
+    @test VineCopulas._spearman_rho_w(xr, yr, ones(60)) == VineCopulas._spearman_rho(xr, yr)
+
+    # Replication identity: integer weights equal the statistic of the sample
+    # in which row i is repeated m[i] times.
+    m = rand(rng, 1:4, 60)
+    xe = vcat((fill(xr[i], m[i]) for i in 1:60)...)
+    ye = vcat((fill(yr[i], m[i]) for i in 1:60)...)
+    @test VineCopulas._kendall_tau_w(xr, yr, Float64.(m)) ≈ VineCopulas._kendall_tau_b(xe, ye) atol=1e-12
+    @test VineCopulas._spearman_rho_w(xr, yr, Float64.(m)) ≈ VineCopulas._spearman_rho(xe, ye) atol=1e-12
+
+    # Integer weights run on an exact integer Fenwick tree and agree with the
+    # same weights as floats bit for bit.
+    @test VineCopulas._kendall_tau_w(xr, yr, m) == VineCopulas._kendall_tau_w(xr, yr, Float64.(m))
+    @test VineCopulas._spearman_rho_w(xr, yr, m) == VineCopulas._spearman_rho_w(xr, yr, Float64.(m))
+    @test VineCopulas._Fenwick(zeros(Int, 3)) isa VineCopulas._Fenwick{Int}
+
+    # Both criteria are invariant to the scale of the weights.
+    @test VineCopulas._kendall_tau_w(xr, yr, 3.7 .* m) ≈ VineCopulas._kendall_tau_w(xr, yr, Float64.(m)) atol=1e-12
+    @test VineCopulas._spearman_rho_w(xr, yr, 3.7 .* m) ≈ VineCopulas._spearman_rho_w(xr, yr, Float64.(m)) atol=1e-12
+
+    # A zero weight removes the row.
+    w0 = ones(60)
+    w0[7] = 0.0
+    keep = [1:6; 8:60]
+    @test VineCopulas._kendall_tau_w(xr, yr, w0) ≈ VineCopulas._kendall_tau_b(xr[keep], yr[keep]) atol=1e-12
+    @test VineCopulas._spearman_rho_w(xr, yr, w0) ≈ VineCopulas._spearman_rho(xr[keep], yr[keep]) atol=1e-12
+
+    @test_throws DimensionMismatch VineCopulas._kendall_tau_w(xr, yr, ones(59))
+end
+
+@testitem "Fit API – weights on pair selection" tags=[:Fit, :PairCopula, :Weights] setup=[M] begin
+    using Test
+    using Distributions
+    using Copulas
+    using VineCopulas
+    using StableRNGs
+
+    rng = StableRNG(4102)
+    U = rand(rng, TCopula(4.0, [1.0 0.5; 0.5 1.0]), 400)
+    n = size(U, 2)
+
+    # Every default family that observation weights reach: uniform weights
+    # reproduce the unweighted fit bit for bit, before and after the internal
+    # normalisation to `sum(w) == n`.
+    for FT in (GaussianCopula, TCopula, ClaytonCopula, GumbelCopula, FrankCopula, JoeCopula, BB1Copula, BB7Copula)
+        kw = (; family_set=(FT,), pair_method=:mle, allow_rotations=false, include_independence=false, strict=true)
+        F0 = fit(PairCopula, U; kw...)
+        F1 = fit(PairCopula, U; weights=ones(n), kw...)
+        F2 = fit(PairCopula, U; weights=2 .* ones(n), kw...)
+        @test Distributions.params(F1) == Distributions.params(F0)
+        @test Distributions.params(F2) == Distributions.params(F0)
+    end
+
+    # The selected family and the score are unchanged under uniform weights,
+    # and the log-likelihood is the plain one (the weights sum to n).
+    S0 = VineCopulas._select_pair(U; family_set=:default)
+    S1 = VineCopulas._select_pair(U; weights=fill(0.5, n), family_set=:default)
+    @test S1.family == S0.family
+    @test S1.rotation == S0.rotation
+    @test S1.loglik ≈ S0.loglik atol=1e-8
+    @test S1.score ≈ S0.score atol=1e-8
+
+    # Replication identity for the bounded MLEs: a row repeated m[i] times
+    # equals the deduplicated row with weight m[i]. The residual is the Brent
+    # tolerance of the scalar fitters (`rel_tol = sqrt(eps)` on theta).
+    rng = StableRNG(4103)
+    U2 = rand(rng, ClaytonCopula(2, 1.8), 200)
+    m = rand(rng, 1:4, 200)
+    U2e = hcat((repeat(U2[:, i], 1, m[i]) for i in 1:200)...)
+    for FT in (GaussianCopula, ClaytonCopula, GumbelCopula)
+        kw = (; family_set=(FT,), pair_method=:mle, allow_rotations=false, include_independence=false, strict=true)
+        Fe = fit(PairCopula, U2e; kw...)
+        Fw = fit(PairCopula, U2; weights=m, kw...)
+        pe = VineCopulas._flatten_fit_params(Distributions.params(Fe))[2]
+        pw = VineCopulas._flatten_fit_params(Distributions.params(Fw))[2]
+        @test pe ≈ pw atol=1e-6
+    end
+
+    # A zero weight removes the row: the fit equals the fit without it.
+    U3 = copy(U2)
+    U3[:, 17] .= (0.999, 0.001)
+    w0 = ones(200)
+    w0[17] = 0.0
+    kw = (; family_set=(ClaytonCopula,), allow_rotations=false, include_independence=false, strict=true)
+    Fdrop = fit(PairCopula, U3[:, [1:16; 18:200]]; kw...)
+    Fzero = fit(PairCopula, U3; weights=w0, kw...)
+    @test Distributions.params(Fzero).θ ≈ Distributions.params(Fdrop).θ atol=1e-6
+
+    # The weighted pseudo-likelihood is the weighted sum of the column logpdfs.
+    C = ClaytonCopula(2, 1.8)
+    w = rand(rng, 200)
+    @test VineCopulas._weighted_loglikelihood(C, U2, w) ≈ sum(w .* Distributions.logpdf(C, U2))
+    @test VineCopulas._weighted_loglikelihood(C, U2, nothing) == Distributions.loglikelihood(C, U2)
+
+    # Refusals.
+    @test_throws ArgumentError fit(PairCopula, U2; weights=fill(-1.0, 200), family_set=(ClaytonCopula,))
+    @test_throws ArgumentError fit(PairCopula, U2; weights=zeros(200), family_set=(ClaytonCopula,))
+    @test_throws ArgumentError fit(PairCopula, U2; weights=fill(NaN, 200), family_set=(ClaytonCopula,))
+    @test_throws DimensionMismatch fit(PairCopula, U2; weights=ones(199), family_set=(ClaytonCopula,))
+    @test_throws ArgumentError fit(PairCopula, U2; weights=ones(200), family_set=(AMHCopula,))
+    @test_throws ArgumentError fit(PairCopula, U2; weights=ones(200), family_set=(ClaytonCopula,), pair_method=:itau)
+end
+
+@testitem "Fit API – weights on vine fitting" tags=[:Fit, :Vine, :RVine, :CVine, :DVine, :Weights] setup=[M] begin
+    using Test
+    using Distributions
+    using Copulas
+    using VineCopulas
+    using StableRNGs
+
+    rng = StableRNG(4104)
+    truth = DVineCopula(
+        [1, 2, 3, 4],
+        [[GaussianCopula(2, 0.6), ClaytonCopula(2, 1.5), GumbelCopula(2, 1.4)],
+         [FrankCopula(2, 1.5), GaussianCopula(2, 0.3)],
+         [GaussianCopula(2, 0.2)]],
+    )
+    U = rand(rng, truth, 220)
+    n = size(U, 2)
+    fams = (GaussianCopula, ClaytonCopula, GumbelCopula, FrankCopula)
+
+    # Uniform weights reproduce the unweighted fit bit for bit: structure,
+    # families and parameters, under both tree criteria.
+    for T in (RVineCopula, CVineCopula, DVineCopula), crit in (:tau, :rho)
+        V0 = fit(T, U; family_set=fams, tree_criterion=crit)
+        V1 = fit(T, U; weights=ones(n), family_set=fams, tree_criterion=crit)
+        V2 = fit(T, U; weights=4 .* ones(n), family_set=fams, tree_criterion=crit)
+        @test order(V1) == order(V0)
+        @test order(V2) == order(V0)
+        @test VineCopulas._vine_parameter_metadata(V1) == VineCopulas._vine_parameter_metadata(V0)
+        @test VineCopulas._vine_parameter_metadata(V2) == VineCopulas._vine_parameter_metadata(V0)
+    end
+
+    # Replication identity through the sequential fit: the weights ride with
+    # the observations into every tree.
+    m = rand(rng, 1:4, n)
+    Ue = hcat((repeat(U[:, i], 1, m[i]) for i in 1:n)...)
+    for T in (RVineCopula, CVineCopula, DVineCopula)
+        Ve = fit(T, Ue; family_set=fams)
+        Vw = fit(T, U; weights=m, family_set=fams)
+        @test order(Vw) == order(Ve)
+        ne, pe = VineCopulas._vine_parameter_metadata(Ve)
+        nw, pw = VineCopulas._vine_parameter_metadata(Vw)
+        @test nw == ne
+        @test pw ≈ pe atol=1e-6
+    end
+
+    # Weights change the fit when they are not uniform, and they reach the
+    # fixed-structure, explicit-order and full-model paths.
+    w = rand(rng, n) .+ 0.1
+    Vw = fit(RVineCopula, U; weights=w, family_set=fams)
+    V0 = fit(RVineCopula, U; family_set=fams)
+    @test VineCopulas._vine_parameter_metadata(Vw)[2] != VineCopulas._vine_parameter_metadata(V0)[2]
+    Vs = fit(RVineCopula, U; weights=w, structure=structure(Vw), family_set=fams)
+    @test order(Vs) == order(Vw)
+    @test VineCopulas._vine_parameter_metadata(Vs)[2] ≈ VineCopulas._vine_parameter_metadata(Vw)[2] atol=1e-6
+    Vc = fit(CVineCopula, U; weights=w, order=[2, 1, 3, 4], family_set=fams)
+    @test order(Vc) == (2, 1, 3, 4)
+    Vd = fit(DVineCopula, U; weights=w, order_method=:greedy, threshold=0.05, family_set=fams)
+    @test Vd isa DVineCopula
+    M = fit(CopulaModel, RVineCopula, U; weights=w, family_set=fams)
+    @test Copulas.fitted_distribution(M) isa RVineCopula
+    @test isfinite(Distributions.loglikelihood(M))
+
+    # Refusals at the vine entry point.
+    @test_throws DimensionMismatch fit(RVineCopula, U; weights=ones(n - 1), family_set=fams)
+    @test_throws ArgumentError fit(CVineCopula, U; weights=zeros(n), family_set=fams)
+    @test_throws ArgumentError fit(DVineCopula, U; weights=-ones(n), family_set=fams)
+    @test_throws ArgumentError fit(RVineCopula, U; weights=ones(n), family_set=:all)
 end

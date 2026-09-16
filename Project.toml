@@ -4,6 +4,7 @@ version = "0.1.2"
 authors = ["Santiago Jimenez <santymax9807@gmail.com> and contributors"]
 
 [deps]
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
 Copulas = "ae264745-0b69-425e-9d9d-cf662c5eec93"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
@@ -19,6 +20,7 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 
 [compat]
+ADTypes = "1"
 Copulas = "0.1.40"
 Distributions = "0.25"
 ForwardDiff = "1"

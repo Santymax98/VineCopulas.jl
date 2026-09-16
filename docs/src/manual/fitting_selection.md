@@ -67,6 +67,7 @@ The main controls are:
 | `allow_rotations` | Whether to include rotated candidates |
 | `include_independence` | Whether independence can be selected |
 | `preselect` | Whether dependence sign may prune rotation candidates |
+| `weights` | Per-observation weights, or `nothing` (see [Observation weights](@ref)) |
 
 !!! tip
     Use `selection_criterion=:bic` for a conservative default. Use
@@ -113,6 +114,57 @@ model = fit(
 `tree_criterion=:tau` uses absolute Kendall's tau weights, while
 `tree_criterion=:rho` uses absolute Spearman's rho weights. The deterministic
 `tree_algorithm=:kruskal` path is the one used in the external parity tests.
+
+## Observation weights
+
+Every `fit` method takes `weights`, a vector with one non-negative entry per
+column of `U` (not all zero), or `nothing` for the unweighted fit:
+
+```@example fit-weights
+using VineCopulas
+using Distributions: fit
+using Random
+
+truth = DVineCopula(
+    [1, 2, 3],
+    [[GaussianCopula(2, 0.55), ClaytonCopula(2, 1.4)],
+     [FrankCopula(2, 2.0)]],
+)
+U = rand(MersenneTwister(21), truth, 300)
+
+# Exponentially decaying weights: recent columns count for more.
+w = exp.(-(size(U, 2) .- (1:size(U, 2))) ./ 100)
+weighted = fit(RVineCopula, U; weights=w)
+
+(order(weighted), truncation(weighted))
+```
+
+A weight is "how many observations this column counts for". The weights enter
+the fit in three places:
+
+- the tree criterion is the weighted Kendall's tau or Spearman's rho, whose
+  pairs `(i, j)` are weighted by `w[i] * w[j]`;
+- each pair-copula is fitted by the weighted pseudo-likelihood
+  `∑ᵢ w[i] log c(U[:, i])`;
+- the selection criterion uses the weighted sample size `∑ᵢ w[i]`.
+
+The weights are normalised internally so that they sum to the number of
+observations, so `weights=fill(c, n)` reproduces the unweighted fit for any
+`c > 0`, and the `:bic` penalty is unchanged. With integer weights the fit
+equals the unweighted fit of the sample in which column `i` is repeated `w[i]`
+times, up to optimiser tolerance. A zero weight removes the column.
+
+The weights do not change the pseudo-observations: `U` is taken as given, and
+weighted ranks are the caller's responsibility.
+
+!!! warning "Families fitted by Copulas.jl take no weights"
+    Weights reach the `:mle` pair fits of the default families (Gaussian,
+    Student-t, Clayton, Gumbel, Frank, Joe, BB1, BB6, BB7, BB8), which are
+    local to this package. A family outside that set, or a non-`:mle`
+    `pair_method`, is fitted by Copulas.jl without weights, and `fit` throws
+    an `ArgumentError` rather than silently ignoring them. The log-likelihood
+    reported by `fit(CopulaModel, ...)` is the unweighted log-likelihood of
+    the weighted fit.
 
 ## Fixed-structure fitting
 
