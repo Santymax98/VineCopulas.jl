@@ -2,6 +2,14 @@
 
 All notable changes to `VineCopulas.jl` are documented here. Version numbers follow Julia package registration conventions.
 
+## [Unreleased]
+
+### Added
+
+- Exact conditional simulation through the vine's own sampling recursion: `rand`, `rand!`, `simulate_qmc`, `inverse_rosenblatt`, and `inverse_rosenblatt!` accept `fixed=(js, Ujs)` to hold the coordinates `js` at known uniforms and draw the remaining coordinates from their conditional law, at the cost of an unconditional draw.
+- `admits_conditioning(vine, js)`, the structure predicate that says when that draw is exact: `js` at either end of a D-vine path, the first roots of a C-vine, or the tail of a standard R-vine's order. A draw whose predicate is `false` refuses with an `ArgumentError` that names the fit-side fix.
+- `fit(RVineCopula, U; sampling_tail=js)` peels the selected trees so that `js` sits at the end of the order whenever the trees allow it, without changing the trees or the pair copulas.
+
 ## [0.1.2] - 2026-08-16
 
 ### Added

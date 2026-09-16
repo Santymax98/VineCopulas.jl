@@ -172,7 +172,16 @@ function _rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::CVineCopula{p}, 
     return out
 end
 
-function _inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::CVineCopula{p}, Z::AbstractMatrix{<:Real}) where {p}
+_inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::CVineCopula{p}, Z::AbstractMatrix{<:Real}) where {p} =
+    _inverse_rosenblatt_internal!(out, vc, Z, nothing)
+
+# The C-vine engine generates the roots in `order`, each conditionally on the
+# roots before it, so a fixed block that is the first `length(js)` roots is
+# seeded directly. The engine reads the fixed roots through their Rosenblatt
+# coordinates z_k = u_{k | 1:(k-1)}, which the forward chain of the fixed
+# block alone provides: the Rosenblatt transform is triangular in `order`.
+function _inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::CVineCopula{p}, Z::AbstractMatrix{<:Real}, block) where {p}
+    nfixed = block === nothing ? 0 : length(block[1])
     Zx = _as_pxn(p, Z)
     n = size(Zx,2)
     W = Matrix{Float64}(undef, p, n)
@@ -180,8 +189,23 @@ function _inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::CVineCop
         @views W[j,:] .= _clp.(Zx[vc.order[j],:])
     end
     X = Matrix{Float64}(undef, p, n)
-    @inbounds X[1,:] .= W[1,:]
-    @inbounds for i in 2:p
+    if nfixed > 0
+        js, Ujs = block
+        @inbounds for i in 1:nfixed
+            r = findfirst(==(vc.order[i]), js)
+            @views X[i,:] .= Ujs[r,:]
+            @views W[i,:] .= X[i,:]
+            for k in 1:min(i-1, vc.trunc)
+                C = vc.edges[k][i-k]
+                for col in 1:n
+                    W[i,col] = hfunc2(C, W[k,col], W[i,col])
+                end
+            end
+        end
+    else
+        @inbounds X[1,:] .= W[1,:]
+    end
+    @inbounds for i in max(2, nfixed + 1):p
         @views X[i,:] .= W[i,:]
         # Invert from most conditioned edge down to the unconditional edge.
         for k in min(i-1, vc.trunc):-1:1
@@ -197,6 +221,16 @@ function _inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::CVineCop
         @views out[label,:] .= X[invord[label],:]
     end
     return out
+end
+
+# The roots are generated in `order`, so a fixed block heads a sampling order
+# when it is the first `length(js)` roots.
+admits_conditioning(vc::CVineCopula{p}, js) where {p} = _heads_order(vc.order, js)
+
+function _conditioning_refusal(vc::CVineCopula{p}, js) where {p}
+    return "exact conditioning needs the fixed variables $(collect(js)) to be the first " *
+           "$(length(js)) roots of the C-vine, but its root order is $(collect(vc.order)); " *
+           "refit with `order = ...` placing them first, or condition by rejection"
 end
 
 function _cvine_edge_description(vc::CVineCopula{p}, k::Int, i::Int) where {p}

@@ -114,6 +114,13 @@ model = fit(
 `tree_criterion=:rho` uses absolute Spearman's rho weights. The deterministic
 `tree_algorithm=:kruskal` path is the one used in the external parity tests.
 
+`sampling_tail=js` asks the peeling step to place the variables `js` at the end
+of `order(model)`, so that `admits_conditioning(model, js)` holds and
+`rand(model, n; fixed=(js, Ujs))` draws exactly from the conditional copula.
+It changes only how the selected trees are read into an order, never the trees
+or the pair copulas, and it cannot be combined with `structure`. See
+[Conditional simulation](simulation_transforms.md#Conditional-simulation).
+
 ## Fixed-structure fitting
 
 If the R-vine structure is part of the statistical design, pass it explicitly:

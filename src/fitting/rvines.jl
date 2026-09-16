@@ -250,7 +250,12 @@ end
 @inline _side_key(E::_RVFitEdge, side::Symbol) =
     Tuple(sort!(vcat(E.D, side === :a ? E.a : E.b)))
 
-function _rvine_peel(trees::Vector{Vector{_RVFitEdge}}, p::Int, q::Int)
+function _rvine_peel(
+    trees::Vector{Vector{_RVFitEdge}},
+    p::Int,
+    q::Int;
+    sampling_tail::AbstractVector{<:Integer}=Int[],
+)
     consumed = [falses(length(trees[t])) for t in 1:q]
     S = [zeros(Int, p - t) for t in 1:q]
     Eout = [Vector{PairCopula}(undef, p - t) for t in 1:q]
@@ -272,7 +277,12 @@ function _rvine_peel(trees::Vector{Vector{_RVFitEdge}}, p::Int, q::Int)
         end
 
         # Collect available leaf endpoints and choose the smallest original
-        # label for deterministic output.
+        # label for deterministic output. A leaf named in `sampling_tail` is
+        # taken last, so those variables are pushed to the end of the order
+        # whenever the trees allow it: the peeled diagonal of a column can only
+        # be a leaf of the top tree, so a requested variable that is never a
+        # leaf at the right moment cannot go last, and the order is then the
+        # best the trees admit.
         leaves = Tuple{Int,Int,Symbol}[]
         @inbounds for i in eachindex(tree)
             consumed[top][i] && continue
@@ -283,7 +293,7 @@ function _rvine_peel(trees::Vector{Vector{_RVFitEdge}}, p::Int, q::Int)
         isempty(leaves) && throw(ArgumentError(
             "could not peel R-vine tree $top; no leaf satisfies the proximity representation"
         ))
-        sort!(leaves; by=x -> (x[1], x[2], x[3] === :a ? 0 : 1))
+        sort!(leaves; by=x -> (x[1] in sampling_tail, x[1], x[2], x[3] === :a ? 0 : 1))
         diag, idx, side = first(leaves)
         ord[col] = diag
 
@@ -474,6 +484,7 @@ function Copulas._fit(
     pair_kwargs::NamedTuple=NamedTuple(),
     strict::Bool=false,
     trace::Bool=false,
+    sampling_tail=Int[],
 )
     p = size(U0, 1)
     X = _fit_data(U0, p)
@@ -483,10 +494,17 @@ function Copulas._fit(
     tree_algorithm in (:mst, :kruskal) || throw(ArgumentError(
         "tree_algorithm currently supports :mst or :kruskal (same deterministic Kruskal engine)"
     ))
+    tail = collect(Int, sampling_tail)
+    allunique(tail) && all(j -> 1 <= j <= p, tail) || throw(ArgumentError(
+        "sampling_tail must hold distinct labels in 1:$p; got $tail"
+    ))
 
     if structure !== nothing
         structure isa RVineStructure || throw(ArgumentError(
             "structure must be an RVineStructure or nothing"
+        ))
+        isempty(tail) || throw(ArgumentError(
+            "sampling_tail cannot be combined with a fixed structure: the structure already fixes the order"
         ))
         q = truncation(structure)
         trunc !== nothing && Int(trunc) != q && throw(ArgumentError(
@@ -525,7 +543,7 @@ function Copulas._fit(
             strict=strict,
             trace=trace,
         )
-        ord, S, edgelevels = _rvine_peel(trees, p, q)
+        ord, S, edgelevels = _rvine_peel(trees, p, q; sampling_tail=tail)
         vc = RVineCopula(ord, S, edgelevels; trunc=q)
 
     end
@@ -902,50 +920,88 @@ function rosenblatt!(
     return out
 end
 
-function inverse_rosenblatt(vc::RVineCopula{p}, Z::AbstractMatrix{<:Real}) where {p}
+function inverse_rosenblatt(vc::RVineCopula{p}, Z::AbstractMatrix{<:Real}; fixed=nothing) where {p}
     X = _as_pxn(p, Z)
     out = Matrix{Float64}(undef, p, size(X, 2))
-    return inverse_rosenblatt!(out, vc, X)
+    return inverse_rosenblatt!(out, vc, X; fixed=fixed)
 end
 
-function inverse_rosenblatt(vc::RVineCopula{p}, z::AbstractVector{<:Real}) where {p}
+function inverse_rosenblatt(vc::RVineCopula{p}, z::AbstractVector{<:Real}; fixed=nothing) where {p}
     _check_vector_dim(p, z)
-    return vec(inverse_rosenblatt(vc, reshape(z, p, 1)))
+    return vec(inverse_rosenblatt(vc, reshape(z, p, 1); fixed=fixed))
 end
 
 function inverse_rosenblatt!(
     out::AbstractMatrix{<:Real},
     vc::RVineCopula{p},
-    Z::AbstractMatrix{<:Real},
+    Z::AbstractMatrix{<:Real};
+    fixed=nothing,
 ) where {p}
     Zx0 = _as_pxn(p, Z)
     size(out) == size(Zx0) || throw(DimensionMismatch("out must have size $(size(Zx0))"))
-    _looks_like_dvine(vc) && return inverse_rosenblatt!(out, _as_dvine(vc), Zx0)
+    _looks_like_dvine(vc) && return inverse_rosenblatt!(out, _as_dvine(vc), Zx0; fixed=fixed)
+    block = fixed === nothing ? nothing : _conditioning_block(vc, fixed, size(Zx0, 2), eltype(out))
+    return _rvine_plan_inverse_rosenblatt!(out, vc, Zx0, block)
+end
 
+# A standard R-vine heads a sampling order with the tail of `order(vc)`: the
+# inverse plan generates `order[p]` first and every earlier diagonal variable
+# conditionally on the ones after it. A legacy D-vine-like R-vine samples
+# through the D-vine engine and inherits its rule.
+function admits_conditioning(vc::RVineCopula{p}, js) where {p}
+    _looks_like_dvine(vc) && return admits_conditioning(_as_dvine(vc), js)
+    return _tails_order(order(vc), js)
+end
+
+function _conditioning_refusal(vc::RVineCopula{p}, js) where {p}
+    _looks_like_dvine(vc) && return _conditioning_refusal(_as_dvine(vc), js)
+    tail = collect(order(vc))[(p - length(js) + 1):p]
+    return "exact conditioning needs the fixed variables $(collect(js)) to head a sampling " *
+           "order of this vine, but its order ends with $tail; refit with " *
+           "`sampling_tail = $(collect(js))`, or condition by rejection"
+end
+
+# `block === nothing` is the unconditional transform. Otherwise `block` is the
+# `(js, Ujs)` pair `_conditioning_block` returns and the raw slots of `js` are
+# seeded with `Ujs` instead of being generated from `Z`.
+function _rvine_plan_inverse_rosenblatt!(
+    out::AbstractMatrix{<:Real},
+    vc::RVineCopula{p},
+    Zx::AbstractMatrix{<:Real},
+    block,
+) where {p}
     plan = _compile_standard_rvine(vc)
 
-    Zx = Zx0
     n = size(Zx, 2)
     V = fill(NaN, plan.nslots, n)
     current = Vector{Float64}(undef, n)
+    js = block === nothing ? Int[] : block[1]
 
     # Generate variables in reverse diagonal order. At the moment diagonal
     # variable a is generated, all partner conditional states in its column
     # involve only variables to the right and are already available.
     @inbounds for e in p:-1:1
         a = plan.order[e]
-        @views current .= Zx[a, :]
+        r = findfirst(==(a), js)
+        if r === nothing
+            @views current .= Zx[a, :]
 
-        # Undo the conditional chain from the most conditioned edge to the
-        # unconditional edge. Each helper dispatches once on the concrete
-        # pair-copula family and then runs a specialized n-observation loop.
-        if e < p
-            for opidx in Iterators.reverse(plan.column_ops[e])
-                op = plan.ops[opidx]
-                _rvine_hinv1_column!(current, V, op.right, op.copula)
+            # Undo the conditional chain from the most conditioned edge to the
+            # unconditional edge. Each helper dispatches once on the concrete
+            # pair-copula family and then runs a specialized n-observation loop.
+            if e < p
+                for opidx in Iterators.reverse(plan.column_ops[e])
+                    op = plan.ops[opidx]
+                    _rvine_hinv1_column!(current, V, op.right, op.copula)
+                end
             end
+            @views V[plan.rawslots[a], :] .= current
+        else
+            # A fixed variable: its raw uniform is known, so there is no chain
+            # to undo. Its conditional states are propagated below exactly as
+            # for a generated one, and every later column consumes them.
+            @views V[plan.rawslots[a], :] .= block[2][r, :]
         end
-        @views V[plan.rawslots[a], :] .= current
 
         # Forward-propagate every conditional state whose earliest variable
         # is the newly generated diagonal variable.

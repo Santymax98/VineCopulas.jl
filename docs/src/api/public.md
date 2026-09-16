@@ -68,6 +68,7 @@ rosenblatt
 rosenblatt!
 inverse_rosenblatt
 inverse_rosenblatt!
+admits_conditioning
 ```
 
 ## Model summaries
