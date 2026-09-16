@@ -36,6 +36,9 @@ and stable.
 - Brechmann, E. C., Czado, C., and Aas, K. (2012). Truncated regular vines in
   high dimensions with application to financial data. *Canadian Journal of
   Statistics*.
+- Nagler, T., Bumann, C., and Czado, C. (2019). Model selection in sparse
+  high-dimensional vine copula models with an application to portfolio risk.
+  *Journal of Multivariate Analysis*.
 
 ## Rosenblatt transforms and diagnostics
 
