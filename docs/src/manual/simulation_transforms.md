@@ -60,8 +60,12 @@ Q = simulate_qmc(vine, 4096; fixed=([5], (0.9,)))
 ```
 
 `Ujs` is a `length(js) × n` matrix, or a tuple or vector of `length(js)` scalars
-broadcast over every column; `js => Ujs` is accepted in place of the tuple. The
-fixed rows of the result are the given values exactly.
+broadcast over every column; `js => Ujs` is accepted in place of the tuple.
+Every value must lie in `[0, 1]`: a value outside the unit interval, `NaN` or
+`Inf` is an `ArgumentError`, never silently moved into range. The fixed rows of
+the result are the given values exactly, including `0.0` and `1.0`; a boundary
+value conditions the recursion at the nearest interior floating-point number,
+which is the limit of the conditional law at that edge.
 
 Which coordinates can be fixed is a property of the structure, and
 [`admits_conditioning`](@ref) reads it:

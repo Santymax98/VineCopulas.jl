@@ -18,6 +18,44 @@
     @test hfunc1(C, u, base) ≈ q atol=1e-8 rtol=1e-8
 end
 
+@testitem "Regression – positive Clayton conditional inverse at a small base" tags=[:Regression, :PairCopula, :Clayton] begin
+    using Test
+    using Copulas
+    using VineCopulas
+
+    # The generic Archimedean inverse goes through ϕ⁻¹(base) = (base^(-θ) - 1)/θ,
+    # which overflows once base^(-θ) does, and q·ϕ⁽¹⁾(ϕ⁻¹(base)) ~ q·base^(θ+1),
+    # which underflows well before: the inverse collapsed to the clamp floor
+    # and then to NaN as the base shrank. The forward kernel formed
+    # u^(-θ) + v^(-θ) - 1 directly and saturated at the same overflow. Both
+    # now work in log space: the inverse is finite at every representable base
+    # and the forward kernel recovers q from it, down to the last base at which
+    # u is not itself a subnormal with too few bits to carry q.
+    for θ in (0.5, 1.0, 2.0, 5.0), q in (1e-8, 0.1, 0.5, 0.9, 1 - 1e-8)
+        C = ClaytonCopula(2, θ)
+        for base in (0.5, 1e-8, 1e-50, 1e-100, 1e-120, 1e-154, 1e-155, 1e-200, 1e-300, prevfloat(1.0))
+            u = hinv1(C, q, base)
+            @test isfinite(u)
+            @test 0.0 < u < 1.0
+            @test hfunc1(C, u, base) ≈ q atol=1e-9 rtol=1e-9
+            @test hinv2(C, q, base) == u
+            @test isfinite(VineCopulas._pair_logpdf(C, u, base, zeros(2)))
+        end
+        u = hinv1(C, q, nextfloat(0.0))
+        @test isfinite(u) && 0.0 < u < 1.0
+        # The edges of q map to the edges of u in the kernel itself; the public
+        # entry points clamp q to the open interval first.
+        @test VineCopulas._arch_hinv(C.G, 0.0, 0.3) == 0.0
+        @test VineCopulas._arch_hinv(C.G, 1.0, 0.3) == 1.0
+    end
+
+    # The closed form agrees with the generic inverse where the latter is sound.
+    for θ in (0.5, 2.0, 5.0), (q, base) in ((0.5, 0.3), (0.01, 0.9), (0.99, 0.05), (0.5, 1e-20))
+        C = ClaytonCopula(2, θ)
+        @test hinv1(C, q, base) ≈ VineCopulas._arch_hinv_generic(C.G, q, base) rtol=1e-12
+    end
+end
+
 @testitem "Regression – Joe conditional tail stability" tags=[:Regression, :PairCopula, :Joe] begin
     using Test
     using Copulas

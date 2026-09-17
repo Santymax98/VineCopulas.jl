@@ -160,6 +160,68 @@ end
     end
 end
 
+@testitem "Conditional sampling – support of the fixed values" tags=[:Sampling, :Conditional, :Vine, :RVine, :DVine, :CVine, :Validation] setup=[M] begin
+    using Test, Random, Distributions, Copulas, VineCopulas
+    n = 8
+    rv = M.rvine5_general()
+    dv = DVineCopula([1, 2, 3, 4], M.vine_edges(4))
+    cv = CVineCopula([4, 3, 2, 1], M.vine_edges(4))
+    # A tail block on a D-vine runs on the reversed path; cover both ends.
+    cases = [(rv, [5]), (rv, [4, 5]), (dv, [1]), (dv, [4]), (dv, [3, 4]), (cv, [4]), (cv, [4, 3])]
+
+    # A value outside the closed unit interval is refused before any numerical
+    # helper can move it into range: no clamp sits between the caller and the
+    # check, so -0.2 does not become 5.0e-324 and 1.2 does not become
+    # prevfloat(1.0).
+    for (vc, js) in cases, bad in (-0.2, 1.2, -eps(), nextfloat(1.0), Inf, -Inf, NaN)
+        vals = fill(0.5, length(js))
+        vals[end] = bad
+        err = try
+            rand(M.stable_rng(1), vc, n; fixed=(js, vals))
+            nothing
+        catch e
+            e
+        end
+        @test err isa ArgumentError
+        @test occursin("[0, 1]", sprint(showerror, err))
+        @test occursin(string(bad), sprint(showerror, err))
+        # The per-column form is checked entry by entry too.
+        Ujs = fill(0.5, length(js), n)
+        Ujs[end, 3] = bad
+        @test_throws ArgumentError rand(M.stable_rng(1), vc, n; fixed=(js, Ujs))
+        @test_throws ArgumentError inverse_rosenblatt(vc, rand(M.stable_rng(1), length(vc), n); fixed=(js, Ujs))
+    end
+
+    # Every value of the closed interval, the boundaries included, is held
+    # exactly in every engine and entry point, and the free rows stay
+    # interior. A boundary conditions the recursion at the nearest interior
+    # floating-point number, so its free rows are those of that neighbour.
+    for (vc, js) in cases, b in (0.0, nextfloat(0.0), 1e-300, 1e-12, 0.5, 1 - 1e-12, prevfloat(1.0), 1.0)
+        p = length(vc)
+        free = setdiff(1:p, js)
+        vals = fill(0.5, length(js))
+        vals[end] = b
+        U = rand(M.stable_rng(1), vc, n; fixed=(js, vals))
+        @test U[js, :] == repeat(vals, 1, n)
+        @test all(0 .< U[free, :] .< 1)
+        Z = rand(M.stable_rng(2), p, n)
+        @test inverse_rosenblatt(vc, Z; fixed=(js, vals))[js, :] == repeat(vals, 1, n)
+        @test inverse_rosenblatt!(similar(Z), vc, Z; fixed=(js, vals))[js, :] == repeat(vals, 1, n)
+        @test simulate_qmc(vc, 16; fixed=(js, vals))[js, :] == repeat(vals, 1, 16)
+        if b == 0.0 || b == 1.0
+            lim = copy(vals)
+            lim[end] = b == 0.0 ? nextfloat(0.0) : prevfloat(1.0)
+            @test inverse_rosenblatt(vc, Z; fixed=(js, vals))[free, :] == inverse_rosenblatt(vc, Z; fixed=(js, lim))[free, :]
+        end
+    end
+
+    # Mixed per-column values at and near both edges are preserved entry by entry.
+    Ujs = [0.0 1.0 0.5 1e-300 1-1e-12 0.25 nextfloat(0.0) 1e-6;
+           1.0 0.0 0.5 1-1e-9 1e-300 0.5 prevfloat(1.0) 1-1e-6]
+    U = rand(M.stable_rng(3), rv, n; fixed=([4, 5], Ujs))
+    @test U[[4, 5], :] == Ujs
+end
+
 @testitem "Conditional sampling – sampling_tail at fit time" tags=[:Sampling, :Conditional, :Fit, :Vine, :RVine, :Structure] setup=[M] begin
     using Test, Random, Distributions, Copulas, VineCopulas
     truth = M.rvine5_general()

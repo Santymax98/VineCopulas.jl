@@ -123,9 +123,11 @@ With `fixed = (js, Ujs)` the coordinates `js` are held at the uniforms `Ujs` and
 remaining coordinates are drawn from their conditional law given those values, so the
 result is an exact sample from ``C(u_{-js} \\mid u_{js})``. `Ujs` is a
 `length(js) × n` matrix, or a tuple or vector of `length(js)` scalars broadcast over
-every column. The draw is exact only when [`admits_conditioning`](@ref)`(vine, js)` is
-`true`; otherwise an `ArgumentError` names the fix. See [`inverse_rosenblatt`](@ref) for
-the mechanism.
+every column, of uniforms in `[0, 1]`; any other value is an `ArgumentError`. The rows
+`js` of the result hold the supplied values exactly, and a boundary value `0` or `1`
+conditions the recursion at the nearest interior floating-point number. The draw
+is exact only when [`admits_conditioning`](@ref)`(vine, js)` is `true`; otherwise an
+`ArgumentError` names the fix. See [`inverse_rosenblatt`](@ref) for the mechanism.
 """
 function Distributions.rand(rng::Distributions.AbstractRNG, vc::AbstractVineCopula{p}; fixed=nothing) where {p}
     return vec(Distributions.rand(rng, vc, 1; fixed=fixed))
@@ -258,7 +260,12 @@ With `fixed = (js, Ujs)` the coordinates `js` are not generated from `Z`: their
 raw uniforms are taken from `Ujs` (a `length(js) × n` matrix, or a tuple or
 vector of `length(js)` scalars broadcast over every column) and only the
 remaining coordinates are generated, each conditionally on the fixed block and
-on the coordinates generated before it. The rows `Z[js, :]` are ignored, so an
+on the coordinates generated before it. Every value of `Ujs` must lie in
+`[0, 1]`, or an `ArgumentError` is thrown, and it is validated before any
+numerical helper sees it. The rows `js` of the result hold the supplied values
+exactly; a boundary value `0` or `1` conditions the recursion at the nearest
+interior floating-point number, which is the limit of the conditional law at
+that edge. The rows `Z[js, :]` are ignored, so an
 unconditional `Z` can be passed unchanged. The result is an exact draw from the
 conditional copula ``C(u_{-js} \\mid u_{js})`` whenever
 [`admits_conditioning`](@ref)`(vine, js)` is `true`, which is the case when

@@ -10,6 +10,10 @@ All notable changes to `VineCopulas.jl` are documented here. Version numbers fol
 - `admits_conditioning(vine, js)`, the structure predicate that says when that draw is exact: `js` at either end of a D-vine path, the first roots of a C-vine, or the tail of a standard R-vine's order. A draw whose predicate is `false` refuses with an `ArgumentError` that names the fit-side fix.
 - `fit(RVineCopula, U; sampling_tail=js)` peels the selected trees so that `js` sits at the end of the order whenever the trees allow it, without changing the trees or the pair copulas.
 
+### Fixed
+
+- The Clayton pair kernels for `θ > 0` work in log space: `hinv1`/`hinv2` collapsed to the clamp floor once `q·ϕ⁽¹⁾(ϕ⁻¹(v))` underflowed and returned `NaN` once `v^(-θ)` overflowed, and the h-functions and density saturated at the same overflow, so a conditioning argument below about `1e-108` (θ = 2) gave a wrong or non-finite conditional. Every representable argument now gives a finite one.
+
 ## [0.1.2] - 2026-08-16
 
 ### Added
