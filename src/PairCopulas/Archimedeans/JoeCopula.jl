@@ -15,7 +15,7 @@
 # conditional CDF can be evaluated entirely in log scale, avoiding the
 # q*ϕ'(s_base) product that over/underflows in extreme tails.
 @inline function _joe_logh_x(G::Copulas.JoeGenerator, x::Real, base::Real)
-    θ, xx, bb = promote(float(G.θ), float(x), float(base))
+    θ, xx, bb = promote(float(Distributions.params(G).θ), float(x), float(base))
     θ >= one(θ) || throw(DomainError(θ, "A Joe generator requires θ ≥ 1."))
     bb = _clp(bb)
 
@@ -33,7 +33,7 @@
 end
 
 @inline function _arch_hfunc(G::Copulas.JoeGenerator, target::Real, base::Real)
-    θ, tt, bb = promote(float(G.θ), float(target), float(base))
+    θ, tt, bb = promote(float(Distributions.params(G).θ), float(target), float(base))
     θ >= one(θ) || throw(DomainError(θ, "A Joe generator requires θ ≥ 1."))
     tt, bb = _clp(tt), _clp(bb)
     θ == one(θ) && return tt
@@ -82,7 +82,7 @@ end
 end
 
 @inline function _arch_hinv(G::Copulas.JoeGenerator, q::Real, base::Real)
-    θ, qq, bb = promote(float(G.θ), float(q), float(base))
+    θ, qq, bb = promote(float(Distributions.params(G).θ), float(q), float(base))
     θ >= one(θ) || throw(DomainError(θ, "A Joe generator requires θ ≥ 1."))
     qq, bb = _clp(qq), _clp(bb)
     θ == one(θ) && return qq
@@ -126,7 +126,7 @@ end
 # =====================================================================
 
 function _inv_ϕ¹(G::Copulas.JoeGenerator, y::Real)
-    θ, m = promote(float(G.θ), _negative_derivative_magnitude(y, "Joe"))
+    θ, m = promote(float(Distributions.params(G).θ), _negative_derivative_magnitude(y, "Joe"))
     T = typeof(θ)
     iszero(m) && return T(Inf)
     isinf(m) && return zero(T)

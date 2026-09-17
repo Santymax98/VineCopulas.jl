@@ -16,17 +16,17 @@
 # z = log(s), where log|ϕ'| is smooth and strictly decreasing. The same stable
 # coordinate protocol is shared with BB2 and future BB implementations.
 @inline function _arch_coordinate(G::Copulas.BB1Generator, u::Real)
-    θ, δ, uu = promote(float(G.θ), float(G.δ), float(u))
+    θ, δ, uu = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(u))
     return δ * LogExpFunctions.logexpm1(-θ * log(uu))
 end
 
 @inline function _arch_probability(G::Copulas.BB1Generator, z::Real)
-    θ, δ, zz = promote(float(G.θ), float(G.δ), float(z))
+    θ, δ, zz = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(z))
     return exp(-LogExpFunctions.log1pexp(zz / δ) / θ)
 end
 
 @inline function _arch_logderivative(G::Copulas.BB1Generator, z::Real)
-    θ, δ, zz = promote(float(G.θ), float(G.δ), float(z))
+    θ, δ, zz = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(z))
     a, b = inv(δ), inv(θ)
     return log(a) + log(b) + (a - one(zz)) * zz - (b + one(zz)) * LogExpFunctions.log1pexp(a * zz)
 end
@@ -38,7 +38,7 @@ function _arch_inverse_logderivative(G::Copulas.BB1Generator, logm::Real)
     lm == -T(Inf) && return T(Inf)
     lm == T(Inf) && return -T(Inf)
 
-    θ, δ = T(G.θ), T(G.δ)
+    θ, δ = T(Distributions.params(G).θ), T(Distributions.params(G).δ)
     θ > zero(T) || throw(DomainError(θ, "The BB1 generator requires θ > 0."))
     δ > one(T) || throw(DomainError(δ, "A genuine BB1 generator requires δ > 1; δ = 1 reduces to Clayton."))
 

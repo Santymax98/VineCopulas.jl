@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------
 
 @inline function _clayton_terms(G::Copulas.ClaytonGenerator, u::Real, v::Real)
-    θ, uu, vv = promote(float(G.θ), float(u), float(v))
+    θ, uu, vv = promote(float(Distributions.params(G).θ), float(u), float(v))
     θ < -one(θ) && throw(DomainError(θ, "A bivariate Clayton generator requires θ ≥ -1."))
     uu, vv = _clp(uu), _clp(vv)
     lu = log(uu)
@@ -85,7 +85,7 @@ end
 # Clayton with θ < 0 has finite support. Direct conditional inversion avoids
 # underflow in q*ϕ'(sbase) at the support boundary.
 @inline function _arch_hinv(G::Copulas.ClaytonGenerator, q::Real, base::Real)
-    θ, qq, bb = promote(float(G.θ), float(q), float(base))
+    θ, qq, bb = promote(float(Distributions.params(G).θ), float(q), float(base))
     θ >= zero(θ) && return _arch_hinv_generic(G, qq, bb)
     -one(θ) <= θ || throw(DomainError(θ, "A bivariate Clayton generator requires θ ≥ -1."))
 
@@ -102,7 +102,7 @@ end
 end
 
 @inline function _inv_ϕ¹(G::Copulas.ClaytonGenerator, y::Real)
-    θ, m = promote(float(G.θ), _negative_derivative_magnitude(y, "Clayton"))
+    θ, m = promote(float(Distributions.params(G).θ), _negative_derivative_magnitude(y, "Clayton"))
     iszero(θ) && throw(DomainError(θ, "A genuine Clayton generator requires θ ≠ 0."))
 
     if iszero(m)

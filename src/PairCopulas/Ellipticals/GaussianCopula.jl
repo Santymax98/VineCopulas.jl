@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------
 
 @inline function _gaussian_pair_inputs(C::Copulas.GaussianCopula{2}, u::Real, v::Real)
-    ρ = C.Σ[1, 2]
+    ρ = Distributions.params(C).Σ[1, 2]
     z1 = Distributions.quantile(_STD_NORMAL, _clp(u))
     z2 = Distributions.quantile(_STD_NORMAL, _clp(v))
     ρ2 = ρ * ρ
@@ -75,7 +75,7 @@ end
 end
 
 @inline function _gaussian_hfunc(C::Copulas.GaussianCopula{2}, target::Real, base::Real)
-    ρ = C.Σ[1, 2]
+    ρ = Distributions.params(C).Σ[1, 2]
     zt = Distributions.quantile(_STD_NORMAL, _clp(target))
     zb = Distributions.quantile(_STD_NORMAL, _clp(base))
     den = one(ρ) - ρ * ρ
@@ -83,7 +83,7 @@ end
 end
 
 @inline function _gaussian_hinv(C::Copulas.GaussianCopula{2}, q::Real, base::Real)
-    ρ = C.Σ[1, 2]
+    ρ = Distributions.params(C).Σ[1, 2]
     zb = Distributions.quantile(_STD_NORMAL, _clp(base))
     zq = Distributions.quantile(_STD_NORMAL, _clp(q))
     return Distributions.cdf(_STD_NORMAL, ρ * zb + sqrt(1 - ρ^2) * zq)
