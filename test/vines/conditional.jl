@@ -141,6 +141,23 @@ end
     @test_throws DimensionMismatch rand(rng, rv, n; fixed=([4, 5], rand(rng, 2, n + 1)))
     @test_throws DimensionMismatch rand(rng, rv, n; fixed=([4, 5], (0.5,)))
     @test_throws ArgumentError rand(rng, rv, n; fixed=([5], (NaN,)))
+
+    # Public conditioning values are validated before any numerical
+    # interiorization. Invalid uniforms must never be silently clipped.
+    @test_throws ArgumentError rand(rng, rv, n; fixed=([5], (-0.2,)))
+    @test_throws ArgumentError rand(rng, rv, n; fixed=([5], (1.2,)))
+    @test_throws ArgumentError rand(rng, rv, n; fixed=([5], (Inf,)))
+
+    Ubad = fill(0.5, 1, n)
+    Ubad[1, 3] = -0.2
+    @test_throws ArgumentError rand(rng, rv, n; fixed=([5], Ubad))
+
+    # The documented closed support [0, 1] is accepted, and the fixed rows
+    # preserve the supplied boundary values exactly.
+    for u in (0.0, 1.0)
+        Ub = rand(M.stable_rng(733), rv, n; fixed=([5], (u,)))
+        @test all(Ub[5, :] .== u)
+    end
 end
 
 @testitem "Conditional sampling – sampling_tail at fit time" tags=[:Sampling, :Conditional, :Fit, :Vine, :RVine, :Structure] setup=[M] begin

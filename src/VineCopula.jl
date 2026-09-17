@@ -315,9 +315,19 @@ When the predicate is `false`, `rand(vine, n; fixed=(js, Ujs))` refuses with an
 function admits_conditioning end
 
 # Validate the `fixed` keyword against the vine and the batch size, and return
-# the labels together with a `length(js) × n` block of clamped uniforms. The
-# block takes the element type of the destination so no number type is forced
-# on a caller.
+# the labels together with a `length(js) × n` block of the supplied uniforms.
+# Public input is validated against [0, 1] before numerical kernels may
+# interiorize probabilities as needed. The block takes the element type of the
+# destination so no number type is forced on a caller.
+@inline function _validate_fixed_uniform(u)
+    if !(u isa Real && isfinite(u) && zero(u) <= u <= one(u))
+        throw(ArgumentError(
+            "fixed values must be finite uniforms in [0, 1]; got $u"
+        ))
+    end
+    return u
+end
+
 function _conditioning_block(vc::AbstractVineCopula{p}, fixed, n::Int, ::Type{T}) where {p,T}
     fixed isa Union{Tuple,Pair} && length(fixed) == 2 || throw(ArgumentError(
         "fixed must be a `(js, Ujs)` tuple or a `js => Ujs` pair"
@@ -339,17 +349,18 @@ function _conditioning_block(vc::AbstractVineCopula{p}, fixed, n::Int, ::Type{T}
             "fixed values must be $(k)×$(n) to match the fixed labels and the batch; got $(size(Ujs))"
         ))
         @inbounds for col in 1:n, r in 1:k
-            U[r, col] = _clp(Ujs[r, col])
+            u = _validate_fixed_uniform(Ujs[r, col])
+            U[r, col] = u
         end
     else
         length(Ujs) == k || throw(DimensionMismatch(
             "fixed values must hold one scalar per fixed label ($k); got $(length(Ujs))"
         ))
-        @inbounds for (r, u) in enumerate(Ujs), col in 1:n
-            U[r, col] = _clp(u)
+        @inbounds for (r, u0) in enumerate(Ujs)
+            u = _validate_fixed_uniform(u0)
+            @views U[r, :] .= u
         end
     end
-    all(isfinite, U) || throw(ArgumentError("fixed values must be finite uniforms in [0, 1]"))
     return js, U
 end
 
