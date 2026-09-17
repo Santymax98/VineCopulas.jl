@@ -6,10 +6,6 @@ on:
     tags: ['*']
   pull_request:
   workflow_dispatch:
-env:
-  COPULAS_REPO: https://github.com/lrnv/Copulas.jl.git
-  COPULAS_REV: b7dbd204296027108082f6e825a01f56f148de5c
-
 concurrency:
   # Skip intermediate builds: always.
   # Cancel intermediate builds: only if it is a pull request build.
@@ -40,14 +36,6 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
-      - name: Pin Copulas.jl migration snapshot
-        shell: julia --project=. --color=yes {0}
-        run: |
-          using Pkg
-          Pkg.add(PackageSpec(
-              url=ENV["COPULAS_REPO"],
-              rev=ENV["COPULAS_REV"],
-          ))
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
@@ -74,10 +62,6 @@ jobs:
         run: |
           using Pkg
           Pkg.develop(PackageSpec(path=pwd()))
-          Pkg.add(PackageSpec(
-              url=ENV["COPULAS_REPO"],
-              rev=ENV["COPULAS_REV"],
-          ))
           Pkg.instantiate()
       - uses: julia-actions/julia-buildpkg@v1
       - name: Clean Vitepress artifacts
