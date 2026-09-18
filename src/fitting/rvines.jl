@@ -89,7 +89,7 @@ function _maximum_spanning_tree(candidates::Vector{_RVCandidate}, nvertices::Int
     return selected
 end
 
-function _rvine_tree1_candidates(X::Matrix{Float64}, criterion::Symbol)
+function _rvine_tree1_candidates(X::Matrix{Float64}, criterion)
     p, _ = size(X)
     out = _RVCandidate[]
     sizehint!(out, _choose2(p))
@@ -98,13 +98,13 @@ function _rvine_tree1_candidates(X::Matrix{Float64}, criterion::Symbol)
         uj = @view X[j, :]
         push!(out, _RVCandidate(
             i, j, i, j, Int[], ui, uj,
-            _tree_dependence(ui, uj, criterion)
+            _tree_dependence(ui, uj, i, j, Int[], criterion)
         ))
     end
     return out
 end
 
-function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion::Symbol)
+function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion)
     m = length(prev)
     level = isempty(prev) ? 0 : length(prev[1].D) + 2
     out = _RVCandidate[]
@@ -125,7 +125,7 @@ function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion::Symbol)
         ub = _edge_conditional(e2, b)
         push!(out, _RVCandidate(
             i, j, a, b, D, ua, ub,
-            _tree_dependence(ua, ub, criterion)
+            _tree_dependence(ua, ub, a, b, D, criterion)
         ))
     end
     return out
@@ -417,7 +417,7 @@ function _fit_fixed_rvine(
             ))
             ua = states[ka]
             ub = states[kb]
-            dep = _tree_dependence(ua, ub, tree_criterion)
+            dep = _tree_dependence(ua, ub, a, b, D, tree_criterion)
 
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= ua
@@ -470,7 +470,7 @@ function _fit_rvine_sequential(
     family_set=:default,
     pair_method::Symbol=:default,
     selection_criterion::Symbol=:bic,
-    tree_criterion::Symbol=:tau,
+    tree_criterion=:tau,
     tree_algorithm::Symbol=:mst,
     allow_rotations::Bool=true,
     preselect::Bool=true,
@@ -485,7 +485,7 @@ function _fit_rvine_sequential(
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
-    threshold = _check_threshold(threshold)
+    threshold = _check_threshold(threshold, tree_criterion)
     tree_algorithm in (:mst, :kruskal) || throw(ArgumentError(
         "tree_algorithm currently supports :mst or :kruskal (same deterministic Kruskal engine)"
     ))

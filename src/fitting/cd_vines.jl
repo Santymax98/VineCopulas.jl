@@ -24,13 +24,17 @@ end
 # C-vine sequential fitting
 # -----------------------------------------------------------------------------
 
-function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, criterion::Symbol)
+function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, D, criterion)
     length(labels) == 1 && return labels[1]
     # Every unordered pair contributes to the score of both endpoints. Compute
-    # it once rather than twice.
+    # it once rather than twice. `D` is the set of roots already chosen: every
+    # candidate pair at this tree is conditioned on it.
     scores = zeros(Float64, length(labels))
     @inbounds for j in 2:length(labels), i in 1:j-1
-        w = _tree_dependence(cond[labels[i]], cond[labels[j]], criterion)
+        w = _tree_dependence(
+            cond[labels[i]], cond[labels[j]],
+            labels[i], labels[j], D, criterion,
+        )
         scores[i] += w
         scores[j] += w
     end
@@ -38,13 +42,13 @@ function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, 
 end
 
 function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default,
-    selection_criterion::Symbol=:bic, tree_criterion::Symbol=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
+    selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
     threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
-    threshold = _check_threshold(threshold)
+    threshold = _check_threshold(threshold, tree_criterion)
     q = isnothing(trunc) ? p - 1 : Int(trunc)
     1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
 
@@ -58,7 +62,8 @@ function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, family_set=:def
     # Keying by label lets us reorder every level exactly once at the end.
     levels = Vector{Dict{Int,_PairSelection}}(undef, q)
     for t in 1:q
-        root = explicit_order ? ord[t] : _cvine_choose_root(remaining, cond, tree_criterion)
+        D = ord[1:(t - 1)]
+        root = explicit_order ? ord[t] : _cvine_choose_root(remaining, cond, D, tree_criterion)
 
         if !explicit_order
             push!(ord, root)
@@ -69,7 +74,10 @@ function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, family_set=:def
         level = Dict{Int,_PairSelection}()
 
         @inbounds for child in children
-            dep = _tree_dependence(cond[root], cond[child], tree_criterion)
+            dep = _tree_dependence(
+                cond[root], cond[child],
+                root, child, D, tree_criterion,
+            )
             pdata = Matrix{Float64}(undef, 2, size(X, 2))
             pdata[1, :] .= cond[root]
             pdata[2, :] .= cond[child]
@@ -111,11 +119,14 @@ end
 # D-vine order selection and sequential fitting
 # -----------------------------------------------------------------------------
 
-function _dependence_matrix(X::Matrix{Float64}, criterion::Symbol)
+function _dependence_matrix(X::Matrix{Float64}, criterion)
     p = size(X, 1)
     W = zeros(Float64, p, p)
     @inbounds for j in 2:p, i in 1:j-1
-        w = _tree_dependence(view(X, i, :), view(X, j, :), criterion)
+        w = _tree_dependence(
+            view(X, i, :), view(X, j, :),
+            i, j, Int[], criterion,
+        )
         W[i, j] = w
         W[j, i] = w
     end
@@ -219,7 +230,7 @@ function _greedy_path(W::AbstractMatrix{<:Real})
     return path
 end
 
-function _select_dvine_order(X::Matrix{Float64}, criterion::Symbol; order_method::Symbol=:auto, exact_order_max::Int=12,)
+function _select_dvine_order(X::Matrix{Float64}, criterion; order_method::Symbol=:auto, exact_order_max::Int=12,)
     p = size(X, 1)
     exact_order_max >= 2 || throw(ArgumentError("exact_order_max must be at least 2"))
     W = _dependence_matrix(X, criterion)
@@ -235,14 +246,14 @@ function _select_dvine_order(X::Matrix{Float64}, criterion::Symbol; order_method
 end
 
 function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
-    family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion::Symbol=:tau, allow_rotations::Bool=true,
+    family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true,
     preselect::Bool=true, include_independence::Bool=true, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), 
     strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
-    threshold = _check_threshold(threshold)
+    threshold = _check_threshold(threshold, tree_criterion)
     q = isnothing(trunc) ? p - 1 : Int(trunc)
     1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
 
@@ -262,7 +273,13 @@ function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, order_method::S
         level = Vector{_PairSelection}(undef, m)
 
         @inbounds for i in 1:m
-            dep = _tree_dependence(L[i], R[i + t], tree_criterion)
+            # Edge (ord[i], ord[i+t] | ord[i+1], …, ord[i+t-1]).
+            dep = _tree_dependence(
+                L[i], R[i + t],
+                ord[i], ord[i + t],
+                ord[(i + 1):(i + t - 1)],
+                tree_criterion,
+            )
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= L[i]
             pdata[2, :] .= R[i + t]
