@@ -444,3 +444,76 @@ end
         end
     end
 end
+
+@testitem "AMH public-parameter closed kernels" tags=[:PairCopula, :Archimedean, :Regression] begin
+    using Distributions
+    using ForwardDiff
+
+    buf = zeros(2)
+
+    # Ordinary parameters: compare against the public Copulas.jl API.
+    for theta in (-1.0, -0.9, -0.5, 0.0, 0.5, 0.9, 0.999)
+        C = AMHCopula(2, theta)
+
+        for (u, v) in ((0.37, 0.72), (0.2, 0.83), (1e-8, 0.19), (1 - 1e-8, 0.83))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+
+            @test lc ≈ logpdf(C, [u, v]) atol=2e-10 rtol=2e-10
+
+            # Independent high-precision density reference: differentiate
+            # the explicit AMH conditional rather than reusing the local
+            # closed density formula.
+            setprecision(BigFloat, 256) do
+                θb, ub, vb = BigFloat(theta), BigFloat(u), BigFloat(v)
+
+                href(x) = begin
+                    D = 1 - θb * (1 - x) * (1 - vb)
+                    x * (1 - θb * (1 - x)) / D^2
+                end
+
+                cref = ForwardDiff.derivative(href, ub)
+
+                @test BigFloat(lc) ≈ log(cref) atol=big"5e-12" rtol=big"5e-13"
+            end
+
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test hinv1(C, h1, v) ≈ u atol=5e-9 rtol=5e-9
+            @test hinv2(C, h2, u) ≈ v atol=5e-9 rtol=5e-9
+
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+
+    # θ = 0 is exact independence.
+    C0 = AMHCopula(2, 0.0)
+
+    for (u, v) in ((0.2, 0.7), (1e-8, 0.9), (0.999999, 1e-4))
+        @test VineCopulas._pair_logpdf(C0, u, v, buf) == 0.0
+        @test hfunc1(C0, u, v) == u
+        @test hfunc2(C0, u, v) == v
+        @test hinv1(C0, u, v) == u
+        @test hinv2(C0, v, u) == v
+    end
+
+    # θ = 1 is the Clayton(θ=1) copula at the copula level.  This also
+    # validates the AMH limit without relying on the degenerate AMH
+    # generator representation at θ = 1.
+    Camh = AMHCopula(2, 1.0)
+    Cclayton = ClaytonCopula(2, 1.0)
+
+    for (u, v) in ((0.37, 0.72), (0.01, 0.83), (0.999, 0.2))
+        @test VineCopulas._pair_logpdf(Camh, u, v, buf) ≈
+              VineCopulas._pair_logpdf(Cclayton, u, v, buf) atol=2e-12 rtol=2e-12
+
+        @test hfunc1(Camh, u, v) ≈ hfunc1(Cclayton, u, v) atol=2e-12 rtol=2e-12
+        @test hfunc2(Camh, u, v) ≈ hfunc2(Cclayton, u, v) atol=2e-12 rtol=2e-12
+
+        q1 = hfunc1(Camh, u, v)
+        q2 = hfunc2(Camh, u, v)
+
+        @test hinv1(Camh, q1, v) ≈ u atol=5e-9 rtol=5e-9
+        @test hinv2(Camh, q2, u) ≈ v atol=5e-9 rtol=5e-9
+    end
+end
