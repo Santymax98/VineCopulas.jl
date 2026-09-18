@@ -57,7 +57,7 @@ end
                 # These migrated families no longer implement generator-level
                 # derivative inversion. Their conditional inverses are checked
                 # in the functional roundtrip below.
-                C isa Union{Copulas.GumbelCopula{2},Copulas.JoeCopula{2},Copulas.AMHCopula{2},Copulas.GumbelBarnettCopula{2}} && continue
+                C isa Union{Copulas.GumbelCopula{2},Copulas.JoeCopula{2},Copulas.AMHCopula{2},Copulas.GumbelBarnettCopula{2},Copulas.InvGaussianCopula{2}} && continue
                 @testset "$name" for s in S_GRID
                     _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2},Copulas.BB7Copula{2},Copulas.BB8Copula{2},Copulas.BB2Copula{2},Copulas.BB3Copula{2},Copulas.BB9Copula{2},Copulas.BB10Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
                 end
@@ -203,9 +203,33 @@ end
         end
     end
 
-    @testset "InvGaussian" begin
-        for θ in (0.5, 1.0, 2.0, Inf), s in (0.1, 0.5, 1.0, 2.0, 5.0)
-            _check_derivative_inverse(Copulas.InvGaussianGenerator(θ), s; atol=1e-10, rtol=1e-10)
+    @testset "InvGaussian closed conditional inverse" begin
+        for θ in (0.0, 1e-12, 0.1, 0.5, 1.0, 2.0, 10.0, Inf),
+            u in (1e-8, 0.01, 0.2, 0.5, 0.9, 1 - 1e-8),
+            v in (0.01, 0.4, 0.9)
+
+            C = Copulas.InvGaussianCopula(2, θ)
+
+            q1 = hfunc1(C, u, v)
+            q2 = hfunc2(C, u, v)
+
+            @test hinv1(C, q1, v) ≈ u atol=5e-9 rtol=5e-9
+            @test hinv2(C, q2, u) ≈ v atol=5e-9 rtol=5e-9
+        end
+
+        setprecision(BigFloat, 256) do
+            for θ in (big"0.2", big"1.0", big"10.0"),
+                u in (big"1e-30", big"0.2", big"0.9"),
+                v in (big"0.01", big"0.4", big"0.99")
+
+                C = Copulas.InvGaussianCopula(2, θ)
+
+                q1 = hfunc1(C, u, v)
+                q2 = hfunc2(C, u, v)
+
+                @test hinv1(C, q1, v) ≈ u rtol=big"1e-45"
+                @test hinv2(C, q2, u) ≈ v rtol=big"1e-45"
+            end
         end
     end
 

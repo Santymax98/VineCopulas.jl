@@ -17,8 +17,7 @@
     θ, uu, vv = promote(float(p.θ), float(u), float(v),)
     T = typeof(uu)
 
-    zero(T) <= θ <= one(T) ||
-        throw(DomainError(θ, "A Gumbel-Barnett copula requires θ ∈ [0, 1].",))
+    zero(T) <= θ <= one(T) || throw(DomainError(θ, "A Gumbel-Barnett copula requires θ ∈ [0, 1].",))
 
     uu, vv = _clp(uu), _clp(vv)
 
@@ -43,12 +42,8 @@ end
     # can be evaluated without cancellation as
     #
     #   (1-θ) + θ(x+y) + θ²xy.
-    N = (one(T) - θ) +
-        θ * (x + y) +
-        θ * θ * x * y
-
+    N = (one(T) - θ) + θ * (x + y) + θ * θ * x * y
     N > zero(T) || return -T(Inf)
-
     return logE + log(N)
 end
 
@@ -57,20 +52,12 @@ end
     return exp(-x + log(A) + logE)
 end
 
-@inline function _gb_pair_logpdf(
-    C::Copulas.GumbelBarnettCopula{2},
-    u::Real,
-    v::Real,
-)
+@inline function _gb_pair_logpdf(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real,)
     θ, _, _, x, y, _, _, logE = _gb_terms(C, u, v)
     return _gb_logpdf_from_terms(θ, x, y, logE)
 end
 
-@inline function _gb_hfunc(
-    C::Copulas.GumbelBarnettCopula{2},
-    target::Real,
-    base::Real,
-)
+@inline function _gb_hfunc(C::Copulas.GumbelBarnettCopula{2}, target::Real, base::Real,)
     θ, _, _, x, _, A, _, logE = _gb_terms(C, target, base)
     return _gb_hfunc_from_terms(θ, x, A, logE)
 end
@@ -107,18 +94,12 @@ end
 # because t - log(t) = L.
 # ---------------------------------------------------------------------
 
-@inline function _gb_hinv(
-    C::Copulas.GumbelBarnettCopula{2},
-    q::Real,
-    base::Real,
-)
+@inline function _gb_hinv(C::Copulas.GumbelBarnettCopula{2}, q::Real, base::Real,)
     p = Distributions.params(C)
     θ, qq, vv = promote(float(p.θ), float(q), float(base),)
     T = typeof(qq)
 
-    zero(T) <= θ <= one(T) ||
-        throw(DomainError(θ, "A Gumbel-Barnett copula requires θ ∈ [0, 1].",))
-
+    zero(T) <= θ <= one(T) || throw(DomainError(θ, "A Gumbel-Barnett copula requires θ ∈ [0, 1].",))
     qq, vv = _clp(qq), _clp(vv)
 
     # θ = 0 is independence.
@@ -132,7 +113,6 @@ end
     # equation directly in x in that regime.
     if θ <= sqrt(eps(T))
         logq = log(qq)
-
         # θ ≈ 0 gives x ≈ -log(q).
         x = -logq / max(a - θ, eps(T))
 
@@ -143,9 +123,7 @@ end
             xnew = max(x - f / df, zero(T))
 
             abs(xnew - x) <=
-                T(8) * eps(T) * max(one(T), abs(xnew)) &&
-                return exp(-xnew)
-
+                T(8) * eps(T) * max(one(T), abs(xnew)) && return exp(-xnew)
             x = xnew
         end
 
@@ -171,42 +149,14 @@ end
     return exp(-x)
 end
 
-@inline _pair_logpdf(
-    C::Copulas.GumbelBarnettCopula{2},
-    u::Real,
-    v::Real,
-    ::Vector{Float64},
-) = _gb_pair_logpdf(C, u, v)
+@inline _pair_logpdf(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real, ::Vector{Float64},) = _gb_pair_logpdf(C, u, v)
+@inline hfunc1(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real,) = _clp(_gb_hfunc(C, u, v))
+@inline hfunc2(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real,) = _clp(_gb_hfunc(C, v, u))
+@inline hinv1(C::Copulas.GumbelBarnettCopula{2}, q::Real, v::Real,) = _clp(_gb_hinv(C, q, v))
 
-@inline hfunc1(
-    C::Copulas.GumbelBarnettCopula{2},
-    u::Real,
-    v::Real,
-) = _clp(_gb_hfunc(C, u, v))
+@inline hinv2(C::Copulas.GumbelBarnettCopula{2}, q::Real, u::Real,) = _clp(_gb_hinv(C, q, u))
 
-@inline hfunc2(
-    C::Copulas.GumbelBarnettCopula{2},
-    u::Real,
-    v::Real,
-) = _clp(_gb_hfunc(C, v, u))
-
-@inline hinv1(
-    C::Copulas.GumbelBarnettCopula{2},
-    q::Real,
-    v::Real,
-) = _clp(_gb_hinv(C, q, v))
-
-@inline hinv2(
-    C::Copulas.GumbelBarnettCopula{2},
-    q::Real,
-    u::Real,
-) = _clp(_gb_hinv(C, q, u))
-
-@inline function _pair_hfuncs(
-    C::Copulas.GumbelBarnettCopula{2},
-    u::Real,
-    v::Real,
-)
+@inline function _pair_hfuncs(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real,)
     θ, _, _, x, y, A, B, logE = _gb_terms(C, u, v)
 
     h1 = _gb_hfunc_from_terms(θ, x, A, logE)
@@ -215,12 +165,7 @@ end
     return _clp(h1), _clp(h2)
 end
 
-@inline function _pair_step(
-    C::Copulas.GumbelBarnettCopula{2},
-    u::Real,
-    v::Real,
-    ::Vector{Float64},
-)
+@inline function _pair_step(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real, ::Vector{Float64},)
     θ, _, _, x, y, A, B, logE = _gb_terms(C, u, v)
 
     logc = _gb_logpdf_from_terms(θ, x, y, logE)
@@ -230,12 +175,7 @@ end
     return logc, _clp(h1), _clp(h2)
 end
 
-@inline function _pair_logpdf_h1(
-    C::Copulas.GumbelBarnettCopula{2},
-    u::Real,
-    v::Real,
-    ::Vector{Float64},
-)
+@inline function _pair_logpdf_h1(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real, ::Vector{Float64},)
     θ, _, _, x, y, A, _, logE = _gb_terms(C, u, v)
 
     logc = _gb_logpdf_from_terms(θ, x, y, logE)
@@ -244,12 +184,7 @@ end
     return logc, _clp(h1)
 end
 
-@inline function _pair_logpdf_h2(
-    C::Copulas.GumbelBarnettCopula{2},
-    u::Real,
-    v::Real,
-    ::Vector{Float64},
-)
+@inline function _pair_logpdf_h2(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real, ::Vector{Float64},)
     θ, _, _, x, y, _, B, logE = _gb_terms(C, u, v)
 
     logc = _gb_logpdf_from_terms(θ, x, y, logE)
