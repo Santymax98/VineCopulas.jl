@@ -14,10 +14,14 @@ function _check_derivative_inverse(G, s; atol=1e-9, rtol=1e-9)
     @test Copulas.ϕ⁽¹⁾(G, ŝ) ≈ y atol=max(atol, 1e-12) rtol=max(rtol, 1e-9)
 end
 
+_inverse_test_generator(C::Copulas.BB1Copula{2}) =
+    Copulas.BB1Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+_inverse_test_generator(C::Copulas.BB6Copula{2}) =
+    Copulas.BB6Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+
 # The generator remains an independent mathematical reference only.
-function _check_derivative_inverse(C::Copulas.BB1Copula{2}, s; atol=1e-9, rtol=1e-9)
-    p = Distributions.params(C)
-    G = Copulas.BB1Generator(p.θ, p.δ)
+function _check_derivative_inverse(C::Copulas.Copula{2}, s; atol=1e-9, rtol=1e-9)
+    G = _inverse_test_generator(C)
     y = Copulas.ϕ⁽¹⁾(G, s)
     @test isfinite(y)
     @test y < 0
@@ -37,7 +41,7 @@ end
                 # in the functional roundtrip below.
                 C isa Union{Copulas.GumbelCopula{2},Copulas.JoeCopula{2}} && continue
                 @testset "$name" for s in S_GRID
-                    _check_derivative_inverse(C isa Copulas.BB1Copula{2} ? C : C.G, s; atol=1e-7, rtol=1e-7)
+                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
                 end
             end
         end
@@ -243,65 +247,67 @@ end
         @test_throws DomainError VineCopulas._inv_ϕ¹(G1, -Inf)
     end
 
-    @testset "BB6 numerical inverse in log-power coordinate" begin 
-        # Genuine BB6 parameters, including values close to the Joe and 
-        # Gumbel reduction boundaries. 
-        for θ in (1.001, 1.01, 1.2, 3.0), 
-            δ in (1.001, 1.01, 1.5, 3.0), 
-            s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 100.0) 
-            
-            _check_derivative_inverse( Copulas.BB6Generator(θ, δ), s; atol=5e-9, rtol=5e-9, ) 
-        end 
-        # Coordinate ↔ probability. 
-        for θ in (1.01, 1.2, 3.0), 
-            δ in (1.01, 1.5, 4.0), 
-            u in (0.01, 0.2, 0.5, 0.9, 0.99) 
-            
-            G = Copulas.BB6Generator(θ, δ) 
-            x = VineCopulas._arch_coordinate(G, u) 
-            @test VineCopulas._arch_probability(G, x) ≈ u atol=5e-12 rtol=5e-12 
-        end 
-        # Monotonicity and inversion. 
-        for θ in (1.01, 1.5, 4.0), 
-            δ in (1.01, 2.0) 
-            
-            G = Copulas.BB6Generator(θ, δ) 
-            ss = (1e-4, 1e-2, 1.0, 50.0) 
-            ys = [Copulas.ϕ⁽¹⁾(G, s) for s in ss] 
-            recovered = [ VineCopulas._inv_ϕ¹(G, y) for y in ys ] 
-            @test issorted(ys) 
-            @test issorted(recovered) 
-            @test recovered ≈ collect(ss) atol=5e-9 rtol=5e-9 
-        
-        end 
-        # Coordinate sum and difference. 
-        for θ in (1.1, 2.0), 
-            δ in (1.1, 3.0) 
-            
-            G = Copulas.BB6Generator(θ, δ) 
-            a = VineCopulas._arch_coordinate(G, 0.25) 
-            b = VineCopulas._arch_coordinate(G, 0.70) 
-            total = VineCopulas._arch_combine(G, a, b) 
-            
-            @test VineCopulas._arch_difference(G, total, b) ≈ a atol=5e-11 rtol=5e-11 
-            @test VineCopulas._arch_difference(G, total, a) ≈ b atol=5e-11 rtol=5e-11 
-        end 
+    @testset "BB6 numerical inverse in log-power coordinate" begin
+        # Genuine BB6 parameters, including values close to the Joe and
+        # Gumbel reduction boundaries.
+        for θ in (1.001, 1.01, 1.2, 3.0),
+            δ in (1.001, 1.01, 1.5, 3.0),
+            s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 100.0)
 
-        # Arbitrary precision. 
-        setprecision(BigFloat, 256) do 
-            G = Copulas.BB6Generator(big"2.5", big"1.7") 
-            s = big"1e12" 
-            y = Copulas.ϕ⁽¹⁾(G, s) 
-            @test VineCopulas._inv_ϕ¹(G, y) ≈ s rtol=big"1e-40" 
-        end 
-        
-        # Boundary behavior of the derivative inverse. 
-        G = Copulas.BB6Generator(1.2, 1.5) 
-        @test VineCopulas._inv_ϕ¹(G, -Inf) == 0.0 
-        @test VineCopulas._inv_ϕ¹(G, -0.0) == Inf 
-        @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1) 
-        @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN) 
-        
+            _check_derivative_inverse( Copulas.BB6Copula(2, θ, δ), s; atol=5e-9, rtol=5e-9, )
+        end
+        # Coordinate ↔ probability.
+        for θ in (1.01, 1.2, 3.0),
+            δ in (1.01, 1.5, 4.0),
+            u in (0.01, 0.2, 0.5, 0.9, 0.99)
+
+            C = Copulas.BB6Copula(2, θ, δ)
+            x = VineCopulas._arch_coordinate(C, u)
+            @test VineCopulas._arch_probability(C, x) ≈ u atol=5e-12 rtol=5e-12
+        end
+        # Monotonicity and inversion.
+        for θ in (1.01, 1.5, 4.0),
+            δ in (1.01, 2.0)
+
+            C = Copulas.BB6Copula(2, θ, δ)
+            G = Copulas.BB6Generator(θ, δ)
+            ss = (1e-4, 1e-2, 1.0, 50.0)
+            ys = [Copulas.ϕ⁽¹⁾(G, s) for s in ss]
+            recovered = [ VineCopulas._inv_ϕ¹(C, y) for y in ys ]
+            @test issorted(ys)
+            @test issorted(recovered)
+            @test recovered ≈ collect(ss) atol=5e-9 rtol=5e-9
+
+        end
+        # Coordinate sum and difference.
+        for θ in (1.1, 2.0),
+            δ in (1.1, 3.0)
+
+            C = Copulas.BB6Copula(2, θ, δ)
+            a = VineCopulas._arch_coordinate(C, 0.25)
+            b = VineCopulas._arch_coordinate(C, 0.70)
+            total = VineCopulas._arch_combine(C, a, b)
+
+            @test VineCopulas._arch_difference(C, total, b) ≈ a atol=5e-11 rtol=5e-11
+            @test VineCopulas._arch_difference(C, total, a) ≈ b atol=5e-11 rtol=5e-11
+        end
+
+        # Arbitrary precision.
+        setprecision(BigFloat, 256) do
+            C = Copulas.BB6Copula(2, big"2.5", big"1.7")
+            G = Copulas.BB6Generator(big"2.5", big"1.7")
+            s = big"1e12"
+            y = Copulas.ϕ⁽¹⁾(G, s)
+            @test VineCopulas._inv_ϕ¹(C, y) ≈ s rtol=big"1e-40"
+        end
+
+        # Boundary behavior of the derivative inverse.
+        C = Copulas.BB6Copula(2, 1.2, 1.5)
+        @test VineCopulas._inv_ϕ¹(C, -Inf) == 0.0
+        @test VineCopulas._inv_ϕ¹(C, -0.0) == Inf
+        @test_throws DomainError VineCopulas._inv_ϕ¹(C, 0.1)
+        @test_throws DomainError VineCopulas._inv_ϕ¹(C, NaN)
+
         # Boundary subfamilies are tested by their mathematical behavior,
         # not by constructor type canonicalization.
         Gjoe = Copulas.BB6Generator(1.5, 1.0)
