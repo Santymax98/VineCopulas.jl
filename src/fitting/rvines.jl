@@ -201,6 +201,7 @@ function _select_rvine_trees(
     pair_kwargs,
     strict,
     trace,
+    selector::Union{Nothing,_TruncationSelector}=nothing,
 )
     p, n = size(X)
     trees = Vector{Vector{_RVFitEdge}}(undef, q)
@@ -221,6 +222,7 @@ function _select_rvine_trees(
         trace=trace,
         need_h=(q > 1),
     )
+    selector === nothing || _accept_tree!(selector, (e.fit for e in trees[1]), trace)
 
     for t in 2:q
         candidates = _rvine_next_candidates(trees[t - 1], tree_criterion)
@@ -239,6 +241,12 @@ function _select_rvine_trees(
             trace=trace,
             need_h=(t < q),
         )
+        if selector !== nothing && !_accept_tree!(selector, (e.fit for e in trees[t]), trace)
+            # The model truncated at `t` does not improve on `t - 1`: drop
+            # tree `t` and stop at the selected level.
+            resize!(trees, t - 1)
+            break
+        end
     end
     return trees
 end
@@ -378,10 +386,12 @@ function _fit_fixed_rvine(
     pair_kwargs,
     strict,
     trace,
+    q::Int=truncation(st),
+    selector::Union{Nothing,_TruncationSelector}=nothing,
 )
     p, n = size(X)
     ord = collect(st.order)
-    q = truncation(st)
+    1 <= q <= truncation(st) || throw(ArgumentError("trunc must be in 1:$(truncation(st))"))
     S = [collect(st.struct_array[t]) for t in 1:q]
     length(ord) == p || throw(DimensionMismatch("structure dimension does not match data"))
 
@@ -438,13 +448,18 @@ function _fit_fixed_rvine(
             end
         end
         levels[t] = level
+        if selector !== nothing && !_accept_tree!(selector, level, trace)
+            resize!(levels, t - 1)
+            break
+        end
     end
 
+    q = length(levels)
     edgelevels = [
         tuple((levels[t][i].copula for i in eachindex(levels[t]))...)
         for t in 1:q
     ]
-    vc = RVineCopula(ord, S, edgelevels; trunc=q)
+    vc = RVineCopula(ord, S[1:q], edgelevels; trunc=q)
 
     return vc
 end
@@ -462,6 +477,8 @@ function Copulas._fit(
     ::Val{:sequential};
     structure=nothing,
     trunc=nothing,
+    max_trunc=nothing,
+    psi0::Real=0.9,
     family_set=:default,
     pair_method::Symbol=:default,
     selection_criterion::Symbol=:bic,
@@ -488,8 +505,10 @@ function Copulas._fit(
         structure isa RVineStructure || throw(ArgumentError(
             "structure must be an RVineStructure or nothing"
         ))
-        q = truncation(structure)
-        trunc !== nothing && Int(trunc) != q && throw(ArgumentError(
+        # A fixed structure fixes the tree depth too, unless the caller asks
+        # for mBICV selection, which may then stop below `truncation(structure)`.
+        q, select, ψ0 = _resolve_truncation(trunc, max_trunc, psi0, p; ceiling=truncation(structure))
+        !select && q != truncation(structure) && throw(ArgumentError(
             "when structure is supplied, trunc must match truncation(structure)"
         ))
         st_fit, _ = _standardize_fixed_rvine_structure(structure)
@@ -506,10 +525,11 @@ function Copulas._fit(
             pair_kwargs=pair_kwargs,
             strict=strict,
             trace=trace,
+            q=q,
+            selector=select ? _TruncationSelector(p, size(X, 2), ψ0) : nothing,
         )
     else
-        q = isnothing(trunc) ? p - 1 : Int(trunc)
-        1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
+        q, select, ψ0 = _resolve_truncation(trunc, max_trunc, psi0, p)
 
         trees = _select_rvine_trees(
             X, q;
@@ -524,7 +544,9 @@ function Copulas._fit(
             pair_kwargs=pair_kwargs,
             strict=strict,
             trace=trace,
+            selector=select ? _TruncationSelector(p, size(X, 2), ψ0) : nothing,
         )
+        q = length(trees)
         ord, S, edgelevels = _rvine_peel(trees, p, q)
         vc = RVineCopula(ord, S, edgelevels; trunc=q)
 

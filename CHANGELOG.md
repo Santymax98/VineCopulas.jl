@@ -2,6 +2,13 @@
 
 All notable changes to `VineCopulas.jl` are documented here. Version numbers follow Julia package registration conventions.
 
+## [Unreleased]
+
+### Added
+
+- `mbicv(vine, U; psi0=0.9)`, the modified BIC for vines of Nagler, Bumann and Czado (2019), beside `aic` and `bic`. The prior on the sparsity pattern counts the non-independence pair copulas of every tree, and a tree beyond the truncation level is independence.
+- `fit(...; trunc=:mbicv, psi0=0.9, max_trunc=nothing)` selects the truncation level tree by tree on the R-, C- and D-vine engines and on a fixed R-vine `structure`: after each tree the model truncated there is scored with `mbicv`, and the fit stops at the previous level when the score does not improve. `max_trunc` caps the search; `trace=true` prints the score of each level. An integer `trunc` is unchanged.
+
 ## [0.1.2] - 2026-08-16
 
 ### Added

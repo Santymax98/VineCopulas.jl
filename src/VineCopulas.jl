@@ -119,6 +119,7 @@ export PairCopula,
        loglikelihood,
        npars,
        aic,
-       bic
+       bic,
+       mbicv
 
 end

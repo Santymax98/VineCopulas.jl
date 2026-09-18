@@ -41,14 +41,14 @@
 # - fixed or automatic C-/D-vine order
 # - fixed or Dissmann-style automatic R-vine structure
 # - Kendall tau-b or Spearman rho tree weights
-# - user-specified truncation and dependence threshold
+# - user-specified or mBICV-selected truncation, and dependence threshold
 #
 # Intentionally deferred
 # ----------------------
 # - nonparametric TLL pair copulas
 # - discrete margins
 # - observation weights / missing-value pairwise logic
-# - automatic sparse truncation/threshold (mBICV)
+# - automatic threshold selection (the mBICV truncation rule is in)
 # - multithreaded edge fitting
 # - joint vine MLE / sequential-estimator covariance
 # =============================================================================
@@ -144,6 +144,72 @@ end
         "threshold must lie in [0,1] because tree dependence scores are absolute rank correlations"
     ))
     return t
+end
+
+# -----------------------------------------------------------------------------
+# Truncation level: fixed by the caller, or selected tree by tree with mBICV
+# -----------------------------------------------------------------------------
+
+# `trunc` is an integer ceiling (today's behaviour) or `:mbicv`, in which case
+# the ceiling is `max_trunc` and the level is selected sequentially. Returns the
+# ceiling, whether selection is on, and the validated `psi0` (read only under
+# selection).
+function _resolve_truncation(trunc, max_trunc, psi0::Real, p::Int; ceiling::Int=p - 1)
+    if trunc === :mbicv
+        q = isnothing(max_trunc) ? ceiling : Int(max_trunc)
+        1 <= q <= ceiling || throw(ArgumentError("max_trunc must be in 1:$ceiling"))
+        return q, true, _check_psi0(psi0)
+    end
+    trunc isa Symbol && throw(ArgumentError(
+        "trunc must be an integer truncation level, nothing, or :mbicv"
+    ))
+    isnothing(max_trunc) || throw(ArgumentError("max_trunc is only read under trunc=:mbicv"))
+    q = isnothing(trunc) ? ceiling : Int(trunc)
+    1 <= q <= ceiling || throw(ArgumentError("trunc must be in 1:$ceiling"))
+    return q, false, NaN
+end
+
+# Running mBICV of the sequential fit. After tree `t` is fitted the model
+# truncated at `t` is scored with the full criterion, independence tail
+# included, so the score is the one `mbicv(truncate(vine, t), U)` reports.
+mutable struct _TruncationSelector
+    const p::Int
+    const n::Int
+    const ψ0::Float64
+    ll::Float64
+    k::Int
+    const q::Vector{Int}
+    const scores::Vector{Float64}
+end
+_TruncationSelector(p::Int, n::Int, ψ0::Float64) =
+    _TruncationSelector(p, n, ψ0, 0.0, 0, Int[], Float64[])
+
+# Score the model truncated at the tree whose pair fits are `fits`. Returns
+# `true` when that model improves on the previous level (or is the first tree,
+# which has no competitor because the engines assume one active tree), and
+# `false` when it does not, in which case the caller drops the tree and stops.
+function _accept_tree!(sel::_TruncationSelector, fits, trace::Bool)
+    ll = sel.ll
+    k = sel.k
+    qt = 0
+    for f in fits
+        ll += f.loglik
+        k += f.npars
+        qt += !_is_independence_pair(f.copula)
+    end
+    push!(sel.q, qt)
+    s = _mbicv_score(ll, k, sel.n, sel.q, sel.p, sel.ψ0)
+    t = length(sel.q)
+    trace && println("truncation level $t: mbicv=$s")
+    if t > 1 && s >= sel.scores[end]
+        trace && println("mbicv did not improve; truncation level $(t - 1) selected")
+        pop!(sel.q)
+        return false
+    end
+    sel.ll = ll
+    sel.k = k
+    push!(sel.scores, s)
+    return true
 end
 
 function _fit_data(U::AbstractMatrix{<:Real}, p::Int)
