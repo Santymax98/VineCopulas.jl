@@ -53,7 +53,7 @@ end
 end
 
 @inline function _ev_pickands_factors(tail::Copulas.GalambosTail, t::Real, A::Real, dA::Real)
-    θ = tail.θ + zero(t)
+    θ = Distributions.params(tail).θ + zero(t)
     z = θ*(log(t) - log1p(-t))
     p = (θ + one(θ))/θ
     B1 = -expm1(-p*LogExpFunctions.log1pexp(-z))
@@ -62,7 +62,7 @@ end
 end
 
 @inline function _ev_pickands_factors(tail::Copulas.HuslerReissTail, t::Real, A::Real, dA::Real)
-    θ = tail.θ + zero(t)
+    θ = Distributions.params(tail).θ + zero(t)
     hθ = θ/(one(θ) + one(θ))
     z = log(t) - log1p(-t)
     a1 = inv(θ) + hθ*z
@@ -74,7 +74,7 @@ end
 end
 
 @inline function _ev_pickands_factors(tail::Copulas.MixedTail, t::Real, A::Real, dA::Real)
-    θ = tail.θ + zero(t)
+    θ = Distributions.params(tail).θ + zero(t)
     omt = one(t) - t
     B1 = one(t) - θ*t*t
     B2 = one(t) - θ*omt*omt
@@ -82,7 +82,7 @@ end
 end
 
 @inline function _ev_pickands_factors(tail::Copulas.AsymMixedTail, t::Real, A::Real, dA::Real)
-    θ1, θ2 = tail.θ₁ + zero(t), tail.θ₂ + zero(t)
+    θ1, θ2 = Distributions.params(tail).θ₁ + zero(t), Distributions.params(tail).θ₂ + zero(t)
     omt = one(t) - t
     B1 = one(t) - θ1*t*t - 2θ2*t*t*t
     B2 = one(t) - (θ1 + 3θ2)*omt*omt + 2θ2*omt*omt*omt
@@ -100,7 +100,7 @@ end
 # [1e-12, 1-1e-12]. Polynomial tails can be evaluated exactly beyond that
 # artificial Float64-scale boundary, which is essential for BigFloat inverses.
 @inline function _ev_A_dA(tail::Copulas.MixedTail, t::Real)
-    θ = tail.θ + zero(t)
+    θ = Distributions.params(tail).θ + zero(t)
     A = one(t) - θ*t + θ*t*t
     dA = θ*(2t - one(t))
     B1, B2 = _ev_pickands_factors(tail, t, A, dA)
@@ -108,7 +108,7 @@ end
 end
 
 @inline function _ev_A_dA(tail::Copulas.AsymMixedTail, t::Real)
-    θ1, θ2 = tail.θ₁ + zero(t), tail.θ₂ + zero(t)
+    θ1, θ2 = Distributions.params(tail).θ₁ + zero(t), Distributions.params(tail).θ₂ + zero(t)
     A = one(t) - (θ1 + θ2)*t + θ1*t*t + θ2*t*t*t
     dA = -(θ1 + θ2) + 2θ1*t + 3θ2*t*t
     B1, B2 = _ev_pickands_factors(tail, t, A, dA)
@@ -120,14 +120,14 @@ end
 @inline _ev_A_dA_d2A(tail, t::Real) = Copulas._A_dA_d²A(tail, t)
 
 @inline function _ev_A_dA_d2A(tail::Copulas.MixedTail, t::Real)
-    θ = tail.θ + zero(t)
+    θ = Distributions.params(tail).θ + zero(t)
     A = one(t) - θ*t + θ*t*t
     dA = θ*(2t - one(t))
     return A, dA, 2θ
 end
 
 @inline function _ev_A_dA_d2A(tail::Copulas.AsymMixedTail, t::Real)
-    θ1, θ2 = tail.θ₁ + zero(t), tail.θ₂ + zero(t)
+    θ1, θ2 = Distributions.params(tail).θ₁ + zero(t), Distributions.params(tail).θ₂ + zero(t)
     A = one(t) - (θ1 + θ2)*t + θ1*t*t + θ2*t*t*t
     dA = -(θ1 + θ2) + 2θ1*t + 3θ2*t*t
     return A, dA, 2θ1 + 6θ2*t
@@ -346,11 +346,11 @@ end
 end
 
 @inline function _ev_hinv1(C::Copulas.ExtremeValueCopula{2,TT}, q::Real, v::Real) where {TT<:Copulas.LogTail}
-    return _arch_hinv(Copulas.GumbelGenerator(C.tail.θ), q, v)
+    return _arch_hinv(Copulas.GumbelGenerator(Distributions.params(C).θ), q, v)
 end
 
 @inline function _ev_hinv2(C::Copulas.ExtremeValueCopula{2,TT}, q::Real, u::Real) where {TT<:Copulas.LogTail}
-    return _arch_hinv(Copulas.GumbelGenerator(C.tail.θ), q, u)
+    return _arch_hinv(Copulas.GumbelGenerator(Distributions.params(C).θ), q, u)
 end
 
 @inline _ev_hinv1(C::Copulas.ExtremeValueCopula{2}, q::Real, v::Real) = _ev_hinv1_numeric(C, q, v)

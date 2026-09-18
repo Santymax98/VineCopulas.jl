@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------
 
 @inline function _frank_terms(G::Copulas.FrankGenerator, u::Real, v::Real)
-    θ, uu, vv = promote(float(G.θ), float(u), float(v))
+    θ, uu, vv = promote(float(Distributions.params(G).θ), float(u), float(v))
     uu, vv = _clp(uu), _clp(vv)
     if abs(θ) <= sqrt(eps(typeof(θ)))
         return θ, uu, vv, zero(θ), zero(θ), zero(θ), one(θ)
@@ -69,7 +69,7 @@ end
 # =====================================================================
 
 function _inv_ϕ¹(G::Copulas.FrankGenerator, y::Real)
-    θ, m = promote(float(G.θ), _negative_derivative_magnitude(y, "Frank"))
+    θ, m = promote(float(Distributions.params(G).θ), _negative_derivative_magnitude(y, "Frank"))
     T = typeof(θ)
     iszero(m) && return T(Inf)
     iszero(θ) && throw(DomainError(θ, "A genuine Frank generator requires θ ≠ 0."))

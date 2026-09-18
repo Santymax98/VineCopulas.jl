@@ -64,6 +64,7 @@ end
     # Warm-up before measuring allocations. Some Julia/CI combinations may
     # report a tiny runtime allocation even for effectively allocation-free
     # scalar loops, so we test for negligible allocation rather than exactly 0.
+    pc = VineCopulas._prepare_pair(pc)
     local_sum(pc, u, v, buf)
 
     bytes = @allocated local_sum(pc, u, v, buf)

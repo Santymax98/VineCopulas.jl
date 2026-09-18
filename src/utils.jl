@@ -114,7 +114,7 @@ end
     return z + LogExpFunctions.log1mexp(-z)
 end
 
-@inline function _logsubexp_plus_one(total::Real, base::Real)
+@inline function _logsubexp_plus_one_raw(total::Real, base::Real)
     t, b = promote(float(total), float(base))
 
     if t < b
@@ -206,4 +206,14 @@ end
         inv[order[i]] = i
     end
     return inv
+end
+
+# L = log(1 + s) with s ≥ 0 is non-negative by construction; the difference of
+# two such coordinates can come out a few ulps below zero when total ≈ base
+# (observed: -3.4e-17 from a survival-BB7 pair inside inverse_rosenblatt!,
+# which _arch_probability then rejects). Clamp at zero, matching the
+# microscopic-reversal handling above and the generic h-inverse path.
+@inline function _logsubexp_plus_one(total::Real, base::Real)
+    r = _logsubexp_plus_one_raw(total, base)
+    return r < zero(r) ? zero(r) : r
 end

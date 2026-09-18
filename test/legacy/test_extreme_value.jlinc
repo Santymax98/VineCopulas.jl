@@ -29,16 +29,41 @@ end
         @test z ≈ log(root) atol=8eps(Float64) rtol=8eps(Float64)
     end
 
-    @testset "Degenerate tail constructors reduce exactly" begin
-        @test _extreme_value_copula_2(Copulas.NoTail()) isa Copulas.IndependentCopula
-        @test _extreme_value_copula_2(Copulas.MTail()) isa Copulas.MCopula
-        @test _extreme_value_copula_2(Copulas.LogTail(1.0)) isa Copulas.IndependentCopula
-        @test _extreme_value_copula_2(Copulas.GalambosTail(0.0)) isa Copulas.IndependentCopula
-        @test _extreme_value_copula_2(Copulas.GalambosTail(Inf)) isa Copulas.MCopula
-        @test _extreme_value_copula_2(Copulas.HuslerReissTail(0.0)) isa Copulas.IndependentCopula
-        @test _extreme_value_copula_2(Copulas.HuslerReissTail(Inf)) isa Copulas.MCopula
-        @test _extreme_value_copula_2(Copulas.CuadrasAugeTail(1.0)) isa Copulas.MCopula
-        @test _extreme_value_copula_2(Copulas.tEVTail(4.0, 1.0)) isa Copulas.MCopula
+    @testset "Extreme-value boundary copulas preserve limiting behavior" begin
+        independence_tails = (
+            Copulas.NoTail(),
+            Copulas.LogTail(1.0),
+            Copulas.GalambosTail(0.0),
+            Copulas.HuslerReissTail(0.0),
+        )
+
+        comonotonic_tails = (
+            Copulas.MTail(),
+            Copulas.GalambosTail(Inf),
+            Copulas.HuslerReissTail(Inf),
+            Copulas.CuadrasAugeTail(1.0),
+            Copulas.tEVTail(4.0, 1.0),
+        )
+
+        points = (
+            [0.17, 0.61],
+            [0.42, 0.83],
+            [0.73, 0.29],
+        )
+
+        for tail in independence_tails
+            C = _extreme_value_copula_2(tail)
+            for u in points
+                @test cdf(C, u) ≈ prod(u)
+            end
+        end
+
+        for tail in comonotonic_tails
+            C = _extreme_value_copula_2(tail)
+            for u in points
+                @test cdf(C, u) ≈ minimum(u)
+            end
+        end
     end
 
     @testset "Galambos boundary Pickands factors" begin

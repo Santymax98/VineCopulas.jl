@@ -131,7 +131,7 @@ function _logpdf_internal(vc::CVineCopula{p}, U::AbstractMatrix{<:Real}) where {
         propagate = k < vc.trunc
         for i in 1:(p-k)
             child = k + i
-            C = vc.edges[k][i]
+            C = _prepare_pair(vc.edges[k][i])
             rootvals = @view W[root,:]
             childvals = @view W[child,:]
             if propagate
@@ -159,7 +159,7 @@ function _rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::CVineCopula{p}, 
         root = k
         for i in 1:(p-k)
             child = k + i
-            C = vc.edges[k][i]
+            C = _prepare_pair(vc.edges[k][i])
             for col in 1:n
                 W[child,col] = hfunc2(C, W[root,col], W[child,col])
             end
@@ -185,7 +185,7 @@ function _inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::CVineCop
         @views X[i,:] .= W[i,:]
         # Invert from most conditioned edge down to the unconditional edge.
         for k in min(i-1, vc.trunc):-1:1
-            C = vc.edges[k][i-k]
+            C = _prepare_pair(vc.edges[k][i-k])
             for col in 1:n
                 # W[k,col] is the Rosenblatt coordinate z_k = u_{k | 1:(k-1)}.
                 X[i,col] = hinv2(C, X[i,col], W[k,col])

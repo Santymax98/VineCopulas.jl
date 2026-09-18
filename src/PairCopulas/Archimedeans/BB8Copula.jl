@@ -21,7 +21,7 @@
 # reduced to Joe by the Copulas.jl constructor.
 
 @inline function _arch_coordinate(G::Copulas.BB8Generator, u::Real)
-    ϑ, δ, uu = promote(float(G.ϑ), float(G.δ), float(u))
+    ϑ, δ, uu = promote(float(Distributions.params(G).ϑ), float(Distributions.params(G).δ), float(u))
 
     zero(uu) < uu <= one(uu) ||
         throw(DomainError(u, "The BB8 probability must belong to (0, 1].",))
@@ -39,7 +39,7 @@
 end
 
 @inline function _arch_probability(G::Copulas.BB8Generator, s::Real)
-    ϑ, δ, ss = promote(float(G.ϑ), float(G.δ), float(s))
+    ϑ, δ, ss = promote(float(Distributions.params(G).ϑ), float(Distributions.params(G).δ), float(s))
 
     ss >= zero(ss) || throw(DomainError(s, "The BB8 generator coordinate must be non-negative.",))
 
@@ -54,7 +54,7 @@ end
 end
 
 @inline function _arch_logderivative(G::Copulas.BB8Generator, s::Real,)
-    ϑ, δ, ss = promote(float(G.ϑ), float(G.δ), float(s))
+    ϑ, δ, ss = promote(float(Distributions.params(G).ϑ), float(Distributions.params(G).δ), float(s))
     T = typeof(ss)
 
     ss >= zero(ss) || throw(DomainError(s, "The BB8 generator coordinate must be non-negative.",))
@@ -77,7 +77,7 @@ function _arch_inverse_logderivative(G::Copulas.BB8Generator, logm::Real,)
 
     isnan(lm) && throw(DomainError(logm, "log|ϕ'| cannot be NaN."))
 
-    ϑ, δ = T(G.ϑ), T(G.δ)
+    ϑ, δ = T(Distributions.params(G).ϑ), T(Distributions.params(G).δ)
 
     ϑ >= one(T) || throw(DomainError(ϑ, "The BB8 generator requires ϑ ≥ 1.",))
 

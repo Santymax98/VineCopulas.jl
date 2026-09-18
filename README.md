@@ -116,7 +116,7 @@ The 0.1 series focuses on sequential fitting and structure selection for simplif
 
 Automatic selection may use narrower **candidate parameter domains** than the mathematical domains exposed by `Copulas.jl`. Those bounds align the selection problem with `vinecopulib`; they do not restrict direct construction or direct use of the underlying pair-copulas.
 
-Standard general R-vines can be fitted and evaluated at a user-selected truncation depth, but Rosenblatt/inverse Rosenblatt transforms, `rand`, `simulate_qmc`, and the simulation-based numerical `cdf` currently require a full-depth general R-vine. Truncated C- and D-vines retain their transform/simulation paths.
+Standard general R-vines can be fitted, evaluated, transformed, and simulated at a user-selected truncation depth. Rosenblatt/inverse Rosenblatt transforms, `rand`, `simulate_qmc`, and the simulation-based numerical `cdf` use the trees the truncated vine stores; the trees beyond the truncation depth are independence pair-copulas, whose conditional functions are the identity.
 
 ## Citation
 
