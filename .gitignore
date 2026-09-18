@@ -19,3 +19,6 @@
 /benchmarks/correctness/data/
 /benchmarks/correctness/results/
 /benchmarks/correctness/environment_correctness.txt
+
+# Local Phase A contract/performance baseline
+/.phase_a0/

@@ -101,6 +101,42 @@ function pair_cases()
     push_case!(cases, "ev_galambos", "interior", () -> extreme_value_copula_2(Copulas.GalambosTail(1.50)), "extreme-value specialization")
     push_case!(cases, "ev_husler_reiss", "interior", () -> extreme_value_copula_2(Copulas.HuslerReissTail(1.20)), "extreme-value specialization")
 
+    # Additional extreme-value coverage for the Copulas.jl 1.0 contract audit.
+    # These cases deliberately include smooth, asymmetric, and singular/atomic
+    # families because the public `condition` distribution is the semantic
+    # source of truth for all of them.
+    push_case!(cases, "ev_cuadras_auge", "interior",
+        () -> extreme_value_copula_2(Copulas.CuadrasAugeTail(0.50)),
+        "extreme-value singular/atomic")
+
+    push_case!(cases, "ev_mo", "interior",
+        () -> extreme_value_copula_2(Copulas.MOTail(0.30, 0.40, 0.50)),
+        "extreme-value singular/atomic")
+
+    push_case!(cases, "ev_mixed", "interior",
+        () -> extreme_value_copula_2(Copulas.MixedTail(0.40)),
+        "extreme-value specialization")
+
+    push_case!(cases, "ev_asym_log", "interior",
+        () -> extreme_value_copula_2(Copulas.AsymLogTail(1.50, 0.30, 0.70)),
+        "extreme-value asymmetric")
+
+    push_case!(cases, "ev_asym_galambos", "interior",
+        () -> extreme_value_copula_2(Copulas.AsymGalambosTail(1.50, 0.30, 0.70)),
+        "extreme-value asymmetric")
+
+    push_case!(cases, "ev_asym_mixed", "interior",
+        () -> extreme_value_copula_2(Copulas.AsymMixedTail(0.30, 0.10)),
+        "extreme-value asymmetric")
+
+    push_case!(cases, "ev_bc2", "interior",
+        () -> extreme_value_copula_2(Copulas.BC2Tail(0.30, 0.40)),
+        "extreme-value singular/atomic")
+
+    push_case!(cases, "ev_tev", "interior",
+        () -> extreme_value_copula_2(Copulas.tEVTail(4.0, 0.50)),
+        "extreme-value specialization")
+
     if SMOKE || MATRIX == "smoke"
         return cases[1:min(end, 4)]
     elseif MATRIX == "full" || !isempty(FAMILY_FILTER)
@@ -127,14 +163,25 @@ function active_points()
 end
 
 function bench_call(f, C, p)
-    f(C, p.u, p.v, p.q)
-    trial = @benchmark $f($C, $(p.u), $(p.v), $(p.q)) samples=SAMPLES evals=EVALS seconds=SECONDS
+    # Load scalar arguments through Ref so BenchmarkTools cannot constant-fold
+    # the entire conditional evaluation when C and the evaluation point are
+    # compile-time constants.
+    u = Ref(p.u)
+    v = Ref(p.v)
+    q = Ref(p.q)
+
+    f(C, u[], v[], q[])
+    trial = @benchmark $f($C, $u[], $v[], $q[]) samples=SAMPLES evals=EVALS seconds=SECONDS
     return median(trial)
 end
 
 function allocated_call(f, C, p)
-    f(C, p.u, p.v, p.q)
-    return @allocated f(C, p.u, p.v, p.q)
+    u = Ref(p.u)
+    v = Ref(p.v)
+    q = Ref(p.q)
+
+    f(C, u[], v[], q[])
+    return @allocated f(C, u[], v[], q[])
 end
 
 function inferred_ok(f, C, p)
