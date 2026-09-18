@@ -421,14 +421,114 @@ function _fit_vine_bb(FT, U; xtol::Real=1.0e-8)
     throw(ArgumentError("$FT is not a bounded default BB family"))
 end
 
-function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method::Symbol, selection_criterion::Symbol, pair_kwargs::NamedTuple,)
+# -----------------------------------------------------------------------------
+# Kendall-tau inversion (`pair_method=:itau`)
+# -----------------------------------------------------------------------------
+
+# Automatic selection under `pair_method=:itau` inverts the empirical Kendall
+# tau locally for the families whose selection domain the vine restricts, so
+# the estimate lands in the same finite box the `:mle` wrappers above search.
+# The Copulas.jl rank inversions clamp to the mathematical domain instead
+# (Student nu > 0 with a Gaussian endpoint, Clayton theta > -1, unbounded
+# Gumbel/Joe/Frank), which would make `:itau` and `:mle` select over
+# different model spaces.  Kendall's tau of an elliptical copula depends on
+# the correlation alone, so the Student degrees of freedom are profiled with
+# rho held fixed.  The two-parameter BB families are not identified by tau
+# alone and are fitted by `:mle` under `:itau`, as vinecopulib does.
+@inline function _has_local_itau(FT)
+    return FT <: Copulas.GaussianCopula ||
+           FT <: Copulas.TCopula ||
+           FT <: Copulas.ClaytonCopula ||
+           FT <: Copulas.GumbelCopula ||
+           FT <: Copulas.FrankCopula ||
+           FT <: Copulas.JoeCopula
+end
+
+@inline function _itau_rho(τhat::Real, lo::Real, hi::Real)
+    rho = clamp(sinpi(Float64(τhat) / 2), nextfloat(Float64(lo)), prevfloat(Float64(hi)))
+    # `GaussianCopula(2, 0)` is canonicalized to the independent copula; keep
+    # the candidate identifiable, as `_fit_vine_gaussian` does.
+    return iszero(rho) ? eps(Float64) : rho
+end
+
+@inline function _itau_theta(FT, τhat::Real, lo::Real, hi::Real)
+    theta = Float64(Copulas.τ⁻¹(FT, Float64(τhat)))
+    return clamp(theta, nextfloat(Float64(lo)), prevfloat(Float64(hi)))
+end
+
+@inline _itau_meta(C) = (; θ̂=Distributions.params(C), converged=true, iterations=0)
+
+function _fit_vine_itau(::Type{<:Copulas.GaussianCopula}, U, τhat::Real; xtol::Real=1.0e-10)
+    C = Copulas.GaussianCopula(2, _itau_rho(τhat, _VINE_GAUSSIAN_RHO_LO, _VINE_GAUSSIAN_RHO_HI))
+    return C, _itau_meta(C)
+end
+
+# Profile likelihood in nu on the vinecopulib box with rho fixed at the
+# inverted tau; `xtol` is the Brent tolerance, as in `_fit_vine_scalar_bounded`.
+function _fit_vine_itau(::Type{<:Copulas.TCopula}, U, τhat::Real; xtol::Real=1.0e-10)
+    rho = _itau_rho(τhat, _VINE_STUDENT_RHO_LO, _VINE_STUDENT_RHO_HI)
+    Sigma = [1.0 rho; rho 1.0]
+    objective(nu) = begin
+        ll = Float64(Distributions.loglikelihood(Copulas.TCopula(nu, Sigma), U))
+        isfinite(ll) ? -ll : Inf
+    end
+    a = nextfloat(_VINE_STUDENT_NU_LO)
+    b = prevfloat(_VINE_STUDENT_NU_HI)
+    res = Optim.optimize(objective, a, b, Optim.Brent(); abs_tol=Float64(xtol),)
+    C = Copulas.TCopula(Float64(Optim.minimizer(res)), Sigma)
+    return C, (; θ̂=Distributions.params(C), optimizer=Optim.summary(res), converged=Optim.converged(res), iterations=Optim.iterations(res),)
+end
+
+function _fit_vine_itau(FT::Type{<:Copulas.ClaytonCopula}, U, τhat::Real; xtol::Real=1.0e-10)
+    C = Copulas.ClaytonCopula(2, _itau_theta(FT, τhat, _VINE_CLAYTON_LO, _VINE_CLAYTON_HI))
+    return C, _itau_meta(C)
+end
+
+function _fit_vine_itau(FT::Type{<:Copulas.GumbelCopula}, U, τhat::Real; xtol::Real=1.0e-10)
+    C = Copulas.GumbelCopula(2, _itau_theta(FT, τhat, _VINE_GUMBEL_LO, _VINE_GUMBEL_HI))
+    return C, _itau_meta(C)
+end
+
+function _fit_vine_itau(FT::Type{<:Copulas.JoeCopula}, U, τhat::Real; xtol::Real=1.0e-10)
+    C = Copulas.JoeCopula(2, _itau_theta(FT, τhat, _VINE_JOE_LO, _VINE_JOE_HI))
+    return C, _itau_meta(C)
+end
+
+function _fit_vine_itau(FT::Type{<:Copulas.FrankCopula}, U, τhat::Real; xtol::Real=1.0e-10)
+    theta = _itau_theta(FT, τhat, _VINE_FRANK_LO, _VINE_FRANK_HI)
+    # `FrankCopula(2, 0)` is canonicalized to independence, as in `_fit_vine_frank`.
+    iszero(theta) && (theta = sqrt(eps(Float64)))
+    C = Copulas.FrankCopula(2, theta)
+    return C, _itau_meta(C)
+end
+
+# Resolve the estimator a candidate family actually uses.  A family the local
+# tau inversion does not cover keeps the Copulas.jl method of that name; a
+# family that advertises no `:itau` at all (the two-parameter BB families of
+# the default set) is fitted by `:mle` instead of failing, so `:itau` selects
+# over the full family set rather than silently over its one-parameter part.
+function _resolve_pair_method(FT, pair_method::Symbol)
+    if pair_method === :itau
+        _has_local_itau(FT) && return :itau
+        :itau in Copulas._available_fitting_methods(FT, 2) || return Copulas._find_method(FT, 2, :mle)
+    end
+    return Copulas._find_method(FT, 2, pair_method)
+end
+
+function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method::Symbol, selection_criterion::Symbol, pair_kwargs::NamedTuple,
+    τhat::Real=_kendall_tau_b(view(U, 1, :), view(U, 2, :)),)
     Uf = _flip_pair_data(U, flips)
-    method = Copulas._find_method(FT, 2, pair_method)
+    method = _resolve_pair_method(FT, pair_method)
 
     # Automatic vine selection uses pair-specific MLE domains/solvers where
     # an exact bivariate copula likelihood or a vinecopulib-aligned finite
     # parameter domain is required.
-    if FT <: Copulas.GaussianCopula && method === :mle
+    if method === :itau && _has_local_itau(FT)
+        # Reflecting one axis negates Kendall's tau of the pair and reflecting
+        # both leaves it unchanged, so no second rank pass is needed.
+        τf = length(flips) == 1 ? -τhat : τhat
+        C0, meta = _fit_vine_itau(FT, Uf, τf; pair_kwargs...)
+    elseif FT <: Copulas.GaussianCopula && method === :mle
         C0, meta = _fit_vine_gaussian(Uf; pair_kwargs...)
     elseif FT <: Copulas.TCopula && method === :mle
         W, meta = _fit_vine_two_parameter_bounded(
@@ -493,15 +593,29 @@ function _independence_selection(U::Matrix{Float64}, criterion::Symbol)
 end
 
 function _select_pair(U0::AbstractMatrix{<:Real}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
-    allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, pair_kwargs::NamedTuple=NamedTuple(),
-    strict::Bool=false, trace::Bool=false, force_independence::Bool=false,)
+    allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, independence_test::Symbol=:none,
+    independence_level::Real=0.05, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,
+    force_independence::Bool=false,)
 
     U = _fit_data(U0, 2)
     _check_selection_criterion(selection_criterion)
+    _check_independence_test(independence_test)
+    independence_level = _check_independence_level(independence_level)
     force_independence && return _independence_selection(U, selection_criterion)
 
     families = _resolve_family_set(family_set)
     τhat = _kendall_tau_b(view(U, 1, :), view(U, 2, :))
+
+    # The independence test is a gate on the edge, like `threshold`: an edge
+    # the test does not reject is independent whatever the criterion says.
+    if independence_test === :kendall
+        pvalue = _kendall_independence_pvalue(τhat, size(U, 2))
+        if pvalue > independence_level
+            trace && println("pair independence test: tau=$τhat, p=$pvalue > $independence_level, independence selected")
+            return _independence_selection(U, selection_criterion)
+        end
+        trace && println("pair independence test: tau=$τhat, p=$pvalue <= $independence_level, dependence")
+    end
 
     best = include_independence ? _independence_selection(U, selection_criterion) : nothing
     nsuccessful = 0
@@ -514,7 +628,7 @@ function _select_pair(U0::AbstractMatrix{<:Real}; family_set=:default, pair_meth
 
         for flips in _rotation_candidates(FT, τhat, allow_rotations, preselect)
             try
-                fit = _fit_one_pair_family(FT, U, flips; pair_method=pair_method, selection_criterion=selection_criterion, pair_kwargs=pair_kwargs,)
+                fit = _fit_one_pair_family(FT, U, flips; pair_method=pair_method, selection_criterion=selection_criterion, pair_kwargs=pair_kwargs, τhat=τhat,)
                 nsuccessful += 1
                 if trace
                     println(
@@ -548,10 +662,11 @@ end
 Copulas._available_fitting_methods(::Type{PairCopula}, d) = d == 2 ? (:select,) : Tuple{}()
 
 function Copulas._fit(::Type{PairCopula}, U, ::Val{:select}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
-    allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, pair_kwargs::NamedTuple=NamedTuple(),
-    strict::Bool=false, trace::Bool=false,)
+    allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, independence_test::Symbol=:none,
+    independence_level::Real=0.05, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
     fit = _select_pair(U; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
-        preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
+        preselect=preselect, include_independence=include_independence, independence_test=independence_test,
+        independence_level=independence_level, pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
     return fit.copula
 end
 
