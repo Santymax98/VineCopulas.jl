@@ -16,6 +16,8 @@
 # justify doing so. Such methods are optional fast paths, not requirements
 # for generic pair-copula evaluation.
 
+@inline _prepare_pair(C::PairCopula) = C
+
 const _STD_NORMAL = Distributions.Normal()
 
 @inline function _pair_logpdf(C::PairCopula, u::Real, v::Real, buf::Vector{Float64})
@@ -31,32 +33,17 @@ end
     return hfunc1(C, u, v), hfunc2(C, u, v)
 end
 
-@inline function _pair_step(
-    C::PairCopula,
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-)
+@inline function _pair_step(C::PairCopula, u::Real, v::Real, buf::Vector{Float64},)
     logc = _pair_logpdf(C, u, v, buf)
     h1, h2 = _pair_hfuncs(C, u, v)
     return logc, h1, h2
 end
 
-@inline function _pair_logpdf_h1(
-    C::PairCopula,
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-)
+@inline function _pair_logpdf_h1(C::PairCopula, u::Real, v::Real, buf::Vector{Float64},)
     return _pair_logpdf(C, u, v, buf), hfunc1(C, u, v)
 end
 
-@inline function _pair_logpdf_h2(
-    C::PairCopula,
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-)
+@inline function _pair_logpdf_h2(C::PairCopula, u::Real, v::Real, buf::Vector{Float64},)
     return _pair_logpdf(C, u, v, buf), hfunc2(C, u, v)
 end
 
@@ -65,34 +52,23 @@ end
 # containers: dispatch on `C` happens once per edge, while the observation loop
 # runs with the concrete pair-copula type. Inputs may alias their corresponding
 # outputs because both coordinates are loaded before any output is written.
-function _pair_logpdf_add!(
-    ll::AbstractVector{<:Real},
-    C::CT,
-    u::AbstractVector{<:Real},
-    v::AbstractVector{<:Real},
-    buf::Vector{Float64},
-) where {CT<:PairCopula}
+function _pair_logpdf_add!(ll::AbstractVector{<:Real}, C::CT, u::AbstractVector{<:Real}, v::AbstractVector{<:Real}, buf::Vector{Float64},) where {CT<:PairCopula}
     n = length(u)
     length(v) == n || throw(DimensionMismatch("pair inputs must have equal length"))
     length(ll) == n || throw(DimensionMismatch("ll has incompatible length"))
+    C = _prepare_pair(C)
     @inbounds for i in eachindex(ll, u, v)
         ll[i] += _pair_logpdf(C, u[i], v[i], buf)
     end
     return ll
 end
 
-function _pair_logpdf_h2_add!(
-    ll::AbstractVector{<:Real},
-    out2::AbstractVector{<:Real},
-    C::CT,
-    u::AbstractVector{<:Real},
-    v::AbstractVector{<:Real},
-    buf::Vector{Float64},
-) where {CT<:PairCopula}
+function _pair_logpdf_h2_add!(ll::AbstractVector{<:Real}, out2::AbstractVector{<:Real}, C::CT, u::AbstractVector{<:Real}, v::AbstractVector{<:Real}, buf::Vector{Float64},) where {CT<:PairCopula}
     n = length(u)
     length(v) == n || throw(DimensionMismatch("pair inputs must have equal length"))
     length(ll) == n || throw(DimensionMismatch("ll has incompatible length"))
     length(out2) == n || throw(DimensionMismatch("out2 has incompatible length"))
+    C = _prepare_pair(C)
     @inbounds for i in eachindex(ll, out2, u, v)
         ui, vi = u[i], v[i]
         logc, h2 = _pair_logpdf_h2(C, ui, vi, buf)
@@ -102,20 +78,14 @@ function _pair_logpdf_h2_add!(
     return ll, out2
 end
 
-function _pair_step_add!(
-    ll::AbstractVector{<:Real},
-    out1::AbstractVector{<:Real},
-    out2::AbstractVector{<:Real},
-    C::CT,
-    u::AbstractVector{<:Real},
-    v::AbstractVector{<:Real},
-    buf::Vector{Float64},
-) where {CT<:PairCopula}
+function _pair_step_add!(ll::AbstractVector{<:Real}, out1::AbstractVector{<:Real}, out2::AbstractVector{<:Real}, C::CT,
+                        u::AbstractVector{<:Real}, v::AbstractVector{<:Real}, buf::Vector{Float64},) where {CT<:PairCopula}
     n = length(u)
     length(v) == n || throw(DimensionMismatch("pair inputs must have equal length"))
     length(ll) == n || throw(DimensionMismatch("ll has incompatible length"))
     length(out1) == n || throw(DimensionMismatch("out1 has incompatible length"))
     length(out2) == n || throw(DimensionMismatch("out2 has incompatible length"))
+    C = _prepare_pair(C)
     @inbounds for i in eachindex(ll, out1, out2, u, v)
         ui, vi = u[i], v[i]
         logc, h1, h2 = _pair_step(C, ui, vi, buf)
@@ -126,17 +96,12 @@ function _pair_step_add!(
     return ll, out1, out2
 end
 
-function _pair_hfuncs!(
-    out1::AbstractVector{<:Real},
-    out2::AbstractVector{<:Real},
-    C::CT,
-    u::AbstractVector{<:Real},
-    v::AbstractVector{<:Real},
-) where {CT<:PairCopula}
+function _pair_hfuncs!(out1::AbstractVector{<:Real}, out2::AbstractVector{<:Real}, C::CT, u::AbstractVector{<:Real}, v::AbstractVector{<:Real},) where {CT<:PairCopula}
     n = length(u)
     length(v) == n || throw(DimensionMismatch("pair inputs must have equal length"))
     length(out1) == n || throw(DimensionMismatch("out1 has incompatible length"))
     length(out2) == n || throw(DimensionMismatch("out2 has incompatible length"))
+    C = _prepare_pair(C)
     @inbounds for i in eachindex(out1, out2, u, v)
         h1, h2 = _pair_hfuncs(C, u[i], v[i])
         out1[i] = h1
@@ -145,30 +110,22 @@ function _pair_hfuncs!(
     return out1, out2
 end
 
-function _pair_hfunc1!(
-    out::AbstractVector{<:Real},
-    C::CT,
-    u::AbstractVector{<:Real},
-    v::AbstractVector{<:Real},
-) where {CT<:PairCopula}
+function _pair_hfunc1!(out::AbstractVector{<:Real}, C::CT, u::AbstractVector{<:Real}, v::AbstractVector{<:Real},) where {CT<:PairCopula}
     n = length(u)
     length(v) == n || throw(DimensionMismatch("pair inputs must have equal length"))
     length(out) == n || throw(DimensionMismatch("out has incompatible length"))
+    C = _prepare_pair(C)
     @inbounds for i in eachindex(out, u, v)
         out[i] = hfunc1(C, u[i], v[i])
     end
     return out
 end
 
-function _pair_hfunc2!(
-    out::AbstractVector{<:Real},
-    C::CT,
-    u::AbstractVector{<:Real},
-    v::AbstractVector{<:Real},
-) where {CT<:PairCopula}
+function _pair_hfunc2!(out::AbstractVector{<:Real}, C::CT, u::AbstractVector{<:Real}, v::AbstractVector{<:Real},) where {CT<:PairCopula}
     n = length(u)
     length(v) == n || throw(DimensionMismatch("pair inputs must have equal length"))
     length(out) == n || throw(DimensionMismatch("out has incompatible length"))
+    C = _prepare_pair(C)
     @inbounds for i in eachindex(out, u, v)
         out[i] = hfunc2(C, u[i], v[i])
     end
@@ -207,19 +164,15 @@ For an `n × 2` matrix `U`, return one value per row.
 
 function hfunc1(C::PairCopula, uv)
     length(uv) == 2 || throw(ArgumentError("hfunc1 espera dos coordenadas"))
-
     u, v = _clp(uv[1]), _clp(uv[2])
     D = Copulas.condition(C, 2, v)
-
     return _clp(Distributions.cdf(D, u))
 end
 
 function hfunc2(C::PairCopula, uv)
     length(uv) == 2 || throw(ArgumentError("hfunc2 espera dos coordenadas"))
-
     u, v = _clp(uv[1]), _clp(uv[2])
     D = Copulas.condition(C, 1, u)
-
     return _clp(Distributions.cdf(D, v))
 end
 

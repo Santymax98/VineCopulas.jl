@@ -3,7 +3,7 @@
 # =====================================================================
 
 function _inv_ϕ¹(G::Copulas.GumbelBarnettGenerator, y::Real)
-    θ, m = promote(float(G.θ), _negative_derivative_magnitude(y, "Gumbel-Barnett"))
+    θ, m = promote(float(Distributions.params(G).θ), _negative_derivative_magnitude(y, "Gumbel-Barnett"))
     T = typeof(θ)
     θ > zero(T) || throw(DomainError(θ, "A Gumbel-Barnett generator requires θ > 0."))
     iszero(m) && return T(Inf)

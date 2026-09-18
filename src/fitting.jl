@@ -37,7 +37,7 @@
 # -------------
 # - continuous pseudo-observations
 # - pair selection by loglik / AIC / BIC
-# - optional 0/90/180/270 rotations through SurvivalCopula
+# - optional 0/90/180/270 reflected pair-copula rotations
 # - fixed or automatic C-/D-vine order
 # - fixed or Dissmann-style automatic R-vine structure
 # - Kendall tau-b or Spearman rho tree weights

@@ -32,12 +32,11 @@
         selection_criterion=:bic,
         allow_rotations=false,
     )
-    @test F.result isa Copulas.Copula{2}
-    @test F.method == :select
-    @test isfinite(F.ll)
+    @test Copulas.fitted_distribution(F) isa Copulas.Copula{2}
+    @test Copulas.fitting_method(F) == :select
+    @test isfinite(Distributions.loglikelihood(F))
     @test isfinite(Copulas.StatsBase.aic(F))
     @test isfinite(Copulas.StatsBase.bic(F))
-    @test Copulas.StatsBase.vcov(F) === nothing
 end
 
 @testitem "Fit API – rotated pair selection" tags=[:Fit, :PairCopula, :Rotation] setup=[M] begin
@@ -61,9 +60,9 @@ end
         preselect=true,
         include_independence=true,
     )
-    @test F.result isa Copulas.SurvivalCopula
-    @test get(F.method_details, :rotation, 0) in (90, 270)
-    @test F.ll > 0
+    @test Copulas.fitted_distribution(F) isa Copulas.SurvivalCopula
+    @test VineCopulas._rotation_of(Copulas.fitted_distribution(F)) in (90, 270)
+    @test Distributions.loglikelihood(F) > 0
 end
 
 @testitem "Fit API – Clayton vine-selection domain is finite and positive" tags=[:Fit, :PairCopula, :Rotation, :Regression] setup=[M] begin
@@ -93,11 +92,11 @@ end
         strict=true,
     )
 
-    base = F.result isa SurvivalCopula ? F.result.C : F.result
+    base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
     θ = Distributions.params(base).θ
     @test 1.0e-10 < θ < 28.0
-    @test isfinite(F.ll)
-    @test get(F.method_details, :rotation, -1) in (0, 90, 180, 270)
+    @test isfinite(Distributions.loglikelihood(F))
+    @test VineCopulas._rotation_of(Copulas.fitted_distribution(F)) in (0, 90, 180, 270)
 
     # The broader Copulas.jl family remains available outside vine selection.
     @test ClaytonCopula(2, -0.25) isa Copulas.Copula{2}
@@ -130,10 +129,10 @@ end
         strict=true,
     )
 
-    p = Distributions.params(F.result)
+    p = Distributions.params(Copulas.fitted_distribution(F))
     @test abs(p.Σ[1, 2]) < 1.0
     @test 2.0 < p.ν < 50.0
-    @test isfinite(F.ll)
+    @test isfinite(Distributions.loglikelihood(F))
 
     # Direct Copulas.jl construction keeps the broader nu > 0 domain.
     @test TCopula(1.25, Sigma) isa Copulas.Copula{2}
@@ -167,11 +166,11 @@ end
             strict=true,
         )
 
-        base = F.result isa SurvivalCopula ? F.result.C : F.result
+        base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
         theta = Distributions.params(base).θ
         @test 1.0 < theta < hi
-        @test isfinite(F.ll)
-        @test get(F.method_details, :rotation, -1) in (0, 90, 180, 270)
+        @test isfinite(Distributions.loglikelihood(F))
+        @test VineCopulas._rotation_of(Copulas.fitted_distribution(F)) in (0, 90, 180, 270)
     end
 end
 
@@ -216,16 +215,16 @@ end
         strict=true,
     )
 
-    @test F.result isa GaussianCopula
-    rho = Distributions.params(F.result).Σ[1, 2]
+    @test Copulas.fitted_distribution(F) isa GaussianCopula
+    rho = Distributions.params(Copulas.fitted_distribution(F)).Σ[1, 2]
     @test rho ≈ 0.5561662333 atol=5.0e-5
-    @test F.ll ≈ 5.140188517 atol=2.0e-6
+    @test Distributions.loglikelihood(F) ≈ 5.140188517 atol=2.0e-6
 
     # Check local optimality directly in copula likelihood, not merely against
     # a particular external optimizer implementation.
     for delta in (-0.02, -0.005, 0.005, 0.02)
         Cδ = GaussianCopula(2, rho + delta)
-        @test F.ll >= Distributions.loglikelihood(Cδ, U) - 1.0e-8
+        @test Distributions.loglikelihood(F) >= Distributions.loglikelihood(Cδ, U) - 1.0e-8
     end
 end
 
@@ -257,10 +256,10 @@ end
             strict=true,
         )
 
-        base = F.result isa SurvivalCopula ? F.result.C : F.result
+        base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
         theta = Distributions.params(base).θ
         @test theta > guard
-        @test isfinite(F.ll)
+        @test isfinite(Distributions.loglikelihood(F))
     end
 end
 
@@ -313,13 +312,13 @@ end
             include_independence=false,
             strict=true,
         )
-        base = F.result isa SurvivalCopula ? F.result.C : F.result
+        base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
         vals = collect(values(Distributions.params(base)))
         @test length(vals) == 2
         @test all(isfinite, vals)
         @test lo[1] < vals[1] < hi[1]
         @test lo[2] < vals[2] < hi[2]
-        @test isfinite(F.ll)
+        @test isfinite(Distributions.loglikelihood(F))
     end
 end
 
@@ -355,13 +354,12 @@ end
         family_set=fams,
         allow_rotations=false,
     )
-    @test F.result isa CVineCopula
-    @test F.method == :sequential
+    @test Copulas.fitted_distribution(F) isa CVineCopula
+    @test Copulas.fitting_method(F) == :sequential
     @test length(Copulas.StatsBase.coef(F)) == Copulas.StatsBase.dof(F)
     @test length(Copulas.StatsBase.coefnames(F)) == Copulas.StatsBase.dof(F)
     @test isfinite(Copulas.StatsBase.aic(F))
     @test isfinite(Copulas.StatsBase.bic(F))
-    @test Copulas.StatsBase.vcov(F) === nothing
 
     Cauto = fit(
         CVineCopula,
@@ -404,10 +402,9 @@ end
         family_set=(GaussianCopula, ClaytonCopula),
         allow_rotations=false,
     )
-    @test F.result isa DVineCopula
-    @test F.method == :sequential
-    @test get(F.method_details, :order_method, nothing) == :fixed
-    @test Copulas.StatsBase.vcov(F) === nothing
+    @test Copulas.fitted_distribution(F) isa DVineCopula
+    @test Copulas.fitting_method(F) == :sequential
+    @test order(Copulas.fitted_distribution(F)) == order(C)
 end
 
 @testitem "R-vine DAG – standard nonidentity order" tags=[:Fit, :Vine, :RVine, :Rosenblatt, :Regression] setup=[M] begin
@@ -533,10 +530,10 @@ end
         family_set=(GaussianCopula, ClaytonCopula),
         allow_rotations=false,
     )
-    @test F.result isa RVineCopula
-    @test get(F.method_details, :structure_method, nothing) == :fixed
+    @test Copulas.fitted_distribution(F) isa RVineCopula
+    @test collect(order(Copulas.fitted_distribution(F))) == ord
+    @test struct_array(Copulas.fitted_distribution(F)) == S
     @test length(Copulas.StatsBase.coefnames(F)) == Copulas.StatsBase.dof(F)
-    @test Copulas.StatsBase.vcov(F) === nothing
 end
 
 @testitem "Fit API – fixed branching general R-vine" tags=[:Fit, :Vine, :RVine, :Structure, :Regression] setup=[M] begin
@@ -633,11 +630,15 @@ end
         selection_criterion=:bic,
         allow_rotations=false,
     )
-    @test F.result isa RVineCopula
-    @test truncation(F.result) == 2
-    @test get(F.method_details, :structure_method, nothing) == :dissmann_mst
-    @test get(F.method_details, :tree_criterion, nothing) == :tau
-    @test isfinite(F.ll)
+    @test Copulas.fitted_distribution(F) isa RVineCopula
+    @test truncation(Copulas.fitted_distribution(F)) == 2
+    @test VineCopulas._validate_rvine_structure(
+        order(Copulas.fitted_distribution(F)),
+        struct_array(Copulas.fitted_distribution(F)),
+        4,
+        2,
+    ) == :standard
+    @test isfinite(Distributions.loglikelihood(F))
     @test isfinite(Copulas.StatsBase.aic(F))
     @test isfinite(Copulas.StatsBase.bic(F))
 end
@@ -704,10 +705,9 @@ end
         allow_rotations=false,
     )
 
-    @test F.result isa RVineCopula
-    @test get(F.method_details, :structure_method, nothing) == :fixed_legacy_dvine_normalized
-    @test struct_array(F.result) == ([2,3], [3])
-    @test VineCopulas._compile_standard_rvine(F.result).p == 3
+    @test Copulas.fitted_distribution(F) isa RVineCopula
+    @test struct_array(Copulas.fitted_distribution(F)) == ([2,3], [3])
+    @test VineCopulas._compile_standard_rvine(Copulas.fitted_distribution(F)).p == 3
 end
 
 @testitem "Fit internals – Kendall tau-b and exact D-vine path" tags=[:Fit, :Numerical, :Structure] setup=[M] begin

@@ -310,7 +310,7 @@ function _rvine_logpdf_internal(vc::RVineCopula{p}, U::AbstractMatrix{<:Real}) w
     @inbounds for tree0 in 0:(q-1)
         propagate = tree0 < q - 1
         for edge in 1:(p-tree0-1)
-            C = vc.edges[tree0+1][edge]
+            C = _prepare_pair(vc.edges[tree0+1][edge])
             mpos = _max_pos(S, invord, tree0, edge)
             direct = _is_direct(S, tree0, edge)
             if propagate

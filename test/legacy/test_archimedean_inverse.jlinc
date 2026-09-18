@@ -300,9 +300,15 @@ end
         @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1) 
         @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN) 
         
-        # Constructor reductions are handled by Copulas.jl, not duplicated here. 
-        @test Copulas.BB6Generator(1.5, 1.0) isa Copulas.JoeGenerator 
-        @test Copulas.BB6Generator(1.0, 1.5) isa Copulas.GumbelGenerator 
+        # Boundary subfamilies are tested by their mathematical behavior,
+        # not by constructor type canonicalization.
+        Gjoe = Copulas.BB6Generator(1.5, 1.0)
+        Ggumbel = Copulas.BB6Generator(1.0, 1.5)
+
+        for s in (0.0, 0.1, 1.0, 10.0)
+            @test Copulas.ϕ(Gjoe, s) ≈ Copulas.ϕ(Copulas.JoeGenerator(1.5), s)
+            @test Copulas.ϕ(Ggumbel, s) ≈ Copulas.ϕ(Copulas.GumbelGenerator(1.5), s)
+        end
     end
 
     @testset "BB7 numerical inverse in shared log1p-coordinate" begin
@@ -373,8 +379,20 @@ end
         @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1)
         @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN)
 
-        # θ = 1 is reduced to Clayton by Copulas.jl.
-        @test Copulas.BB7Generator(1.0, 1.5) isa Copulas.ClaytonGenerator
+        # θ = 1 is the Clayton subfamily.  The corresponding
+        # Archimedean generators differ by a positive rescaling of their
+        # argument, so compare the induced copulas rather than ϕ pointwise.
+        Cbb7 = Copulas.BB7Copula{2}(1.0, 1.5)
+        Cclayton = Copulas.ClaytonCopula{2}(1.5)
+
+        for u in (
+            [0.17, 0.61],
+            [0.42, 0.83],
+            [0.73, 0.29],
+            [0.91, 0.56],
+        )
+            @test cdf(Cbb7, u) ≈ cdf(Cclayton, u)
+        end
     end
 
 end
@@ -450,8 +468,12 @@ end
     @test_throws DomainError VineCopulas._inv_ϕ¹(G, -Inf) 
     @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1) 
     @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN) 
-    # δ = 1 is reduced to Joe by Copulas.jl. 
-    @test Copulas.BB8Generator(1.5, 1.0) isa Copulas.JoeGenerator
+    # δ = 1 is the Joe subfamily.
+    Gjoe = Copulas.BB8Generator(1.5, 1.0)
+
+    for s in (0.0, 0.1, 1.0, 10.0)
+        @test Copulas.ϕ(Gjoe, s) ≈ Copulas.ϕ(Copulas.JoeGenerator(1.5), s)
+    end
     
     @testset "BB9 numerical inverse in shifted-log coordinate" begin
     # θ = 1 is the independence case. The remaining values exercise
@@ -562,8 +584,8 @@ end
     end
 
     @testset "BB10 numerical inverse in generator coordinate" begin
-        # θ = 1 is excluded here because Copulas.jl reduces it to AMH.
-        # We cover θ below and above 1, δ = 0, and δ close to the
+        # θ = 1 is the AMH subfamily and is checked separately below.
+        # Here we cover θ below and above 1, δ = 0, and δ close to the
         # singular boundary δ = 1.
         for θ in (0.2, 0.5, 1.001, 1.5, 3.0),
             δ in (0.0, 0.05, 0.5, 0.999),
@@ -665,8 +687,12 @@ end
             end
         end
 
-        # θ = 1 is delegated to AMH.
-        @test Copulas.BB10Generator(1.0,0.6,) isa Copulas.AMHGenerator
+        # θ = 1 is the AMH subfamily.
+        Gamh = Copulas.BB10Generator(1.0, 0.6)
+
+        for s in (0.0, 0.1, 1.0, 10.0)
+            @test Copulas.ϕ(Gamh, s) ≈ Copulas.ϕ(Copulas.AMHGenerator(0.6), s)
+        end
 
         # δ = 1 is a singular boundary and is intentionally excluded
         # from the continuous pair-copula implementation.

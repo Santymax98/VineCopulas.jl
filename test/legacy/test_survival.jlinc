@@ -72,6 +72,70 @@ using VineCopulas
     end
 end
 
+@testset "Named bivariate rotations" begin
+    C = ClaytonCopula(2, 2.0)
+
+    rotations = (
+        (
+            Rotated90Copula(C),
+            SurvivalCopula(C, (1,)),
+            (1,),
+        ),
+        (
+            Rotated180Copula(C),
+            SurvivalCopula(C, (1, 2)),
+            (1, 2),
+        ),
+        (
+            Rotated270Copula(C),
+            SurvivalCopula(C, (2,)),
+            (2,),
+        ),
+    )
+
+    grid = (0.20, 0.50, 0.80)
+
+    for (R, S, flips) in rotations
+        @test Copulas.basecopula(R) === C
+        @test Copulas.flips(R) == flips
+
+        for u in grid, v in grid
+            @test hfunc1(R, u, v) ≈ hfunc1(S, u, v) atol=1e-12 rtol=1e-12
+            @test hfunc2(R, u, v) ≈ hfunc2(S, u, v) atol=1e-12 rtol=1e-12
+
+            q1 = hfunc1(R, u, v)
+            q2 = hfunc2(R, u, v)
+
+            @test hinv1(R, q1, v) ≈ u atol=1e-7 rtol=1e-7
+            @test hinv2(R, q2, u) ≈ v atol=1e-7 rtol=1e-7
+
+            @test logpdf(R, [u, v]) ≈ logpdf(S, [u, v]) atol=1e-12 rtol=1e-12
+        end
+    end
+end
+
+@testset "Named rotations under pair swapping" begin
+    C = ClaytonCopula(2, 2.0)
+
+    R90  = Rotated90Copula(C)
+    R180 = Rotated180Copula(C)
+    R270 = Rotated270Copula(C)
+
+    S90  = VineCopulas._swap_pair(R90)
+    S180 = VineCopulas._swap_pair(R180)
+    S270 = VineCopulas._swap_pair(R270)
+
+    @test S90 isa Rotated270Copula
+    @test S180 isa Rotated180Copula
+    @test S270 isa Rotated90Copula
+
+    u, v = 0.31, 0.73
+
+    @test logpdf(S90, [u, v]) ≈ logpdf(R90, [v, u])
+    @test logpdf(S180, [u, v]) ≈ logpdf(R180, [v, u])
+    @test logpdf(S270, [u, v]) ≈ logpdf(R270, [v, u])
+end
+
 @testset "Negative Clayton support boundary" begin
     θ = -0.5
     C = ClaytonCopula(2, θ)

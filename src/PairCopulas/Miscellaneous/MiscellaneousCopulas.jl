@@ -1,98 +1,97 @@
 # Miscellaneous bivariate conditional primitives.
 
-# SurvivalCopula flips are encoded at the type level. The base copula is
-# evaluated after flipping coordinates; the conditional probability is flipped
-# only when its target margin is flipped.
-function hfunc1(S::Copulas.SurvivalCopula{2,CT,flips}, uv::Tuple{<:Real,<:Real}) where {CT,flips}
-    u, v = _clp(uv[1]), _clp(uv[2])
-    fu, fv = 1 in flips, 2 in flips
-    q = hfunc1(S.C, fu ? 1-u : u, fv ? 1-v : v)
-    return _clp(fu ? 1-q : q)
+# Public reflected-copula types supported by Copulas.jl.
+#
+# Do not dispatch on Copulas.AbstractReflectedCopula here: that type is an
+# internal implementation detail in Copulas.jl.  VineCopulas depends only on
+# the public reflected types and semantic accessors.
+const _ReflectedPairCopula = Union{
+    Copulas.SurvivalCopula{2},
+    Copulas.Rotated90Copula{2},
+    Copulas.Rotated180Copula{2},
+    Copulas.Rotated270Copula{2},
+}
+
+@inline function _reflection_parts(S::_ReflectedPairCopula)
+    B = Copulas.basecopula(S)
+    fu, fv = Copulas.flipmask(S)
+    return B, fu, fv
 end
 
-function hfunc2(S::Copulas.SurvivalCopula{2,CT,flips}, uv::Tuple{<:Real,<:Real}) where {CT,flips}
+
+# ---------------------------------------------------------------------
+# Conditional CDFs and inverse conditional CDFs
+# ---------------------------------------------------------------------
+
+function hfunc1(S::_ReflectedPairCopula, uv::Tuple{<:Real,<:Real})
     u, v = _clp(uv[1]), _clp(uv[2])
-    fu, fv = 1 in flips, 2 in flips
-    q = hfunc2(S.C, fu ? 1-u : u, fv ? 1-v : v)
-    return _clp(fv ? 1-q : q)
+    B, fu, fv = _reflection_parts(S)
+    q = hfunc1(B, fu ? 1 - u : u, fv ? 1 - v : v,)
+    return _clp(fu ? 1 - q : q)
 end
 
-function hinv1(S::Copulas.SurvivalCopula{2,CT,flips}, q::Real, v::Real) where {CT,flips}
+function hfunc2(S::_ReflectedPairCopula, uv::Tuple{<:Real,<:Real})
+    u, v = _clp(uv[1]), _clp(uv[2])
+    B, fu, fv = _reflection_parts(S)
+    q = hfunc2(B, fu ? 1 - u : u, fv ? 1 - v : v,)
+    return _clp(fv ? 1 - q : q)
+end
+
+function hinv1(S::_ReflectedPairCopula, q::Real, v::Real)
     q, v = _clp(q), _clp(v)
-    fu, fv = 1 in flips, 2 in flips
-    u = hinv1(S.C, fu ? 1-q : q, fv ? 1-v : v)
-    return _clp(fu ? 1-u : u)
+    B, fu, fv = _reflection_parts(S)
+    u = hinv1(B, fu ? 1 - q : q, fv ? 1 - v : v,)
+    return _clp(fu ? 1 - u : u)
 end
 
-function hinv2(S::Copulas.SurvivalCopula{2,CT,flips}, q::Real, u::Real) where {CT,flips}
+function hinv2(S::_ReflectedPairCopula, q::Real, u::Real)
     q, u = _clp(q), _clp(u)
-    fu, fv = 1 in flips, 2 in flips
-    v = hinv2(S.C, fv ? 1-q : q, fu ? 1-u : u)
-    return _clp(fv ? 1-v : v)
+    B, fu, fv = _reflection_parts(S)
+    v = hinv2(B, fv ? 1 - q : q, fu ? 1 - u : u,)
+    return _clp(fv ? 1 - v : v)
 end
 
-# Fused reflection wrappers reuse the base copula's specialized kernels.  A
-# coordinate reflection has unit absolute Jacobian, so the density itself is
+
+# ---------------------------------------------------------------------
+# Fused reflected pair kernels
+# ---------------------------------------------------------------------
+
+# A coordinate reflection has unit absolute Jacobian, so the density itself is
 # unchanged after evaluating the base copula at the reflected point.
-@inline function _survival_inputs(
-    S::Copulas.SurvivalCopula{2,CT,flips},
-    u::Real,
-    v::Real,
-) where {CT,flips}
+
+@inline function _reflected_inputs(S::_ReflectedPairCopula, u::Real, v::Real,)
     uu, vv = _clp(u), _clp(v)
-    fu, fv = 1 in flips, 2 in flips
-    return fu ? 1 - uu : uu, fv ? 1 - vv : vv, fu, fv
+    B, fu, fv = _reflection_parts(S)
+    ub = fu ? 1 - uu : uu
+    vb = fv ? 1 - vv : vv
+    return B, ub, vb, fu, fv
 end
 
-@inline function _pair_logpdf(
-    S::Copulas.SurvivalCopula{2,CT,flips},
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-) where {CT,flips}
-    ub, vb, _, _ = _survival_inputs(S, u, v)
-    return _pair_logpdf(S.C, ub, vb, buf)
+@inline function _pair_logpdf(S::_ReflectedPairCopula, u::Real, v::Real, buf::Vector{Float64},)
+    B, ub, vb, _, _ = _reflected_inputs(S, u, v)
+    return _pair_logpdf(B, ub, vb, buf)
 end
 
-@inline function _pair_hfuncs(
-    S::Copulas.SurvivalCopula{2,CT,flips},
-    u::Real,
-    v::Real,
-) where {CT,flips}
-    ub, vb, fu, fv = _survival_inputs(S, u, v)
-    h1, h2 = _pair_hfuncs(S.C, ub, vb)
-    return _clp(fu ? 1 - h1 : h1), _clp(fv ? 1 - h2 : h2)
+@inline function _pair_hfuncs(S::_ReflectedPairCopula, u::Real, v::Real,)
+    B, ub, vb, fu, fv = _reflected_inputs(S, u, v)
+    h1, h2 = _pair_hfuncs(B, ub, vb)
+    return (_clp(fu ? 1 - h1 : h1), _clp(fv ? 1 - h2 : h2),)
 end
 
-@inline function _pair_step(
-    S::Copulas.SurvivalCopula{2,CT,flips},
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-) where {CT,flips}
-    ub, vb, fu, fv = _survival_inputs(S, u, v)
-    logc, h1, h2 = _pair_step(S.C, ub, vb, buf)
-    return logc, _clp(fu ? 1 - h1 : h1), _clp(fv ? 1 - h2 : h2)
+@inline function _pair_step(S::_ReflectedPairCopula, u::Real, v::Real, buf::Vector{Float64},)
+    B, ub, vb, fu, fv = _reflected_inputs(S, u, v)
+    logc, h1, h2 = _pair_step(B, ub, vb, buf)
+    return (logc, _clp(fu ? 1 - h1 : h1), _clp(fv ? 1 - h2 : h2),)
 end
 
-@inline function _pair_logpdf_h1(
-    S::Copulas.SurvivalCopula{2,CT,flips},
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-) where {CT,flips}
-    ub, vb, fu, _ = _survival_inputs(S, u, v)
-    logc, h1 = _pair_logpdf_h1(S.C, ub, vb, buf)
+@inline function _pair_logpdf_h1(S::_ReflectedPairCopula, u::Real, v::Real, buf::Vector{Float64},)
+    B, ub, vb, fu, _ = _reflected_inputs(S, u, v)
+    logc, h1 = _pair_logpdf_h1(B, ub, vb, buf)
     return logc, _clp(fu ? 1 - h1 : h1)
 end
 
-@inline function _pair_logpdf_h2(
-    S::Copulas.SurvivalCopula{2,CT,flips},
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-) where {CT,flips}
-    ub, vb, _, fv = _survival_inputs(S, u, v)
-    logc, h2 = _pair_logpdf_h2(S.C, ub, vb, buf)
+@inline function _pair_logpdf_h2(S::_ReflectedPairCopula,u::Real, v::Real, buf::Vector{Float64},)
+    B, ub, vb, _, fv = _reflected_inputs(S, u, v)
+    logc, h2 = _pair_logpdf_h2(B, ub, vb, buf)
     return logc, _clp(fv ? 1 - h2 : h2)
 end

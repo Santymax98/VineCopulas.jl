@@ -20,7 +20,7 @@
 # by the Copulas.jl constructor.
 
 @inline function _arch_coordinate(G::Copulas.BB7Generator, u::Real)
-    θ, δ, uu = promote(float(G.θ), float(G.δ), float(u))
+    θ, δ, uu = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(u))
 
     zero(uu) < uu <= one(uu) || throw(DomainError(u, "The BB7 probability must belong to (0, 1].",))
     isone(uu) && return zero(uu)
@@ -30,7 +30,7 @@
 end
 
 @inline function _arch_probability(G::Copulas.BB7Generator, L::Real)
-    θ, δ, LL = promote(float(G.θ), float(G.δ), float(L))
+    θ, δ, LL = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(L))
 
     LL >= zero(LL) || throw(DomainError(L, "The BB7 log1p coordinate must be non-negative.",))
 
@@ -45,7 +45,7 @@ end
 end
 
 @inline function _arch_logderivative(G::Copulas.BB7Generator,L::Real,)
-    θ, δ, LL = promote(float(G.θ), float(G.δ), float(L))
+    θ, δ, LL = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(L))
     T = typeof(LL)
 
     LL >= zero(LL) || throw(DomainError(L, "The BB7 log1p coordinate must be non-negative.",))
@@ -70,7 +70,7 @@ function _arch_inverse_logderivative(G::Copulas.BB7Generator, logm::Real,)
     lm == -T(Inf) && return T(Inf)
     lm == T(Inf) && return zero(T)
 
-    θ, δ = T(G.θ), T(G.δ)
+    θ, δ = T(Distributions.params(G).θ), T(Distributions.params(G).δ)
 
     θ > one(T) || throw(DomainError(θ, "A genuine BB7 generator requires θ > 1; θ = 1 reduces to Clayton.",))
 
