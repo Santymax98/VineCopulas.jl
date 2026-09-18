@@ -62,12 +62,11 @@ This helper is intended for reproducible examples and tests.
 """
 enable_deterministic_cdf!(Npow::Integer=15) = (set_cdf_nsamples!(1 << Npow); nothing)
 
-function _qmc_points(p::Int, N::Int; randomized::Bool=true)
+function _qmc_points(rng::Random.AbstractRNG, p::Int, N::Int; randomized::Bool=true)
     N >= 1 || throw(ArgumentError("N debe ser positivo"))
     M = randomized ? (1 << ceil(Int, log2(N))) : N
     X = QuasiMonteCarlo.sample(M, p, QuasiMonteCarlo.SobolSample())
     if randomized
-        rng = Random.MersenneTwister(_CDF_QMC_SEED[])
         X = QuasiMonteCarlo.randomize(X, QuasiMonteCarlo.OwenScramble(base=2, rng=rng))
     end
     if size(X,1) == M && size(X,2) == p
@@ -78,17 +77,30 @@ function _qmc_points(p::Int, N::Int; randomized::Bool=true)
         throw(ErrorException("QuasiMonteCarlo devolvió dimensiones inesperadas $(size(X))"))
     end
 end
+_qmc_points(p::Int, N::Int; randomized::Bool=true) =
+    _qmc_points(Random.MersenneTwister(_CDF_QMC_SEED[]), p, N; randomized=randomized)
 
 """
-    simulate_qmc(vine, N; randomized=true)
+    simulate_qmc([rng::AbstractRNG,] vine, N; randomized=true)
 
 Generate `N` quasi-Monte Carlo observations from a vine copula using Sobol
 points followed by the inverse Rosenblatt transform. The returned matrix has
 size `p × N`, with rows corresponding to variables and columns to observations.
+
+When `randomized=true` the Sobol points are Owen-scrambled and `rng` drives the
+scramble, so two calls with the same generator state return the same points and
+two independent generators give two independent QMC replicates. Without an
+`rng` the scramble uses a fixed internal seed, so the point set is the same on
+every call. When `randomized=false` the raw Sobol points are returned and `rng`
+is ignored.
 """
-function simulate_qmc(vc::AbstractVineCopula{p}, N::Integer; randomized::Bool=true) where {p}
-    Z = _qmc_points(p, Int(N); randomized=randomized)
+function simulate_qmc(rng::Random.AbstractRNG, vc::AbstractVineCopula{p}, N::Integer;
+                      randomized::Bool=true) where {p}
+    Z = _qmc_points(rng, p, Int(N); randomized=randomized)
     return inverse_rosenblatt(vc, Z)
+end
+function simulate_qmc(vc::AbstractVineCopula{p}, N::Integer; randomized::Bool=true) where {p}
+    return simulate_qmc(Random.MersenneTwister(_CDF_QMC_SEED[]), vc, N; randomized=randomized)
 end
 
 # -------------------- Distributions.jl interface --------------------
@@ -131,14 +143,27 @@ function Distributions.rand!(rng::Distributions.AbstractRNG, A::AbstractMatrix{<
     return A
 end
 
+# Draw the sample the numerical `cdf` integrates over. `rng === nothing` keeps the
+# historical defaults: a fixed-seed Owen scramble for `:qmc` and the global
+# generator for `:mc`. A caller-supplied `rng` drives both methods.
+function _cdf_sample(vc::AbstractVineCopula, method::Symbol, N::Integer, randomized::Bool,
+                     rng::Union{Nothing,Random.AbstractRNG})
+    method in (:qmc, :mc) || throw(ArgumentError("method debe ser :qmc o :mc"))
+    if method === :qmc
+        return rng === nothing ? simulate_qmc(vc, N; randomized=randomized) :
+               simulate_qmc(rng, vc, N; randomized=randomized)
+    else
+        return Distributions.rand(something(rng, Distributions.default_rng()), vc, Int(N))
+    end
+end
+
 function Distributions.cdf(vc::AbstractVineCopula{p}, u::AbstractVector{<:Real};
                            method::Symbol=:qmc,
                            N::Integer=_CDF_NSAMPLES[],
                            randomized::Bool=true,
-                           rng::Distributions.AbstractRNG=Distributions.default_rng()) where {p}
+                           rng::Union{Nothing,Random.AbstractRNG}=nothing) where {p}
     _check_vector_dim(p, u)
-    method in (:qmc, :mc) || throw(ArgumentError("method debe ser :qmc o :mc"))
-    U = method === :qmc ? simulate_qmc(vc, N; randomized=randomized) : Distributions.rand(rng, vc, Int(N))
+    U = _cdf_sample(vc, method, N, randomized, rng)
     return _box_probability(U, u)
 end
 
@@ -146,10 +171,9 @@ function Distributions.cdf(vc::AbstractVineCopula{p}, Ueval::AbstractMatrix{<:Re
                            method::Symbol=:qmc,
                            N::Integer=_CDF_NSAMPLES[],
                            randomized::Bool=true,
-                           rng::Distributions.AbstractRNG=Distributions.default_rng()) where {p}
-    method in (:qmc, :mc) || throw(ArgumentError("method debe ser :qmc o :mc"))
+                           rng::Union{Nothing,Random.AbstractRNG}=nothing) where {p}
     X = _as_pxn(p, Ueval)
-    Usim = method === :qmc ? simulate_qmc(vc, N; randomized=randomized) : Distributions.rand(rng, vc, Int(N))
+    Usim = _cdf_sample(vc, method, N, randomized, rng)
     out = Vector{Float64}(undef, size(X,2))
     @inbounds for j in axes(X,2)
         out[j] = _box_probability(Usim, view(X, :, j))

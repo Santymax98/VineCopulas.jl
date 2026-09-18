@@ -9,6 +9,14 @@ U = rand(vine, 10_000)
 Q = simulate_qmc(vine, 10_000)
 ```
 
+Both accept a generator as the first argument. For `simulate_qmc` it drives the Owen scramble of the Sobol points, so two generators seeded alike return the same points and two seeded differently give independent QMC replicates; without one the scramble uses a fixed internal seed.
+
+```julia
+using Random
+Q1 = simulate_qmc(Xoshiro(1), vine, 10_000)
+Q2 = simulate_qmc(Xoshiro(2), vine, 10_000)
+```
+
 ## Rosenblatt transform
 
 For a fitted or explicit vine ``C``, the Rosenblatt transform maps dependent observations to conditionally uniform coordinates:
@@ -35,4 +43,4 @@ Truncation is respected by every transform. A vine truncated at level ``q`` trea
 
 ## Numerical CDF
 
-The multivariate CDF is evaluated numerically for general vines. Use `set_cdf_nsamples!` to control the integration budget and `enable_deterministic_cdf!` when reproducibility is more important than randomization.
+The multivariate CDF is evaluated numerically for general vines. Use `set_cdf_nsamples!` to control the integration budget and `enable_deterministic_cdf!` when reproducibility is more important than randomization. The `rng` keyword of `cdf` drives the sample for both `method = :qmc` and `method = :mc`; when it is omitted, `:qmc` uses the fixed internal scramble seed and `:mc` the global generator.
