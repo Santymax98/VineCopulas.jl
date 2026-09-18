@@ -146,6 +146,12 @@ end
     end
 
     @testset "LogTail reuses the analytic Gumbel inverse" begin
+        # Regression: direct subtraction of generator coordinates loses
+        # precision here. Both public families must share the stable inverse.
+        E = Copulas.ExtremeValueCopula(2, Copulas.LogTail(4.0))
+        G = Copulas.GumbelCopula(2, 4.0)
+        @test hinv1(E, 0.99999999, 0.01) == hinv1(G, 0.99999999, 0.01)
+        @test hinv2(E, 0.99999999, 0.01) == hinv2(G, 0.99999999, 0.01)
         for θ in (1.01, 1.5, 4.0)
             E = Copulas.ExtremeValueCopula(2, Copulas.LogTail(θ))
             G = Copulas.GumbelCopula(2, θ)

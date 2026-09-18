@@ -922,52 +922,7 @@ end
     q::Real,
     base::Real,
 )
-    θ, qq, bb = promote(
-        float(Distributions.params(C).θ),
-        float(q),
-        float(base),
-    )
-
-    qq, bb = _clp(qq), _clp(bb)
-
-    # LogTail(1) is independence.
-    isone(θ) && return qq
-
-    θ > one(θ) ||
-        throw(DomainError(θ, "A LogTail parameter must satisfy θ ≥ 1."))
-
-    isfinite(θ) ||
-        throw(DomainError(θ, "The analytic LogTail inverse requires finite θ."))
-
-    # Reproduce the Gumbel-Hougaard generator-coordinate calculation
-    # directly from θ:
-    #
-    #   ϕ(s)    = exp(-s^(1/θ))
-    #   ϕ⁻¹(u)  = (-log(u))^θ
-    #
-    # without constructing or accessing a Copulas.jl generator object.
-    sbase = (-log(bb))^θ
-
-    a = inv(θ)
-    tam1 = exp((a - one(a)) * log(sbase))
-    d1base = -a * tam1 * exp(-tam1 * sbase)
-
-    # Solve ϕ'(stotal) = q * ϕ'(sbase).
-    target = qq * d1base
-    c = -θ * target
-
-    iszero(c) && return zero(qq)
-
-    b = θ - one(θ)
-    logarg = -log(c) / b - log(b)
-
-    logz = log(b) + _log_lambertw_exp(logarg)
-    stotal = exp(θ * logz)
-
-    starget = max(stotal - sbase, zero(stotal))
-
-    # Evaluate ϕ(starget) using the same arithmetic form as Copulas.jl.
-    return exp(-exp(log(starget) / θ))
+    return _gumbel_hinv_from_theta(Distributions.params(C).θ, q, base)
 end
 
 @inline function _ev_hinv1(

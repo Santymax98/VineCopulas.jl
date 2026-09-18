@@ -18,6 +18,10 @@ end
     for (mode, candidates) in (("specialized", archimedean_specialized_candidates()), ("generic fallback", archimedean_fallback_candidates()))
         @testset "$mode" begin
             for (name, C) in candidates
+                # These migrated families no longer implement generator-level
+                # derivative inversion. Their conditional inverses are checked
+                # in the functional roundtrip below.
+                C isa Union{Copulas.GumbelCopula{2},Copulas.JoeCopula{2}} && continue
                 @testset "$name" for s in S_GRID
                     _check_derivative_inverse(C.G, s; atol=1e-7, rtol=1e-7)
                 end

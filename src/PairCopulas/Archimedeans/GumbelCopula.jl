@@ -129,8 +129,8 @@ end
 #
 # which can be inverted with Lambert W without referring to the
 # Archimedean generator representation.
-@inline function _gumbel_hinv(C::Copulas.GumbelCopula{2}, q::Real, base::Real,)
-    θ, qq, bb = promote(float(Distributions.params(C).θ), float(q), float(base),)
+@inline function _gumbel_hinv_from_theta(θ::Real, q::Real, base::Real,)
+    θ, qq, bb = promote(float(θ), float(q), float(base),)
 
     θ >= one(θ) || throw(DomainError(θ, "A Gumbel copula requires θ ≥ 1.",))
 
@@ -159,6 +159,10 @@ end
     x = exp(logxθ / θ)
 
     return clamp(exp(-x), zero(qq), one(qq),)
+end
+
+@inline function _gumbel_hinv(C::Copulas.GumbelCopula{2}, q::Real, base::Real,)
+    return _gumbel_hinv_from_theta(Distributions.params(C).θ, q, base)
 end
 
 @inline function hinv1(C::Copulas.GumbelCopula{2}, q::Real, v::Real,)
