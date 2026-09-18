@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - compat/copulas-1.0
     tags: ['*']
   pull_request:
   workflow_dispatch:
@@ -14,10 +13,6 @@ concurrency:
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
   test:
-    if: >-
-      github.ref_name != 'compat/copulas-1.0' &&
-      github.head_ref != 'compat/copulas-1.0' &&
-      github.base_ref != 'compat/copulas-1.0'
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -41,6 +36,15 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v2
+      - name: Pin Copulas.jl compatibility snapshot
+        shell: julia --project=. --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.add(PackageSpec(
+              url="https://github.com/lrnv/Copulas.jl.git",
+              rev="b7dbd204296027108082f6e825a01f56f148de5c",
+          ))
+          Pkg.status()
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
@@ -49,11 +53,8 @@ jobs:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
+
   docs:
-    if: >-
-      github.ref_name != 'compat/copulas-1.0' &&
-      github.head_ref != 'compat/copulas-1.0' &&
-      github.base_ref != 'compat/copulas-1.0'
     name: Documentation
     runs-on: ubuntu-latest
     permissions:
@@ -66,11 +67,24 @@ jobs:
         with:
           version: '1'
       - uses: julia-actions/cache@v2
+      - name: Pin Copulas.jl compatibility snapshot
+        shell: julia --project=. --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.add(PackageSpec(
+              url="https://github.com/lrnv/Copulas.jl.git",
+              rev="b7dbd204296027108082f6e825a01f56f148de5c",
+          ))
+          Pkg.status()
       - name: Configure doc environment
         shell: julia --project=docs --color=yes {0}
         run: |
           using Pkg
           Pkg.develop(PackageSpec(path=pwd()))
+          Pkg.add(PackageSpec(
+              url="https://github.com/lrnv/Copulas.jl.git",
+              rev="b7dbd204296027108082f6e825a01f56f148de5c",
+          ))
           Pkg.instantiate()
       - uses: julia-actions/julia-buildpkg@v1
       - name: Clean Vitepress artifacts
@@ -87,32 +101,3 @@ jobs:
           using VineCopulas
           DocMeta.setdocmeta!(VineCopulas, :DocTestSetup, :(using VineCopulas); recursive=true)
           doctest(VineCopulas)
-
-  copulas-main:
-    name: Copulas main compatibility - Julia 1.12
-    if: >-
-      github.ref_name == 'compat/copulas-1.0' ||
-      github.head_ref == 'compat/copulas-1.0' ||
-      github.base_ref == 'compat/copulas-1.0'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: julia-actions/setup-julia@v2
-        with:
-          version: '1.12'
-      - uses: julia-actions/cache@v2
-      - name: Pin Copulas.jl migration snapshot
-        shell: julia --project=. --color=yes {0}
-        run: |
-          using Pkg
-          Pkg.add(PackageSpec(
-              url="https://github.com/lrnv/Copulas.jl.git",
-              rev="b7dbd204296027108082f6e825a01f56f148de5c",
-          ))
-          Pkg.status()
-      - uses: julia-actions/julia-buildpkg@v1
-      - uses: julia-actions/julia-runtest@v1
