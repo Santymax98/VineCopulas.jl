@@ -27,6 +27,7 @@ const _EVFastSmoothTail = Union{
     Copulas.HuslerReissTail,
     Copulas.MixedTail,
     Copulas.AsymLogTail,
+    Copulas.AsymGalambosTail,
     Copulas.AsymMixedTail,
 }
 
@@ -238,6 +239,45 @@ end
 end
 
 @inline function _ev_A_dA(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymGalambosTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+
+    α = p.α + zero(t)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
+
+    a = t
+    b = one(t) - t
+
+    # Let
+    #
+    #   B = ((θ1*a)^(-α) + (θ2*b)^(-α))^(-1/α),
+    #
+    # so A(t) = 1 - B.
+    #
+    # Evaluate the negative powers through log-sum-exp to avoid
+    # overflow/underflow in the tails.
+    x1 = -α*log(θ1*a)
+    x2 = -α*log(θ2*b)
+
+    logsum = LogExpFunctions.logaddexp(x1, x2)
+
+    w1 = exp(x1 - logsum)
+    w2 = exp(x2 - logsum)
+    B = exp(-logsum/α)
+
+    A = one(t) - B
+
+    g = w2/b - w1/a
+    dA = B*g
+
+    B1, B2 = _ev_pickands_factors(C, t, A, dA)
+    return A, dA, B1, B2
+end
+
+@inline function _ev_A_dA(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
     t::Real,
 )
@@ -379,6 +419,49 @@ end
 end
 
 @inline function _ev_A_dA_d2A(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymGalambosTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+
+    α = p.α + zero(t)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
+
+    a = t
+    b = one(t) - t
+
+    x1 = -α*log(θ1*a)
+    x2 = -α*log(θ2*b)
+
+    logsum = LogExpFunctions.logaddexp(x1, x2)
+
+    w1 = exp(x1 - logsum)
+    w2 = exp(x2 - logsum)
+    B = exp(-logsum/α)
+
+    A = one(t) - B
+
+    g = w2/b - w1/a
+    dA = B*g
+
+    # Copulas.jl writes this as
+    #
+    #   (1+α)B[
+    #       w2/b² + w1/a² - (w2/b - w1/a)²
+    #   ].
+    #
+    # Since w1+w2=1, the bracket simplifies exactly to
+    #
+    #   w1*w2/(a²*b²),
+    #
+    # avoiding cancellation near the boundaries.
+    d2A = (one(α) + α) * B * w1*w2/(a*a*b*b)
+
+    return A, dA, d2A
+end
+
+@inline function _ev_A_dA_d2A(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
     t::Real,
 )
@@ -416,6 +499,23 @@ end
 @inline _ev_fast_eligible(
     ::Copulas.ExtremeValueCopula{2,<:Copulas.MixedTail},
 ) = true
+
+@inline function _ev_fast_eligible(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymGalambosTail},
+)
+    p = Distributions.params(C)
+
+    α = p.α
+    θ1 = p.θ₁
+    θ2 = p.θ₂
+
+    return isfinite(α) &&
+           isfinite(θ1) &&
+           isfinite(θ2) &&
+           α > zero(α) &&
+           θ1 > zero(θ1) &&
+           θ2 > zero(θ2)
+end
 
 @inline function _ev_fast_eligible(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymLogTail},
