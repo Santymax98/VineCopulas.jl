@@ -8,7 +8,7 @@
 
     # Outside the absolutely continuous support u^(-θ)+v^(-θ)-1 ≤ 0.
     @test VineCopulas._pair_logpdf(C, 0.04, 0.04, buf) == -Inf
-    @test VineCopulas._arch_hfunc(C.G, 0.04, 0.04) == 0.0
+    @test VineCopulas._clayton_hfunc(C, 0.04, 0.04) == 0.0
 
     # Interior support remains finite and the conditional quantile round-trips.
     @test isfinite(VineCopulas._pair_logpdf(C, 0.81, 0.81, buf))
@@ -21,6 +21,7 @@ end
 @testitem "Regression – positive Clayton conditional inverse at a small base" tags=[:Regression, :PairCopula, :Clayton] begin
     using Test
     using Copulas
+    using Distributions
     using VineCopulas
 
     # The generic Archimedean inverse goes through ϕ⁻¹(base) = (base^(-θ) - 1)/θ,
@@ -45,14 +46,17 @@ end
         @test isfinite(u) && 0.0 < u < 1.0
         # The edges of q map to the edges of u in the kernel itself; the public
         # entry points clamp q to the open interval first.
-        @test VineCopulas._arch_hinv(C.G, 0.0, 0.3) == 0.0
-        @test VineCopulas._arch_hinv(C.G, 1.0, 0.3) == 1.0
+        @test VineCopulas._clayton_hinv(C, 0.0, 0.3) == 0.0
+        @test VineCopulas._clayton_hinv(C, 1.0, 0.3) == 1.0
     end
 
-    # The closed form agrees with the generic inverse where the latter is sound.
+    # The closed form agrees with the canonical public Copulas.jl conditional
+    # quantile at ordinary points.  The public conditioning API is the oracle;
+    # VineCopulas must not depend on generator-level implementation details.
     for θ in (0.5, 2.0, 5.0), (q, base) in ((0.5, 0.3), (0.01, 0.9), (0.99, 0.05), (0.5, 1e-20))
         C = ClaytonCopula(2, θ)
-        @test hinv1(C, q, base) ≈ VineCopulas._arch_hinv_generic(C.G, q, base) rtol=1e-12
+        reference = Distributions.quantile(Copulas.condition(C, 2, base), q)
+        @test hinv1(C, q, base) ≈ reference rtol=1e-12
     end
 end
 
