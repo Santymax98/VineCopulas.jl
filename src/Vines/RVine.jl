@@ -310,7 +310,7 @@ function _rvine_logpdf_internal(vc::RVineCopula{p}, U::AbstractMatrix{<:Real}) w
     @inbounds for tree0 in 0:(q-1)
         propagate = tree0 < q - 1
         for edge in 1:(p-tree0-1)
-            C = vc.edges[tree0+1][edge]
+            C = _prepare_pair(vc.edges[tree0+1][edge])
             mpos = _max_pos(S, invord, tree0, edge)
             direct = _is_direct(S, tree0, edge)
             if propagate
@@ -355,6 +355,7 @@ function _rvine_inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::RV
     # Experimental general R-vine inverse following the matrix/struct-array traversal.
     Zx = _as_pxn(p, Z)
     nobs = size(Zx,2)
+    pair_kernels = map(level -> map(_prepare_pair, level), vc.edges)
     q = vc.trunc
     S = struct_array(vc)
     ord = order(vc)
@@ -380,7 +381,7 @@ function _rvine_inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::RV
                 m = _max_label(S, tree0, k)
                 mpos = invord_nat[m]
                 z2 = _is_direct(S, tree0, k) ? _fetch_v(Vi, i, mpos, :Vi) : _fetch_v(Vd, i, mpos, :Vd)
-                C = vc.edges[tree0+1][k]
+                C = pair_kernels[tree0+1][k]
                 current = _fetch_v(Vd, p, k, :Vd)
                 Vd[p,k] = hinv1(C, current, z2)
             end
@@ -392,7 +393,7 @@ function _rvine_inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::RV
                 m = _max_label(S, tree0, k)
                 mpos = invord_nat[m]
                 z2 = _is_direct(S, tree0, k) ? _fetch_v(Vi, i, mpos, :Vi) : _fetch_v(Vd, i, mpos, :Vd)
-                C = vc.edges[tree0+1][k]
+                C = pair_kernels[tree0+1][k]
                 Vd[i-1,k], Vi[i-1,k] = _pair_hfuncs(C, z1, z2)
             end
         end
@@ -407,6 +408,7 @@ end
 function _rvine_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::RVineCopula{p}, U::AbstractMatrix{<:Real}) where {p}
     Ux = _as_pxn(p, U)
     nobs = size(Ux,2)
+    pair_kernels = map(level -> map(_prepare_pair, level), vc.edges)
     q = vc.trunc
     S = struct_array(vc)
     ord = order(vc)
@@ -432,7 +434,7 @@ function _rvine_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::RVineCopul
                 m = _max_label(S, tree0, k)
                 mpos = invord_nat[m]
                 z2 = _is_direct(S, tree0, k) ? _fetch_v(Vi, i, mpos, :Vi) : _fetch_v(Vd, i, mpos, :Vd)
-                C = vc.edges[tree0+1][k]
+                C = pair_kernels[tree0+1][k]
                 Vd[i-1,k], Vi[i-1,k] = _pair_hfuncs(C, z1, z2)
             end
             Z[k,col] = _fetch_v(Vd, k, k, :Vd)
