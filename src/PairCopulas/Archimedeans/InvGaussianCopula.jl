@@ -160,6 +160,10 @@ end
     # Independence.
     iszero(θ) && return qq
     y = -log(vv)
+    # θ = ∞ is exactly the bivariate Gumbel copula with parameter 2.
+    # Reuse its stable analytic conditional inverse instead of letting the
+    # scaled inverse-Gaussian reconstruction degenerate to 0/0 near u = 1.
+    isinf(θ) && return _gumbel_hinv_from_theta(T(2), qq, vv)
     # Near independence, λ = 1/θ is too large for the Lambert-W
     # representation to be numerically attractive. Solve directly in
     #
@@ -237,15 +241,37 @@ end
     # For ordinary probabilities direct factorization is both cheaper and
     # sufficiently accurate. Near q = 1, R and B nearly coincide, so switch
     # to a cancellation-safe reconstruction.
-    if qq < T(0.99)
-        D = max((R - B) * (R + B), zero(T))
-    else
-        logB = log(B)
-        logR = log(R)
-        dlog = max(logR - logB, zero(T))
+    gap = R - B
+    scale = max(abs(R), abs(B), one(T))
 
-        dR = B * expm1(dlog)
-        D = max(dR * (R + B), zero(T))
+    if gap > sqrt(eps(T)) * scale
+        # Well separated: direct factorization is accurate and cheapest.
+        D = gap * (R + B)
+    else
+        # When R ≈ B, subtracting them loses the information needed to
+        # recover a target close to one.  From
+        #
+        #     q = exp(B-R) * B/R
+        #
+        # write d = R-B ≥ 0. Then d satisfies
+        #
+        #     d + log1p(d/B) = -log(q).
+        #
+        # Solve this scalar equation locally and reconstruct
+        #
+        #     R²-B² = d(2B+d)
+        #
+        # without cancellation.
+        r = -log(qq)
+        d = r / (one(T) + inv(B))
+
+        for _ in 1:3
+            f = d + log1p(d / B) - r
+            df = one(T) + inv(B + d)
+            d = max(d - f / df, zero(T))
+        end
+
+        D = d * (2 * B + d)
     end
 
     # Recover x from

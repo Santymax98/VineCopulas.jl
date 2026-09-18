@@ -27,7 +27,7 @@
     A = one(T) + θ * x
     B = one(T) + θ * y
 
-    logE = -θ * x * y
+    logE = -θ * (x * y)
 
     return θ, uu, vv, x, y, A, B, logE
 end
@@ -47,7 +47,9 @@ end
     return logE + log(N)
 end
 
-@inline function _gb_hfunc_from_terms(θ, x, A, logE,)
+@inline function _gb_hfunc_from_terms(θ, target, x, A, logE,)
+    iszero(θ) && return target
+
     # h = u(1+θx)exp(-θxy), with u = exp(-x).
     return exp(-x + log(A) + logE)
 end
@@ -58,8 +60,8 @@ end
 end
 
 @inline function _gb_hfunc(C::Copulas.GumbelBarnettCopula{2}, target::Real, base::Real,)
-    θ, _, _, x, _, A, _, logE = _gb_terms(C, target, base)
-    return _gb_hfunc_from_terms(θ, x, A, logE)
+    θ, tt, _, x, _, A, _, logE = _gb_terms(C, target, base)
+    return _gb_hfunc_from_terms(θ, tt, x, A, logE)
 end
 
 # ---------------------------------------------------------------------
@@ -157,38 +159,38 @@ end
 @inline hinv2(C::Copulas.GumbelBarnettCopula{2}, q::Real, u::Real,) = _clp(_gb_hinv(C, q, u))
 
 @inline function _pair_hfuncs(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real,)
-    θ, _, _, x, y, A, B, logE = _gb_terms(C, u, v)
+    θ, uu, vv, x, y, A, B, logE = _gb_terms(C, u, v)
 
-    h1 = _gb_hfunc_from_terms(θ, x, A, logE)
-    h2 = _gb_hfunc_from_terms(θ, y, B, logE)
+    h1 = _gb_hfunc_from_terms(θ, uu, x, A, logE)
+    h2 = _gb_hfunc_from_terms(θ, vv, y, B, logE)
 
     return _clp(h1), _clp(h2)
 end
 
 @inline function _pair_step(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real, ::Vector{Float64},)
-    θ, _, _, x, y, A, B, logE = _gb_terms(C, u, v)
+    θ, uu, vv, x, y, A, B, logE = _gb_terms(C, u, v)
 
     logc = _gb_logpdf_from_terms(θ, x, y, logE)
-    h1 = _gb_hfunc_from_terms(θ, x, A, logE)
-    h2 = _gb_hfunc_from_terms(θ, y, B, logE)
+    h1 = _gb_hfunc_from_terms(θ, uu, x, A, logE)
+    h2 = _gb_hfunc_from_terms(θ, vv, y, B, logE)
 
     return logc, _clp(h1), _clp(h2)
 end
 
 @inline function _pair_logpdf_h1(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real, ::Vector{Float64},)
-    θ, _, _, x, y, A, _, logE = _gb_terms(C, u, v)
+    θ, uu, _, x, y, A, _, logE = _gb_terms(C, u, v)
 
     logc = _gb_logpdf_from_terms(θ, x, y, logE)
-    h1 = _gb_hfunc_from_terms(θ, x, A, logE)
+    h1 = _gb_hfunc_from_terms(θ, uu, x, A, logE)
 
     return logc, _clp(h1)
 end
 
 @inline function _pair_logpdf_h2(C::Copulas.GumbelBarnettCopula{2}, u::Real, v::Real, ::Vector{Float64},)
-    θ, _, _, x, y, _, B, logE = _gb_terms(C, u, v)
+    θ, _, vv, x, y, _, B, logE = _gb_terms(C, u, v)
 
     logc = _gb_logpdf_from_terms(θ, x, y, logE)
-    h2 = _gb_hfunc_from_terms(θ, y, B, logE)
+    h2 = _gb_hfunc_from_terms(θ, vv, y, B, logE)
 
     return logc, _clp(h2)
 end

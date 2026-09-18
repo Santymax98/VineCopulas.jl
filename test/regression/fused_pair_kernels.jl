@@ -609,8 +609,39 @@ end
             @test h1 == hfunc1(C, u, v)
             @test h2 == hfunc2(C, u, v)
 
-            @test hinv1(C, h1, v) ≈ u atol=5e-9 rtol=5e-9
-            @test hinv2(C, h2, u) ≈ v atol=5e-9 rtol=5e-9
+            uhat = hinv1(C, h1, v)
+            vhat = hinv2(C, h2, u)
+
+            if isapprox(uhat, u; atol=5e-9, rtol=5e-9)
+                @test uhat ≈ u atol=5e-9 rtol=5e-9
+            else
+                # Float64 can quantize a flat conditional tail: require the inverse
+                # to map back to exactly the same representable conditional probability.
+                @test hfunc1(C, uhat, v) == h1
+
+                setprecision(BigFloat, 256) do
+                    Cb = InvGaussianCopula(2, BigFloat(theta))
+                    ub, vb = BigFloat(u), BigFloat(v)
+
+                    q1b = hfunc1(Cb, ub, vb)
+                    @test hinv1(Cb, q1b, vb) ≈ ub rtol=big"1e-45"
+                end
+            end
+
+            if isapprox(vhat, v; atol=5e-9, rtol=5e-9)
+                @test vhat ≈ v atol=5e-9 rtol=5e-9
+            else
+                # Same criterion for the second conditional inverse.
+                @test hfunc2(C, u, vhat) == h2
+
+                setprecision(BigFloat, 256) do
+                    Cb = InvGaussianCopula(2, BigFloat(theta))
+                    ub, vb = BigFloat(u), BigFloat(v)
+
+                    q2b = hfunc2(Cb, ub, vb)
+                    @test hinv2(Cb, q2b, ub) ≈ vb rtol=big"1e-45"
+                end
+            end
 
             @test VineCopulas._pair_logpdf_h1(C, u, v, buf) ==
                   (lc, h1)
@@ -676,4 +707,39 @@ end
         @test hinv1(Cig, q1, v) ≈ u atol=5e-9 rtol=5e-9
         @test hinv2(Cig, q2, u) ≈ v atol=5e-9 rtol=5e-9
     end
+end
+
+@testitem "Generic Archimedean fallback uses public APIs only" tags=[:PairCopula, :Archimedean, :Regression] begin
+    using Copulas
+    using Distributions
+    using VineCopulas
+
+    # A generic frailty generator gives us an ArchimedeanCopula that has no
+    # VineCopulas family-specific fast path.  This exercises the public fallback
+    # rather than any concrete-family specialization.
+    G = Copulas.FrailtyGenerator(Gamma(2.0, 1.0))
+    C = Copulas.ArchimedeanCopula(2, G)
+
+    u, v, q = 0.37, 0.72, 0.41
+    buf = zeros(2)
+
+    D1 = Copulas.condition(C, 2, v)
+    D2 = Copulas.condition(C, 1, u)
+
+    @test hfunc1(C, u, v) ≈ cdf(D1, u) atol=1e-12 rtol=1e-12
+    @test hfunc2(C, u, v) ≈ cdf(D2, v) atol=1e-12 rtol=1e-12
+
+    @test hinv1(C, q, v) ≈ quantile(D1, q) atol=1e-12 rtol=1e-12
+    @test hinv2(C, q, u) ≈ quantile(D2, q) atol=1e-12 rtol=1e-12
+
+    expected_logc = logpdf(C, [u, v])
+    observed_logc = VineCopulas._pair_logpdf(C, u, v, buf)
+
+    @test observed_logc ≈ expected_logc atol=1e-12 rtol=1e-12
+
+    logc, h1, h2 = VineCopulas._pair_step(C, u, v, buf)
+
+    @test logc ≈ expected_logc atol=1e-12 rtol=1e-12
+    @test h1 ≈ cdf(D1, u) atol=1e-12 rtol=1e-12
+    @test h2 ≈ cdf(D2, v) atol=1e-12 rtol=1e-12
 end

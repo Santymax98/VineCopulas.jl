@@ -32,7 +32,8 @@
         omθ = one(T) - θ
         Au = omθ + θ * uu
         Av = omθ + θ * vv
-        D = omθ + θ * (uu + vv * omu)
+        lo, hi = minmax(uu, vv)
+        D = omθ + θ * (lo + hi * (one(T) - lo))
     else
         a = -θ
         Au = one(T) + a * omu
@@ -68,8 +69,8 @@ end
 end
 
 @inline function _amh_hfuncs_from_terms(uu, vv, D, Au, Av,)
-    invD2 = inv(D * D)
-    return uu * Au * invD2, vv * Av * invD2
+    D2 = D * D
+    return uu * Au / D2, vv * Av / D2
 end
 
 @inline function _amh_pair_logpdf(C::Copulas.AMHCopula{2}, u::Real, v::Real,)
