@@ -239,3 +239,93 @@ end
     @test struct_array(R2) == struct_array(R)
     @test logpdf(R2, Q) ≈ logpdf(R, Q) atol=1e-12 rtol=1e-12
 end
+
+@testitem "General R-vine – truncated transforms and simulation" tags=[:Vine, :RVine, :Truncation, :Rosenblatt, :Sampling, :Regression] setup=[M] begin
+    # Issue #37. A standard general R-vine truncated below full depth has the
+    # same Rosenblatt transport as the same edges padded to full depth with
+    # independence pair-copulas, because an independence h-function is the
+    # identity. So the transforms, `rand`, `simulate_qmc` and the numerical
+    # `cdf` are all defined for it and must agree with the padded vine.
+    using Test
+    using Distributions
+    using Copulas
+    using VineCopulas
+    using StableRNGs
+
+    I2 = IndependentCopula(2)
+
+    # Pad a truncated vine to full depth. The full structure array is the
+    # truncated one plus the higher trees supplied by the caller.
+    function padded(vc, higher_trees)
+        p = length(vc)
+        S = [collect(struct_array(vc))..., higher_trees...]
+        E = [collect(collect.(edges(vc)))..., [fill(I2, p - t) for t in (truncation(vc) + 1):(p - 1)]...]
+        return RVineCopula(collect(order(vc)), S, E)
+    end
+
+    function check_truncated_transport(vc, full; seed, atol, rtol)
+        rng = StableRNG(seed)
+        p = length(vc)
+        @test truncation(vc) < p - 1
+        @test truncation(full) == p - 1
+
+        Z = 0.01 .+ 0.98 .* rand(rng, p, 96)
+        U = inverse_rosenblatt(vc, Z)
+        @test all(x -> 0 ≤ x ≤ 1, U)
+        @test rosenblatt(vc, U) ≈ Z atol=atol rtol=rtol
+        @test U ≈ inverse_rosenblatt(full, Z) atol=atol rtol=rtol
+        @test rosenblatt(vc, U) ≈ rosenblatt(full, U) atol=atol rtol=rtol
+        @test logpdf(vc, U) ≈ logpdf(full, U) atol=1e-12 rtol=1e-12
+        @test all(isfinite, logpdf(vc, U))
+
+        # The in-place transforms and the vector methods take the same path.
+        out = similar(U)
+        @test inverse_rosenblatt!(out, vc, Z) ≈ U atol=atol rtol=rtol
+        @test rosenblatt!(out, vc, U) ≈ Z atol=atol rtol=rtol
+        @test inverse_rosenblatt(vc, Z[:, 1]) ≈ U[:, 1] atol=atol rtol=rtol
+        @test rosenblatt(vc, U[:, 1]) ≈ Z[:, 1] atol=atol rtol=rtol
+
+        # Simulation runs through the inverse transform.
+        X = rand(StableRNG(seed), vc, 32)
+        @test size(X) == (p, 32)
+        @test all(x -> 0 ≤ x ≤ 1, X)
+        @test X ≈ rand(StableRNG(seed), full, 32) atol=atol rtol=rtol
+        Q = simulate_qmc(vc, 64; randomized=false)
+        @test size(Q) == (p, 64)
+        @test Q ≈ simulate_qmc(full, 64; randomized=false) atol=atol rtol=rtol
+
+        # The numerical CDF is simulation based, so with the same budget and
+        # the same unrandomised Sobol points it agrees with the padded vine.
+        u = fill(0.4, p)
+        c = cdf(vc, u; N=4096, randomized=false)
+        @test 0 < c < 1
+        @test c ≈ cdf(full, u; N=4096, randomized=false) atol=1e-12
+        nothing
+    end
+
+    # The four-variable star at tree 1 from the issue: a C-vine written as a
+    # standard R-vine, truncated at depth 1. The padded vine is the same star
+    # with independence in trees 2 and 3, and the truncated C-vine is a third
+    # oracle that has always had its own transform path.
+    C = GaussianCopula(2, 0.5)
+    star = RVineCopula([1, 2, 3, 4], [[4, 4, 4]], [[C, C, C]]; trunc=1)
+    star_full = padded(star, [[3, 3], [2]])
+    check_truncated_transport(star, star_full; seed=37, atol=1e-12, rtol=1e-12)
+    star_cvine = CVineCopula([4, 1, 2, 3], [[C, C, C]]; trunc=1)
+    Ustar = rand(StableRNG(37), star, 64)
+    @test logpdf(star, Ustar) ≈ logpdf(star_cvine, Ustar) atol=1e-12 rtol=1e-12
+
+    # A genuinely general five-variable R-vine (neither a path nor a star)
+    # truncated at depth 2, padded with the structure of the full fixture.
+    Rt = M.rvine5_general(trunc=2)
+    Rfull = M.rvine5_general()
+    Rt_full = padded(Rt, [collect(struct_array(Rfull)[t]) for t in 3:4])
+    @test struct_array(Rt_full) == struct_array(Rfull)
+    check_truncated_transport(Rt, Rt_full; seed=38, atol=3e-7, rtol=3e-7)
+
+    # Truncating a full vine and padding it back is the identity on the
+    # transport, so `truncate` and the constructor agree.
+    Rtr = truncate(Rfull, 2)
+    Zr = 0.01 .+ 0.98 .* rand(StableRNG(39), 5, 16)
+    @test inverse_rosenblatt(Rtr, Zr) ≈ inverse_rosenblatt(Rt, Zr) atol=1e-12 rtol=1e-12
+end

@@ -132,7 +132,7 @@ function _logpdf_internal(vc::DVineCopula{p}, U::AbstractMatrix{<:Real}) where {
         # replace the consumed states in place without copying full matrices.
         propagate = k < vc.trunc
         for i in 1:(p-k)
-            C = vc.edges[k][i]
+            C = _prepare_pair(vc.edges[k][i])
             left = @view L[i,:]
             right = @view R[i+k,:]
             if propagate
@@ -171,7 +171,7 @@ function _dvine_left_conditionals!(
             Rwork[col] = X[t,col]
         end
         for m in (t-1):-1:first
-            C = vc.edges[t-m][m]
+            C = _prepare_pair(vc.edges[t-m][m])
             for col in 1:n
                 uL = _clp(Lwork[m,col])
                 uR = _clp(Rwork[col])
@@ -200,7 +200,7 @@ function _rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::DVineCopula{p}, 
         @views Z[i,:] .= X[i,:]
         # z_i = F_{i | 1:(i-1)}. Apply hfunc2 from nearest to farthest left.
         for m in (i-1):-1:first
-            C = vc.edges[i-m][m]
+            C = _prepare_pair(vc.edges[i-m][m])
             for col in 1:n
                 Z[i,col] = hfunc2(C, Lwork[m,col], Z[i,col])
             end
@@ -250,7 +250,7 @@ function _inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::DVineCop
         first = _dvine_left_conditionals!(Lwork, Rwork, vc, X, i)
         # Invert from farthest conditioned pair to nearest.
         for m in first:(i-1)
-            C = vc.edges[i-m][m]
+            C = _prepare_pair(vc.edges[i-m][m])
             for col in 1:n
                 X[i,col] = hinv2(C, X[i,col], Lwork[m,col])
             end

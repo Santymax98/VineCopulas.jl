@@ -198,9 +198,28 @@ end
         return s
     end
 
+    # Public params copies the correlation matrix; prepare once per loop.
+    C = VineCopulas._prepare_pair(C)
     fused_sum(C, u, v, buf)
     bytes = @allocated fused_sum(C, u, v, buf)
 
     @test bytes <= 64
     @test @inferred(fused_sum(C, u, v, buf)) isa Float64
+end
+
+@testitem "Prepared elliptical kernels preserve scalar primitives" tags=[:PairCopula, :Regression] setup=[M] begin
+    buf = Vector{Float64}(undef, 2)
+    for C in (M.gaussian_pair(0.35), M.t_pair(-0.35, 4))
+        K = @inferred VineCopulas._prepare_pair(C)
+        @test VineCopulas._prepare_pair(K) === K
+        for (u, v) in ((0.31, 0.72), (1e-8, 0.9), (0.8, 1 - 1e-8))
+            @test all(isapprox.(VineCopulas._pair_step(K, u, v, buf), VineCopulas._pair_step(C, u, v, buf)))
+            @test all(isapprox.(VineCopulas._pair_logpdf_h1(K, u, v, buf), VineCopulas._pair_logpdf_h1(C, u, v, buf)))
+            @test all(isapprox.(VineCopulas._pair_logpdf_h2(K, u, v, buf), VineCopulas._pair_logpdf_h2(C, u, v, buf)))
+            @test hfunc1(K, u, v) ≈ hfunc1(C, u, v)
+            @test hfunc2(K, u, v) ≈ hfunc2(C, u, v)
+            @test hinv1(K, u, v) ≈ hinv1(C, u, v)
+            @test hinv2(K, u, v) ≈ hinv2(C, u, v)
+        end
+    end
 end

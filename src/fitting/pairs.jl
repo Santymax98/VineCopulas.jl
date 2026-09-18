@@ -300,22 +300,6 @@ Distributions.params(C::_VineBoundedStudent) = begin
     (; rho = Float64(p.Σ[1, 2]), nu = Float64(p.ν))
 end
 Distributions._logpdf(C::_VineBoundedStudent, u) = Distributions.logpdf(C.C, u)
-Copulas._example(::Type{_VineBoundedStudent}, d::Int) = _VineBoundedStudent(d, 0.2, 5.0)
-function Copulas._unbound_params(::Type{_VineBoundedStudent}, d::Int, theta::NamedTuple)
-    d == 2 || throw(DimensionMismatch("vine pair-copulas are bivariate"))
-    return vcat(
-        _vine_bounded_unbound(theta.rho, _VINE_STUDENT_RHO_LO, _VINE_STUDENT_RHO_HI),
-        _vine_bounded_unbound(theta.nu, _VINE_STUDENT_NU_LO, _VINE_STUDENT_NU_HI),
-    )
-end
-function Copulas._rebound_params(::Type{_VineBoundedStudent}, d::Int, alpha::AbstractVector)
-    d == 2 || throw(DimensionMismatch("vine pair-copulas are bivariate"))
-    length(alpha) == 2 || throw(DimensionMismatch("Student pair-copula has two parameters"))
-    rho = _vine_bounded_rebound(@view(alpha[1:1]), _VINE_STUDENT_RHO_LO, _VINE_STUDENT_RHO_HI)
-    nu = _vine_bounded_rebound(@view(alpha[2:2]), _VINE_STUDENT_NU_LO, _VINE_STUDENT_NU_HI)
-    return (; rho=rho, nu=nu)
-end
-Copulas._available_fitting_methods(::Type{_VineBoundedStudent}, d) = d == 2 ? (:mle,) : Tuple{}()
 
 struct _VineBoundedGumbel{C<:PairCopula} <: Copulas.Copula{2}
     C::C
@@ -447,9 +431,14 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method:
     if FT <: Copulas.GaussianCopula && method === :mle
         C0, meta = _fit_vine_gaussian(Uf; pair_kwargs...)
     elseif FT <: Copulas.TCopula && method === :mle
-        W = Distributions.fit(_VineBoundedStudent, Uf; method=:mle, pair_kwargs...,)
+        W, meta = _fit_vine_two_parameter_bounded(
+            _VineBoundedStudent, Uf,
+            (_VINE_STUDENT_RHO_LO, _VINE_STUDENT_NU_LO),
+            (_VINE_STUDENT_RHO_HI, _VINE_STUDENT_NU_HI);
+            pair_kwargs...,
+        )
         C0 = W.C
-        meta = (; θ̂=Distributions.params(C0))
+        meta = (; meta..., θ̂=Distributions.params(C0))
     elseif FT <: Copulas.ClaytonCopula && method === :mle
         W, meta = _fit_vine_scalar_bounded(_VinePositiveClayton, Uf, _VINE_CLAYTON_LO, _VINE_CLAYTON_HI; pair_kwargs...,)
         C0 = W.C
