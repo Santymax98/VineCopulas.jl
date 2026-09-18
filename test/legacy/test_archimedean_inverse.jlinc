@@ -22,6 +22,9 @@ _inverse_test_generator(C::Copulas.BB6Copula{2}) =
 _inverse_test_generator(C::Copulas.BB7Copula{2}) =
     Copulas.BB7Generator(Distributions.params(C).θ, Distributions.params(C).δ)
 
+_inverse_test_generator(C::Copulas.BB8Copula{2}) =
+    Copulas.BB8Generator(Distributions.params(C).ϑ, Distributions.params(C).δ)
+
 # The generator remains an independent mathematical reference only.
 function _check_derivative_inverse(C::Copulas.Copula{2}, s; atol=1e-9, rtol=1e-9)
     G = _inverse_test_generator(C)
@@ -44,7 +47,7 @@ end
                 # in the functional roundtrip below.
                 C isa Union{Copulas.GumbelCopula{2},Copulas.JoeCopula{2}} && continue
                 @testset "$name" for s in S_GRID
-                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2},Copulas.BB7Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
+                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2},Copulas.BB7Copula{2},Copulas.BB8Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
                 end
             end
         end
@@ -411,54 +414,56 @@ end
 end
 
 @testset "Specialized BB8-BB10 inverse implementations" begin
-    # Genuine BB8 parameters, including ϑ = 1 (independence), 
-    # ϑ close to 1, small δ and δ close to the Joe boundary. 
-    for ϑ in (1.0, 1.001, 1.2, 3.0), 
-        δ in (0.05, 0.3, 0.8, 0.999), 
-        s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 100.0) 
-        _check_derivative_inverse( Copulas.BB8Generator(ϑ, δ), s; atol=5e-9, rtol=5e-9, ) 
-    end 
-    # Coordinate ↔ probability. 
-    for ϑ in (1.0, 1.01, 1.5, 3.0), 
-        δ in (0.05, 0.5, 0.999), 
-        u in (0.01, 0.2, 0.5, 0.9, 0.99) 
-        G = Copulas.BB8Generator(ϑ, δ) 
-        s = VineCopulas._arch_coordinate(G, u) 
-        @test s >= 0 
-        @test VineCopulas._arch_probability(G, s) ≈ u atol=5e-12 rtol=5e-12 
-    end 
-    # Monotonicity and derivative inversion. 
-    for ϑ in (1.0, 1.01, 1.5, 4.0), 
-        δ in (0.1, 0.7, 0.999) 
-        G = Copulas.BB8Generator(ϑ, δ) 
-        ss = (1e-4, 1e-2, 1.0, 50.0) 
-        ys = [Copulas.ϕ⁽¹⁾(G, s) for s in ss] 
-        recovered = [ VineCopulas._inv_ϕ¹(G, y) for y in ys ] 
-        @test issorted(ys) 
-        @test issorted(recovered) 
-        @test recovered ≈ collect(ss) atol=5e-9 rtol=5e-9 
-    end 
-    # Ordinary additive coordinate. 
-    for ϑ in (1.0, 1.5, 3.0), 
-        δ in (0.2, 0.8) 
-        G = Copulas.BB8Generator(ϑ, δ) 
-        a = VineCopulas._arch_coordinate(G, 0.25) 
-        b = VineCopulas._arch_coordinate(G, 0.70) 
-        total = VineCopulas._arch_combine(G, a, b) 
-        @test total ≈ a + b 
-        @test VineCopulas._arch_difference(G, total, b) ≈ a 
-        @test VineCopulas._arch_difference(G, total, a) ≈ b 
-    end 
-    # Arbitrary precision. 
+    # Genuine BB8 parameters, including ϑ = 1 (independence),
+    # ϑ close to 1, small δ and δ close to the Joe boundary.
+    for ϑ in (1.0, 1.001, 1.2, 3.0),
+        δ in (0.05, 0.3, 0.8, 0.999),
+        s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 100.0)
+        _check_derivative_inverse( Copulas.BB8Copula(2, ϑ, δ), s; atol=5e-9, rtol=5e-9, )
+    end
+    # Coordinate ↔ probability.
+    for ϑ in (1.0, 1.01, 1.5, 3.0),
+        δ in (0.05, 0.5, 0.999),
+        u in (0.01, 0.2, 0.5, 0.9, 0.99)
+        C = Copulas.BB8Copula(2, ϑ, δ)
+        s = VineCopulas._arch_coordinate(C, u)
+        @test s >= 0
+        @test VineCopulas._arch_probability(C, s) ≈ u atol=5e-12 rtol=5e-12
+    end
+    # Monotonicity and derivative inversion.
+    for ϑ in (1.0, 1.01, 1.5, 4.0),
+        δ in (0.1, 0.7, 0.999)
+        C = Copulas.BB8Copula(2, ϑ, δ)
+        G = Copulas.BB8Generator(ϑ, δ)
+        ss = (1e-4, 1e-2, 1.0, 50.0)
+        ys = [Copulas.ϕ⁽¹⁾(G, s) for s in ss]
+        recovered = [ VineCopulas._inv_ϕ¹(C, y) for y in ys ]
+        @test issorted(ys)
+        @test issorted(recovered)
+        @test recovered ≈ collect(ss) atol=5e-9 rtol=5e-9
+    end
+    # Ordinary additive coordinate.
+    for ϑ in (1.0, 1.5, 3.0),
+        δ in (0.2, 0.8)
+        C = Copulas.BB8Copula(2, ϑ, δ)
+        a = VineCopulas._arch_coordinate(C, 0.25)
+        b = VineCopulas._arch_coordinate(C, 0.70)
+        total = VineCopulas._arch_combine(C, a, b)
+        @test total ≈ a + b
+        @test VineCopulas._arch_difference(C, total, b) ≈ a
+        @test VineCopulas._arch_difference(C, total, a) ≈ b
+    end
+    # Arbitrary precision.
     # Arbitrary precision with a representable derivative magnitude.
     setprecision(BigFloat, 256) do
+        C = Copulas.BB8Copula(2, big"2.5", big"0.7")
         G = Copulas.BB8Generator(big"2.5", big"0.7")
 
         # Copulas.ϕ⁽¹⁾ contains exp(-s). Using s = 1e20 would underflow
         # before the specialized inverse receives the derivative value.
         s = big"1e6"
         y = Copulas.ϕ⁽¹⁾(G, s)
-        recovered = VineCopulas._inv_ϕ¹(G, y)
+        recovered = VineCopulas._inv_ϕ¹(C, y)
 
         @test !iszero(y)
         @test recovered ≈ s rtol=big"1e-40"
@@ -466,28 +471,29 @@ end
         # The log-domain implementation can still handle much more extreme
         # coordinates without first constructing the underflowed derivative.
         s_extreme = big"1e20"
-        logm = VineCopulas._arch_logderivative(G, s_extreme)
+        logm = VineCopulas._arch_logderivative(C, s_extreme)
         recovered_extreme =
-            VineCopulas._arch_inverse_logderivative(G, logm)
+            VineCopulas._arch_inverse_logderivative(C, logm)
 
         @test recovered_extreme ≈ s_extreme rtol=big"1e-40"
     end
-    # Boundary behavior: BB8 has finite |ϕ′(0)|. 
-    G = Copulas.BB8Generator(1.5, 0.6) 
-    maxm = -Copulas.ϕ⁽¹⁾(G, 0.0) 
-    @test VineCopulas._inv_ϕ¹(G, -maxm) ≈ 0.0 
-    @test VineCopulas._inv_ϕ¹(G, -0.0) == Inf 
-    @test_throws DomainError VineCopulas._inv_ϕ¹( G, -(maxm * 1.01), ) 
-    @test_throws DomainError VineCopulas._inv_ϕ¹(G, -Inf) 
-    @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1) 
-    @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN) 
+    # Boundary behavior: BB8 has finite |ϕ′(0)|.
+    C = Copulas.BB8Copula(2, 1.5, 0.6)
+    G = Copulas.BB8Generator(1.5, 0.6)
+    maxm = -Copulas.ϕ⁽¹⁾(G, 0.0)
+    @test VineCopulas._inv_ϕ¹(C, -maxm) ≈ 0.0
+    @test VineCopulas._inv_ϕ¹(C, -0.0) == Inf
+    @test_throws DomainError VineCopulas._inv_ϕ¹( C, -(maxm * 1.01), )
+    @test_throws DomainError VineCopulas._inv_ϕ¹(C, -Inf)
+    @test_throws DomainError VineCopulas._inv_ϕ¹(C, 0.1)
+    @test_throws DomainError VineCopulas._inv_ϕ¹(C, NaN)
     # δ = 1 is the Joe subfamily.
     Gjoe = Copulas.BB8Generator(1.5, 1.0)
 
     for s in (0.0, 0.1, 1.0, 10.0)
         @test Copulas.ϕ(Gjoe, s) ≈ Copulas.ϕ(Copulas.JoeGenerator(1.5), s)
     end
-    
+
     @testset "BB9 numerical inverse in shifted-log coordinate" begin
     # θ = 1 is the independence case. The remaining values exercise
     # parameters close to independence and stronger dependence.
