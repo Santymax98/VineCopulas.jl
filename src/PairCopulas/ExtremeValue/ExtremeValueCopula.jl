@@ -26,6 +26,7 @@ const _EVFastSmoothTail = Union{
     Copulas.GalambosTail,
     Copulas.HuslerReissTail,
     Copulas.MixedTail,
+    Copulas.AsymLogTail,
     Copulas.AsymMixedTail,
 }
 
@@ -210,6 +211,33 @@ end
 end
 
 @inline function _ev_A_dA(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymLogTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+
+    α = p.α + zero(t)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
+
+    a = t
+    b = one(t) - t
+
+    r1 = (θ1*b)^α
+    r2 = (θ2*a)^α
+    R = r1 + r2
+
+    root = R^inv(α)
+    D = r2/a - r1/b
+
+    A = root + (θ1 - θ2)*a + one(t) - θ1
+    dA = R^(inv(α) - one(α))*D + θ1 - θ2
+
+    B1, B2 = _ev_pickands_factors(C, t, A, dA)
+    return A, dA, B1, B2
+end
+
+@inline function _ev_A_dA(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
     t::Real,
 )
@@ -312,6 +340,45 @@ end
 end
 
 @inline function _ev_A_dA_d2A(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymLogTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+
+    α = p.α + zero(t)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
+
+    a = t
+    b = one(t) - t
+
+    r1 = (θ1*b)^α
+    r2 = (θ2*a)^α
+    R = r1 + r2
+
+    root = R^inv(α)
+    D = r2/a - r1/b
+
+    A = root + (θ1 - θ2)*a + one(t) - θ1
+    dA = R^(inv(α) - one(α))*D + θ1 - θ2
+
+    # Equivalent to
+    #
+    #   (α-1) R^(1/α-2) (R E - D²),
+    #
+    # but using the exact simplification
+    #
+    #   R E - D² = r1*r2 / (a² b²)
+    #
+    # avoids cancellation.
+    d2A = (α - one(α)) *
+          R^(inv(α) - (one(α) + one(α))) *
+          r1*r2/(a*a*b*b)
+
+    return A, dA, d2A
+end
+
+@inline function _ev_A_dA_d2A(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
     t::Real,
 )
@@ -349,6 +416,23 @@ end
 @inline _ev_fast_eligible(
     ::Copulas.ExtremeValueCopula{2,<:Copulas.MixedTail},
 ) = true
+
+@inline function _ev_fast_eligible(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymLogTail},
+)
+    p = Distributions.params(C)
+
+    α = p.α
+    θ1 = p.θ₁
+    θ2 = p.θ₂
+
+    return isfinite(α) &&
+           isfinite(θ1) &&
+           isfinite(θ2) &&
+           α > one(α) &&
+           θ1 > zero(θ1) &&
+           θ2 > zero(θ2)
+end
 
 @inline _ev_fast_eligible(
     ::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
