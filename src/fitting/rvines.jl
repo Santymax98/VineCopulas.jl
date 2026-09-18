@@ -61,11 +61,39 @@ function _dsu_union!(D::_DSU, a::Int, b::Int)
     return true
 end
 
-function _maximum_spanning_tree(candidates::Vector{_RVCandidate}, nvertices::Int)
+"""
+    _maximum_spanning_tree(candidates, nvertices; groups=nothing)
+
+Deterministic Kruskal maximum spanning tree over `candidates`: heaviest first, ties by
+the labels. With `groups`, a vector of group ids indexed by vertex, the tree is a
+maximiser of the same objective over the spanning trees in which every group induces a
+connected subtree,
+
+```math
+\\max_{T \\in \\mathcal T_{\\mathcal G}} \\sum_{e \\in T} w_e, \\qquad
+\\mathcal T_{\\mathcal G} = \\{ T \\in \\mathcal T(V) : T[G_k] \\text{ connected for every } k \\},
+```
+
+which decomposes into a maximum spanning tree inside each group plus a maximum
+spanning tree of the quotient graph on the groups (edge weight: the heaviest
+cross-group pair). The sort key `(is cross, -weight, labels…)` makes one Kruskal pass
+compute exactly that: while only within-group candidates are seen no component holds
+two groups, so the pass is Kruskal on each group's complete graph; when the cross-group
+candidates arrive every component is one group, so the pass is Kruskal on the
+quotient. The proof is in the manual, *Group-constrained first tree*. The candidate
+graph must be complete inside every group, which holds for tree 1 only.
+"""
+function _maximum_spanning_tree(
+    candidates::Vector{_RVCandidate},
+    nvertices::Int;
+    groups::Union{Nothing,Vector{Int}}=nothing,
+)
     nvertices <= 1 && return _RVCandidate[]
+    cross(c) = groups === nothing ? false : groups[c.v1] != groups[c.v2]
     idx = sortperm(
         eachindex(candidates);
-        by=i -> (-candidates[i].weight,
+        by=i -> (cross(candidates[i]),
+                 -candidates[i].weight,
                  min(candidates[i].a, candidates[i].b),
                  max(candidates[i].a, candidates[i].b),
                  candidates[i].v1, candidates[i].v2,
@@ -194,6 +222,7 @@ function _select_rvine_trees(
     pair_method,
     selection_criterion,
     tree_criterion,
+    groups,
     allow_rotations,
     preselect,
     include_independence,
@@ -205,8 +234,12 @@ function _select_rvine_trees(
     p, n = size(X)
     trees = Vector{Vector{_RVFitEdge}}(undef, q)
 
+    # Only tree 1 is group-constrained: its vertices are the variables and its
+    # candidate graph is complete. From tree 2 the vertices are edges and the
+    # proximity condition fixes the candidate set, so the constraint would not
+    # decompose there.
     candidates = _rvine_tree1_candidates(X, tree_criterion)
-    selected = _maximum_spanning_tree(candidates, p)
+    selected = _maximum_spanning_tree(candidates, p; groups=groups)
     trees[1] = _fit_rvine_candidates(
         selected, n;
         family_set=family_set,
@@ -472,6 +505,7 @@ function _fit_rvine_sequential(
     selection_criterion::Symbol=:bic,
     tree_criterion=:tau,
     tree_algorithm::Symbol=:mst,
+    groups=nothing,
     allow_rotations::Bool=true,
     preselect::Bool=true,
     include_independence::Bool=true,
@@ -493,6 +527,7 @@ function _fit_rvine_sequential(
     allunique(tail) && all(j -> 1 <= j <= p, tail) || throw(ArgumentError(
         "sampling_tail must hold distinct labels in 1:$p; got $tail"
     ))
+    groups = _check_groups(groups, p)
 
     if structure !== nothing
         structure isa RVineStructure || throw(ArgumentError(
@@ -500,6 +535,9 @@ function _fit_rvine_sequential(
         ))
         isempty(tail) || throw(ArgumentError(
             "sampling_tail cannot be combined with a fixed structure: the structure already fixes the order"
+        ))
+        groups === nothing || throw(ArgumentError(
+            "groups constrains structure selection; it cannot be combined with a fixed structure"
         ))
         q = truncation(structure)
         trunc !== nothing && Int(trunc) != q && throw(ArgumentError(
@@ -530,6 +568,7 @@ function _fit_rvine_sequential(
             pair_method=pair_method,
             selection_criterion=selection_criterion,
             tree_criterion=tree_criterion,
+            groups=groups,
             allow_rotations=allow_rotations,
             preselect=preselect,
             include_independence=include_independence,

@@ -34,7 +34,7 @@ model = fit(
 )
 ```
 
-The first tree is a maximum spanning tree using absolute dependence scores. Higher trees are selected under the R-vine proximity condition and fitted sequentially. `tree_criterion` chooses the dependence statistic behind those scores, or takes a weight function; see [Fitting and selection](../../manual/fitting_selection.md).
+The first tree is a maximum spanning tree using absolute dependence scores. Higher trees are selected under the R-vine proximity condition and fitted sequentially. `tree_criterion` chooses the dependence statistic behind those scores, or takes a weight function, and `groups` restricts the first tree to the spanning trees in which every group of variables is connected; see [Fitting and selection](../../manual/fitting_selection.md).
 
 !!! warning
     R-vine flexibility is useful, but it also makes introspection more important.

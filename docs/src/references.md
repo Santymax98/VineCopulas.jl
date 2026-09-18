@@ -39,6 +39,17 @@ and stable.
 - Kruskal, J. B. (1956). On the shortest spanning subtree of a graph and the
   traveling salesman problem. *Proceedings of the American Mathematical
   Society*.
+- Brechmann, E. C., and Czado, C. (2013). Risk management with
+  high-dimensional vine copulas: An analysis of the Euro Stoxx 50.
+  *Statistics & Risk Modeling*. (The regular-vine market-sector model.)
+- Müller, D., and Czado, C. (2019). Dependence modelling in ultra high
+  dimensions with vine copulas and the graphical Lasso. *Computational
+  Statistics & Data Analysis*. (Candidate-edge restriction.)
+- Wu, B. Y., and Lin, C.-W. (2015). On the clustered Steiner tree problem.
+  *Journal of Combinatorial Optimization*. (Clustered trees: every cluster
+  induces a connected subtree.)
+- Feremans, C., Labbé, M., and Laporte, G. (2003). Generalized network
+  design problems. *European Journal of Operational Research*.
 
 ## Dependence measures used as tree criteria
 
