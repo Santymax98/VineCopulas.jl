@@ -336,3 +336,49 @@ end
               logpdf(Cbig, BigFloat[BigFloat(u), BigFloat(v)]) atol=big"5e-11" rtol=big"5e-13"
     end
 end
+@testitem "BB3 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions, LogExpFunctions
+
+    # Copulas.jl's BB3 public logpdf clips inputs using Float64-specific
+    # bounds even for BigFloat inputs. Extreme-tail correctness is checked
+    # against the defining density at the original, unclipped point.
+    function _bb3_logpdf_big_reference(theta, delta, u, v)
+        setprecision(BigFloat, 256) do
+            θ, δ, ub, vb = BigFloat(theta), BigFloat(delta), BigFloat(u), BigFloat(v)
+            p, logδ = inv(θ), log(δ)
+            t1, t2 = -log(ub), -log(vb)
+            a, b = δ * t1^θ, δ * t2^θ
+            L = LogExpFunctions.logexpm1(LogExpFunctions.logaddexp(a, b))
+            r = exp(p * (log(L) - logδ))
+            oneps = exp(L)
+            g1 = δ^(-p) * p * L^(p - 1) / oneps
+            g2 = δ^(-p) * p * ((p - 1) * L^(p - 2) - L^(p - 1)) / oneps^2
+            φdd = exp(-r) * (g1^2 - g2)
+            φdd > 0 || error("Invalid BB3 BigFloat reference density")
+            logSu = logδ + log(θ) + a + (θ - 1) * log(t1) - log(ub)
+            logSv = logδ + log(θ) + b + (θ - 1) * log(t2) - log(vb)
+            return log(φdd) + logSu + logSv
+        end
+    end
+
+    buf = zeros(2)
+    for theta in (1.0, 1.001, 1.2, 3.0), delta in (0.2, 1.5, 5.0)
+        C = BB3Copula(2, theta, delta)
+        for (u, v) in ((0.37, 0.72), (0.2, 0.83))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+            @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+            @test BigFloat(lc) ≈ _bb3_logpdf_big_reference(theta, delta, u, v) atol=big"5e-12" rtol=big"5e-13"
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+    for delta in (0.2, 1.0, 1.5, 5.0),
+        (u, v) in ((1e-8, 0.19), (1e-6, 0.999999))
+        C = BB3Copula(2, 3.0, delta)
+        fast = @inferred VineCopulas._pair_logpdf(C, u, v, buf)
+        ref = _bb3_logpdf_big_reference(3.0, delta, u, v)
+        @test BigFloat(fast) ≈ ref atol=big"5e-12" rtol=big"5e-13"
+    end
+end
