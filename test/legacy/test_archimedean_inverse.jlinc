@@ -34,6 +34,9 @@ _inverse_test_generator(C::Copulas.BB3Copula{2}) =
 _inverse_test_generator(C::Copulas.BB9Copula{2}) =
     Copulas.BB9Generator(Distributions.params(C).θ, Distributions.params(C).δ)
 
+_inverse_test_generator(C::Copulas.BB10Copula{2}) =
+    Copulas.BB10Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+
 # The generator remains an independent mathematical reference only.
 function _check_derivative_inverse(C::Copulas.Copula{2}, s; atol=1e-9, rtol=1e-9)
     G = _inverse_test_generator(C)
@@ -56,7 +59,7 @@ end
                 # in the functional roundtrip below.
                 C isa Union{Copulas.GumbelCopula{2},Copulas.JoeCopula{2}} && continue
                 @testset "$name" for s in S_GRID
-                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2},Copulas.BB7Copula{2},Copulas.BB8Copula{2},Copulas.BB2Copula{2},Copulas.BB3Copula{2},Copulas.BB9Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
+                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2},Copulas.BB7Copula{2},Copulas.BB8Copula{2},Copulas.BB2Copula{2},Copulas.BB3Copula{2},Copulas.BB9Copula{2},Copulas.BB10Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
                 end
             end
         end
@@ -618,13 +621,18 @@ end
 
     @testset "BB10 numerical inverse in generator coordinate" begin
         # θ = 1 is the AMH subfamily and is checked separately below.
-        # Here we cover θ below and above 1, δ = 0, and δ close to the
-        # singular boundary δ = 1.
+        # Cover θ below and above 1, δ = 0, and δ close to the singular
+        # boundary δ = 1.
         for θ in (0.2, 0.5, 1.001, 1.5, 3.0),
             δ in (0.0, 0.05, 0.5, 0.999),
             s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 100.0)
 
-            _check_derivative_inverse(Copulas.BB10Generator(θ, δ), s; atol=1e-8, rtol=1e-8,)
+            _check_derivative_inverse(
+                Copulas.BB10Copula(2, θ, δ),
+                s;
+                atol=1e-8,
+                rtol=1e-8,
+            )
         end
 
         # Coordinate ↔ probability.
@@ -632,105 +640,106 @@ end
             δ in (0.0, 0.05, 0.5, 0.999),
             u in (0.01, 0.2, 0.5, 0.9, 0.99)
 
-            G = Copulas.BB10Generator(θ, δ)
-            s = VineCopulas._arch_coordinate(G, u)
+            C = Copulas.BB10Copula(2, θ, δ)
+            coord = VineCopulas._arch_coordinate(C, u)
 
-            @test s >= 0
-
-            @test VineCopulas._arch_probability(G, s,) ≈ u atol=5e-12 rtol=5e-12
+            @test coord >= 0
+            @test VineCopulas._arch_probability(C, coord) ≈ u atol=5e-12 rtol=5e-12
         end
 
         # u = 1 corresponds exactly to s = 0.
         for θ in (0.2, 0.5, 1.5, 3.0),
             δ in (0.0, 0.5, 0.999)
 
-            G = Copulas.BB10Generator(θ, δ)
+            C = Copulas.BB10Copula(2, θ, δ)
 
-            @test VineCopulas._arch_coordinate(G, 1.0,) == 0.0
-            @test VineCopulas._arch_probability(G, 0.0,) == 1.0
+            @test VineCopulas._arch_coordinate(C, 1.0) == 0.0
+            @test VineCopulas._arch_probability(C, 0.0) == 1.0
         end
 
-        # Monotonicity and derivative inversion.
+        # Monotonicity and derivative inversion. The generator is used only
+        # as an independent mathematical oracle for ϕ′.
         for θ in (0.2, 0.5, 1.01, 1.5, 4.0),
             δ in (0.0, 0.1, 0.7, 0.999)
 
+            C = Copulas.BB10Copula(2, θ, δ)
             G = Copulas.BB10Generator(θ, δ)
             ss = (1e-4, 1e-2, 1.0, 50.0)
-            ys = [Copulas.ϕ⁽¹⁾(G, s) for s in ss]
-            recovered = [VineCopulas._inv_ϕ¹(G, y) for y in ys]
+            ys = [Copulas.ϕ⁽¹⁾(G, x) for x in ss]
+            recovered = [VineCopulas._inv_ϕ¹(C, y) for y in ys]
 
             @test issorted(ys)
             @test issorted(recovered)
-
             @test recovered ≈ collect(ss) atol=1e-8 rtol=1e-8
         end
 
-        # BB10 shares the direct generator coordinate with BB8.
+        # Ordinary additive coordinate.
         for θ in (0.3, 0.7, 1.5, 3.0),
             δ in (0.0, 0.2, 0.8)
 
-            G = Copulas.BB10Generator(θ, δ)
-
-            a = VineCopulas._arch_coordinate(G, 0.25)
-            b = VineCopulas._arch_coordinate(G, 0.70)
-            total = VineCopulas._arch_combine(G, a, b)
+            C = Copulas.BB10Copula(2, θ, δ)
+            a = VineCopulas._arch_coordinate(C, 0.25)
+            b = VineCopulas._arch_coordinate(C, 0.70)
+            total = VineCopulas._arch_combine(C, a, b)
 
             @test total ≈ a + b
-            @test VineCopulas._arch_difference(G, total, b,) ≈ a
-            @test VineCopulas._arch_difference(G, total, a,) ≈ b
+            @test VineCopulas._arch_difference(C, total, b) ≈ a
+            @test VineCopulas._arch_difference(C, total, a) ≈ b
         end
 
-        # Arbitrary precision through the public derivative interface.
+        # Arbitrary precision. The generator remains only the derivative oracle.
         setprecision(BigFloat, 256) do
-            G = Copulas.BB10Generator(big"2.5", big"0.7",)
+            C = Copulas.BB10Copula(2, big"2.5", big"0.7")
+            G = Copulas.BB10Generator(big"2.5", big"0.7")
 
-            # exp(s) remains representable for this BigFloat test.
-            s = big"1e4"
-            y = Copulas.ϕ⁽¹⁾(G, s)
-            recovered = VineCopulas._inv_ϕ¹(G, y)
+            s0 = big"1e4"
+            y = Copulas.ϕ⁽¹⁾(G, s0)
+            recovered = VineCopulas._inv_ϕ¹(C, y)
 
             @test !iszero(y)
-            @test recovered ≈ s rtol=big"1e-40"
+            @test recovered ≈ s0 rtol=big"1e-40"
 
-            # Extreme coordinate tested completely in the log domain.
             s_extreme = big"1e20"
-            logm = VineCopulas._arch_logderivative(G, s_extreme,)
-            recovered_extreme = VineCopulas._arch_inverse_logderivative(G, logm,)
+            logm = VineCopulas._arch_logderivative(C, s_extreme)
+            recovered_extreme =
+                VineCopulas._arch_inverse_logderivative(C, logm)
 
             @test recovered_extreme ≈ s_extreme rtol=big"1e-40"
         end
 
         # Finite derivative boundary at s = 0.
+        C = Copulas.BB10Copula(2, 1.5, 0.6)
         G = Copulas.BB10Generator(1.5, 0.6)
         maxm = -Copulas.ϕ⁽¹⁾(G, 0.0)
 
-        @test VineCopulas._inv_ϕ¹(G, -maxm,) ≈ 0.0
-        @test VineCopulas._inv_ϕ¹(G, -0.0,) == Inf
-        @test_throws DomainError VineCopulas._inv_ϕ¹(G, -(maxm * 1.01),)
-        @test_throws DomainError VineCopulas._inv_ϕ¹(G, -Inf,)
-        @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1,)
-        @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN,)
+        @test VineCopulas._inv_ϕ¹(C, -maxm) ≈ 0.0
+        @test VineCopulas._inv_ϕ¹(C, -0.0) == Inf
+        @test_throws DomainError VineCopulas._inv_ϕ¹(C, -(maxm * 1.01))
+        @test_throws DomainError VineCopulas._inv_ϕ¹(C, -Inf)
+        @test_throws DomainError VineCopulas._inv_ϕ¹(C, 0.1)
+        @test_throws DomainError VineCopulas._inv_ϕ¹(C, NaN)
 
         # δ = 0 gives the independence generator up to scale.
         for θ in (0.2, 0.5, 1.5, 3.0)
             Gind = Copulas.BB10Generator(θ, 0.0)
 
-            for s in (0.0, 0.1, 1.0, 10.0)
-                @test Copulas.ϕ(Gind, s) ≈ exp(-s / θ)
+            for x in (0.0, 0.1, 1.0, 10.0)
+                @test Copulas.ϕ(Gind, x) ≈ exp(-x / θ)
             end
         end
 
         # θ = 1 is the AMH subfamily.
         Gamh = Copulas.BB10Generator(1.0, 0.6)
 
-        for s in (0.0, 0.1, 1.0, 10.0)
-            @test Copulas.ϕ(Gamh, s) ≈ Copulas.ϕ(Copulas.AMHGenerator(0.6), s)
+        for x in (0.0, 0.1, 1.0, 10.0)
+            @test Copulas.ϕ(Gamh, x) ≈
+                  Copulas.ϕ(Copulas.AMHGenerator(0.6), x)
         end
 
-        # δ = 1 is a singular boundary and is intentionally excluded
-        # from the continuous pair-copula implementation.
-        Gsingular = Copulas.BB10Generator(1.5, 1.0)
-
-        @test_throws DomainError VineCopulas._arch_coordinate(Gsingular, 0.5,)
+        # δ = 1 is a singular boundary and is intentionally excluded from
+        # the continuous pair-copula implementation.
+        Csingular = Copulas.BB10Copula(2, 1.5, 1.0)
+        @test_throws DomainError VineCopulas._arch_coordinate(Csingular, 0.5)
     end
+
 end

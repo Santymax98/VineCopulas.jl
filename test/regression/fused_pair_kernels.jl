@@ -402,3 +402,45 @@ end
         end
     end
 end
+
+@testitem "BB10 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions
+
+    buf = zeros(2)
+
+    for theta in (0.2, 0.5, 1.0, 1.5, 3.0),
+        delta in (0.0, 0.05, 0.7, 0.999)
+
+        C = BB10Copula(2, theta, delta)
+
+        for (u, v) in (
+            (0.37, 0.72),
+            (1e-8, 0.19),
+            (1 - 1e-8, 0.83),
+            (1e-6, 1 - 1e-6),
+        )
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+
+            @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+
+            setprecision(BigFloat, 256) do
+                Cbig = Copulas.BB10Copula(
+                    2,
+                    BigFloat(theta),
+                    BigFloat(delta),
+                )
+                ref = logpdf(
+                    Cbig,
+                    BigFloat[BigFloat(u), BigFloat(v)],
+                )
+
+                @test BigFloat(lc) ≈ ref atol=big"5e-12" rtol=big"5e-13"
+            end
+
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+end
