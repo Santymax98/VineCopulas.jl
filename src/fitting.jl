@@ -42,6 +42,8 @@
 # - fixed or Dissmann-style automatic R-vine structure
 # - Kendall tau-b or Spearman rho tree weights
 # - user-specified truncation and dependence threshold
+# - threaded edge and family-candidate fitting (`threaded=true`), identical to
+#   the sequential fit by construction
 #
 # Intentionally deferred
 # ----------------------
@@ -49,7 +51,6 @@
 # - discrete margins
 # - observation weights / missing-value pairwise logic
 # - automatic sparse truncation/threshold (mBICV)
-# - multithreaded edge fitting
 # - joint vine MLE / sequential-estimator covariance
 # =============================================================================
 

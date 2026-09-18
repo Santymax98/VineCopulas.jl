@@ -492,43 +492,137 @@ function _independence_selection(U::Matrix{Float64}, criterion::Symbol)
     return _PairSelection(C, "Independence", 0, :none, ll, 0, _criterion_score(ll, 0, size(U, 2), criterion), true, 0, (;),)
 end
 
+# Run `f(i)` for `i in 1:n`. With `threaded=true` every `i` runs on its own
+# task and the tasks are joined before returning; an error raised by any of them
+# is rethrown once all have finished, the one from the lowest `i` first. So the
+# error a caller sees is the one the sequential loop raises, and every task has
+# finished writing before anything is read.  The sequential branch is the plain
+# loop, with its errors propagating from inside `f`.
+function _run_indexed!(f, n::Int, threaded::Bool)
+    if !threaded
+        for i in 1:n
+            f(i)
+        end
+        return nothing
+    end
+    errs = Vector{Any}(nothing, n)
+    @sync for i in 1:n
+        Threads.@spawn try
+            f(i)
+        catch err
+            errs[i] = err
+        end
+    end
+    for e in errs
+        e === nothing || throw(e)
+    end
+    return nothing
+end
+
+# Per-edge trace sinks for a threaded tree: each edge writes its lines to its
+# own buffer, and the buffers are flushed to stdout in edge order once every
+# edge has finished, so the trace of a threaded fit reads as the sequential one.
+@inline function _edge_trace_buffers(n::Int, threaded::Bool, trace::Bool)
+    return (threaded && trace) ? [IOBuffer() for _ in 1:n] : nothing
+end
+
+@inline _edge_trace_io(bufs, i::Int) = bufs === nothing ? stdout : bufs[i]
+
+function _flush_edge_trace!(bufs)
+    bufs === nothing && return nothing
+    for b in bufs
+        write(stdout, take!(b))
+    end
+    return nothing
+end
+
+# Trace lines are formatted once, here, so the sequential path (which prints
+# them as it goes) and the threaded path (which prints them after every
+# candidate has finished) emit the same text.
+@inline function _trace_candidate_line(fit::_PairSelection)
+    return string(
+        "pair candidate: family=", fit.family, ", rotation=", fit.rotation, ", ",
+        "method=", fit.method, ", ll=", fit.loglik, ", score=", fit.score,
+    )
+end
+
+@inline function _trace_failure_line(FT, flips::Tuple, err)
+    return "pair candidate failed: family=$FT flips=$flips error=$err"
+end
+
 function _select_pair(U0::AbstractMatrix{<:Real}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
     allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, pair_kwargs::NamedTuple=NamedTuple(),
-    strict::Bool=false, trace::Bool=false, force_independence::Bool=false,)
+    strict::Bool=false, trace::Bool=false, force_independence::Bool=false, threaded::Bool=false, trace_io::IO=stdout,)
 
     U = _fit_data(U0, 2)
     _check_selection_criterion(selection_criterion)
     force_independence && return _independence_selection(U, selection_criterion)
 
     families = _resolve_family_set(family_set)
-    τhat = _kendall_tau_b(view(U, 1, :), view(U, 2, :))
-
-    best = include_independence ? _independence_selection(U, selection_criterion) : nothing
-    nsuccessful = 0
-
     for FT in families
         (FT isa Type || FT isa UnionAll) ||
             throw(ArgumentError("family_set entries must be copula types; got $FT"))
         FT <: Copulas.Copula ||
             throw(ArgumentError("family $FT is not a Copulas.jl copula type"))
+    end
+    τhat = _kendall_tau_b(view(U, 1, :), view(U, 2, :))
 
-        for flips in _rotation_candidates(FT, τhat, allow_rotations, preselect)
-            try
-                fit = _fit_one_pair_family(FT, U, flips; pair_method=pair_method, selection_criterion=selection_criterion, pair_kwargs=pair_kwargs,)
-                nsuccessful += 1
-                if trace
-                    println(
-                        "pair candidate: family=$(fit.family), rotation=$(fit.rotation), ",
-                        "method=$(fit.method), ll=$(fit.loglik), score=$(fit.score)"
-                    )
-                end
-                if best === nothing || fit.score < best.score
-                    best = fit
-                end
-            catch err
-                strict && rethrow()
-                trace && println("pair candidate failed: family=$FT flips=$flips error=$err")
+    # The candidate list is fixed before any fit runs: family order, then
+    # rotation order. Every candidate writes its own slot, and the winner is
+    # read off the slots in list order below, so the selection does not depend
+    # on the order in which the fits finish.
+    cands = Tuple{Type,Tuple}[]
+    for FT in families, flips in _rotation_candidates(FT, τhat, allow_rotations, preselect)
+        push!(cands, (FT, flips))
+    end
+    ncand = length(cands)
+    fits = Vector{Union{Nothing,_PairSelection}}(nothing, ncand)
+    errs = Vector{Any}(nothing, ncand)
+    lines = Vector{Union{Nothing,String}}(nothing, ncand)
+
+    function fit_candidate!(k::Int)
+        FT, flips = cands[k]
+        try
+            fit = _fit_one_pair_family(FT, U, flips; pair_method=pair_method, selection_criterion=selection_criterion, pair_kwargs=pair_kwargs,)
+            fits[k] = fit
+            trace && (lines[k] = _trace_candidate_line(fit))
+        catch err
+            strict && !threaded && rethrow()
+            errs[k] = err
+            trace && (lines[k] = _trace_failure_line(FT, flips, err))
+        end
+        return nothing
+    end
+
+    if threaded
+        @sync for k in 1:ncand
+            Threads.@spawn fit_candidate!(k)
+        end
+        if trace
+            for line in lines
+                line === nothing || println(trace_io, line)
             end
+        end
+        if strict
+            for e in errs
+                e === nothing || throw(e)
+            end
+        end
+    else
+        for k in 1:ncand
+            fit_candidate!(k)
+            trace && lines[k] !== nothing && println(trace_io, lines[k])
+        end
+    end
+
+    best = include_independence ? _independence_selection(U, selection_criterion) : nothing
+    nsuccessful = 0
+    for k in 1:ncand
+        fit = fits[k]
+        fit === nothing && continue
+        nsuccessful += 1
+        if best === nothing || fit.score < best.score
+            best = fit
         end
     end
 
@@ -549,9 +643,9 @@ Copulas._available_fitting_methods(::Type{PairCopula}, d) = d == 2 ? (:select,) 
 
 function Copulas._fit(::Type{PairCopula}, U, ::Val{:select}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
     allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, pair_kwargs::NamedTuple=NamedTuple(),
-    strict::Bool=false, trace::Bool=false,)
+    strict::Bool=false, trace::Bool=false, threaded::Bool=false,)
     fit = _select_pair(U; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
-        preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
+        preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace, threaded=threaded,)
     return fit.copula
 end
 
