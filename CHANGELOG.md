@@ -2,6 +2,12 @@
 
 All notable changes to `VineCopulas.jl` are documented here. Version numbers follow Julia package registration conventions.
 
+## [Unreleased]
+
+### Changed
+
+- Standard general R-vines truncated below full depth support Rosenblatt/inverse Rosenblatt transforms, `rand`, `simulate_qmc`, and the simulation-based numerical `cdf`. The execution-plan transforms introduced in 0.1.2 already honoured the truncation depth; the guard that refused them, the legacy matrix traversal it protected, and the documentation that stated the limitation are removed. A test checks a truncated standard R-vine against the same edges padded to full depth with independence pair-copulas.
+
 ## [0.1.2] - 2026-08-16
 
 ### Added

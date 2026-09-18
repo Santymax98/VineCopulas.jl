@@ -22,7 +22,7 @@ whose higher trees were not stored.
 
 Truncation is a structural property of the vine and must not be confused with **candidate parameter bounds** used by automatic family selection. Parameter bounds restrict an optimizer's search space; vine truncation removes higher trees from the model.
 
-For standard general R-vines, truncation below full depth currently applies to fitting and density evaluation. Rosenblatt/inverse Rosenblatt transforms, simulation, and the simulation-based numerical CDF require full depth. Truncated C- and D-vines retain their transform and simulation paths.
+Truncation applies uniformly to fitting, density evaluation, Rosenblatt/inverse Rosenblatt transforms, simulation, and the simulation-based numerical CDF, for C-vines, D-vines, and standard general R-vines alike. The omitted trees behave as independence pair-copulas, so a truncated vine and the same vine padded to full depth with independence pair-copulas are the same model.
 
 Automatic data-driven selection of the truncation level is not yet part of the public API.
 

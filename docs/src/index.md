@@ -61,10 +61,10 @@ families remains the responsibility of `Copulas.jl`.
 - External correctness checks against `rvinecopulib` and reproducible performance benchmarks.
 
 !!! warning "Current modeling scope"
-    The package currently implements simplified vines. General R-vine density
-    evaluation supports truncation, but Rosenblatt/inverse Rosenblatt transforms
-    for truncated standard general R-vines remain future work. Truncated C- and
-    D-vines retain their transform and simulation paths.
+    The package currently implements simplified vines. Truncation is user
+    controlled for every vine type, and density evaluation, Rosenblatt/inverse
+    Rosenblatt transforms, and simulation all respect it. Automatic data-driven
+    truncation selection is not implemented.
 
 ## Quick example
 
