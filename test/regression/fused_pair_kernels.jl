@@ -307,3 +307,32 @@ end
         end
     end
 end
+
+@testitem "BB2 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions
+    buf = zeros(2)
+    for theta in (0.01, 0.5, 2.0), delta in (0.01, 0.5, 2.0)
+        C = BB2Copula(2, theta, delta)
+        for (u, v) in ((0.37, 0.72), (1e-8, 0.19), (1 - 1e-8, 0.83), (1e-6, 1 - 1e-6))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+            @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+
+    # The Float64 public condition can overflow in this lower-tail regime.
+    # Keep the public API as the oracle, evaluated at high precision.
+    C = BB2Copula(2, 0.5, 0.5)
+    setprecision(BigFloat, 256) do
+        Cbig = Copulas.BB2Copula(2, big"0.5", big"0.5")
+        u, v, q = 1e-8, 0.19, 1e-8
+        conditional = Copulas.condition(Cbig, 1, BigFloat(u))
+        @test BigFloat(hfunc2(C, u, v)) ≈ cdf(conditional, BigFloat(v)) atol=big"5e-13" rtol=big"5e-13"
+        @test BigFloat(hinv2(C, q, u)) ≈ quantile(conditional, BigFloat(q)) atol=big"5e-21" rtol=big"5e-13"
+        @test BigFloat(VineCopulas._pair_logpdf(C, u, v, buf)) ≈
+              logpdf(Cbig, BigFloat[BigFloat(u), BigFloat(v)]) atol=big"5e-11" rtol=big"5e-13"
+    end
+end

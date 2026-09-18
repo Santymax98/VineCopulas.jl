@@ -25,6 +25,9 @@ _inverse_test_generator(C::Copulas.BB7Copula{2}) =
 _inverse_test_generator(C::Copulas.BB8Copula{2}) =
     Copulas.BB8Generator(Distributions.params(C).ϑ, Distributions.params(C).δ)
 
+_inverse_test_generator(C::Copulas.BB2Copula{2}) =
+    Copulas.BB2Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+
 # The generator remains an independent mathematical reference only.
 function _check_derivative_inverse(C::Copulas.Copula{2}, s; atol=1e-9, rtol=1e-9)
     G = _inverse_test_generator(C)
@@ -47,7 +50,7 @@ end
                 # in the functional roundtrip below.
                 C isa Union{Copulas.GumbelCopula{2},Copulas.JoeCopula{2}} && continue
                 @testset "$name" for s in S_GRID
-                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2},Copulas.BB7Copula{2},Copulas.BB8Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
+                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2},Copulas.BB7Copula{2},Copulas.BB8Copula{2},Copulas.BB2Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
                 end
             end
         end
@@ -66,7 +69,7 @@ end
                 @test 0 < û < 1
                 @test 0 < v̂ < 1
 
-                is_bb2 = C.G isa Copulas.BB2Generator
+                is_bb2 = C isa Copulas.BB2Copula{2}
                 q1_saturated = is_bb2 && q1 == prevfloat(one(q1))
                 q2_saturated = is_bb2 && q2 == prevfloat(one(q2))
                 q1_saturated || @test û ≈ u atol=1e-7 rtol=1e-7
@@ -198,7 +201,7 @@ end
 
     @testset "BB2" begin
         for θ in (0.5, 1.0, 2.0), δ in (0.5, 1.0, 2.0), s in (0.1, 0.5, 1.0, 2.0, 5.0)
-            _check_derivative_inverse(Copulas.BB2Generator(θ, δ), s; atol=1e-10, rtol=1e-10)
+            _check_derivative_inverse(Copulas.BB2Copula(2, θ, δ), s; atol=1e-10, rtol=1e-10)
         end
     end
 

@@ -93,6 +93,8 @@ function pair_cases()
     push_case!(cases, "joe", "interior", () -> JoeCopula(2, 1.50), "archimedean specialization")
 
     push_case!(cases, "bb1", "interior", () -> BB1Copula(2, 1.20, 1.50), "archimedean specialization")
+    push_case!(cases, "bb2", "near_independence", () -> BB2Copula(2, 0.01, 0.01), "archimedean specialization")
+    push_case!(cases, "bb2", "interior", () -> BB2Copula(2, 0.50, 0.50), "archimedean specialization")
     push_case!(cases, "bb6", "interior", () -> BB6Copula(2, 1.20, 1.50), "archimedean specialization")
     push_case!(cases, "bb7", "interior", () -> BB7Copula(2, 1.20, 1.50), "archimedean specialization")
     push_case!(cases, "bb8", "interior", () -> BB8Copula(2, 1.50, 0.60), "archimedean specialization")
