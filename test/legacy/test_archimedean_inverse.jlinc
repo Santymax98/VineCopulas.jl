@@ -14,6 +14,20 @@ function _check_derivative_inverse(G, s; atol=1e-9, rtol=1e-9)
     @test Copulas.ϕ⁽¹⁾(G, ŝ) ≈ y atol=max(atol, 1e-12) rtol=max(rtol, 1e-9)
 end
 
+# The generator remains an independent mathematical reference only.
+function _check_derivative_inverse(C::Copulas.BB1Copula{2}, s; atol=1e-9, rtol=1e-9)
+    p = Distributions.params(C)
+    G = Copulas.BB1Generator(p.θ, p.δ)
+    y = Copulas.ϕ⁽¹⁾(G, s)
+    @test isfinite(y)
+    @test y < 0
+    ŝ = VineCopulas._inv_ϕ¹(C, y)
+    @test isfinite(ŝ)
+    @test ŝ >= 0
+    @test ŝ ≈ s atol=atol rtol=rtol
+    @test Copulas.ϕ⁽¹⁾(G, ŝ) ≈ y atol=max(atol, 1e-12) rtol=max(rtol, 1e-9)
+end
+
 @testset "Archimedean inverse identity — representative families" begin
     for (mode, candidates) in (("specialized", archimedean_specialized_candidates()), ("generic fallback", archimedean_fallback_candidates()))
         @testset "$mode" begin
@@ -23,7 +37,7 @@ end
                 # in the functional roundtrip below.
                 C isa Union{Copulas.GumbelCopula{2},Copulas.JoeCopula{2}} && continue
                 @testset "$name" for s in S_GRID
-                    _check_derivative_inverse(C.G, s; atol=1e-7, rtol=1e-7)
+                    _check_derivative_inverse(C isa Copulas.BB1Copula{2} ? C : C.G, s; atol=1e-7, rtol=1e-7)
                 end
             end
         end
@@ -151,23 +165,25 @@ end
 
     @testset "BB1 numerical inverse in log-coordinate" begin
         for θ in (0.2, 1.2, 5.0), δ in (1.01, 1.5, 3.0), s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 1e3)
-            _check_derivative_inverse(Copulas.BB1Generator(θ, δ), s; atol=2e-10, rtol=2e-10)
+            _check_derivative_inverse(Copulas.BB1Copula(2, θ, δ), s; atol=2e-10, rtol=2e-10)
         end
         for θ in (0.5, 2.0), δ in (1.2, 4.0)
+            C = Copulas.BB1Copula(2, θ, δ)
             G = Copulas.BB1Generator(θ, δ)
             ys = [Copulas.ϕ⁽¹⁾(G, s) for s in (1e-4, 1e-2, 1.0, 1e2)]
             @test issorted(ys)
-            @test all(VineCopulas._inv_ϕ¹(G, ys[i]) < VineCopulas._inv_ϕ¹(G, ys[i+1]) for i in 1:length(ys)-1)
+            @test all(VineCopulas._inv_ϕ¹(C, ys[i]) < VineCopulas._inv_ϕ¹(C, ys[i+1]) for i in 1:length(ys)-1)
         end
         setprecision(BigFloat, 256) do
+            C = Copulas.BB1Copula(2, big"0.3", big"2.5")
             G, s = Copulas.BB1Generator(big"0.3", big"2.5"), big"1e40"
-            @test VineCopulas._inv_ϕ¹(G, Copulas.ϕ⁽¹⁾(G, s)) ≈ s rtol=big"1e-60"
+            @test VineCopulas._inv_ϕ¹(C, Copulas.ϕ⁽¹⁾(G, s)) ≈ s rtol=big"1e-60"
         end
-        G = Copulas.BB1Generator(1.2, 1.5)
-        @test VineCopulas._inv_ϕ¹(G, -Inf) == 0.0
-        @test VineCopulas._inv_ϕ¹(G, -0.0) == Inf
-        @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1)
-        @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN)
+        C = Copulas.BB1Copula(2, 1.2, 1.5)
+        @test VineCopulas._inv_ϕ¹(C, -Inf) == 0.0
+        @test VineCopulas._inv_ϕ¹(C, -0.0) == Inf
+        @test_throws DomainError VineCopulas._inv_ϕ¹(C, 0.1)
+        @test_throws DomainError VineCopulas._inv_ϕ¹(C, NaN)
     end
 
     @testset "BB2" begin
