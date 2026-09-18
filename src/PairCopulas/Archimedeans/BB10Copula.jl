@@ -14,7 +14,7 @@
 # Copulas.jl reduces θ = 1 to AMH. The boundary δ = 1 is singular.
 
 @inline function _arch_coordinate(G::Copulas.BB10Generator, u::Real,)
-    θ, δ, uu = promote(float(G.θ), float(G.δ), float(u),)
+    θ, δ, uu = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(u),)
     T = typeof(uu)
 
     zero(T) < uu <= one(T) || throw(DomainError(u, "The BB10 probability must belong to (0, 1].",))
@@ -30,7 +30,7 @@
 end
 
 @inline function _arch_probability(G::Copulas.BB10Generator, s::Real,)
-    θ, δ, ss = promote(float(G.θ), float(G.δ), float(s),)
+    θ, δ, ss = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(s),)
     T = typeof(ss)
 
     ss >= zero(T) || throw(DomainError(s, "The BB10 generator coordinate must be non-negative.",))
@@ -47,7 +47,7 @@ end
 end
 
 @inline function _arch_logderivative(G::Copulas.BB10Generator, s::Real,)
-    θ, δ, ss = promote(float(G.θ), float(G.δ), float(s),)
+    θ, δ, ss = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(s),)
     T = typeof(ss)
 
     ss >= zero(T) || throw(DomainError(s, "The BB10 generator coordinate must be non-negative.",))
@@ -66,7 +66,7 @@ function _arch_inverse_logderivative(G::Copulas.BB10Generator, logm::Real,)
     T = typeof(lm)
 
     isnan(lm) && throw(DomainError(logm, "log|ϕ'| cannot be NaN.",))
-    θ, δ = T(G.θ), T(G.δ)
+    θ, δ = T(Distributions.params(G).θ), T(Distributions.params(G).δ)
     θ > zero(T) || throw(DomainError(θ, "The BB10 generator requires θ > 0.",))
 
     zero(T) <= δ < one(T) || throw(DomainError(δ, "The proper BB10 domain requires 0 ≤ δ < 1.",))

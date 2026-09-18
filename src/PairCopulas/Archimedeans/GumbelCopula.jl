@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------
 
 @inline function _gumbel_terms(G::Copulas.GumbelGenerator, u::Real, v::Real)
-    θ, uu, vv = promote(float(G.θ), float(u), float(v))
+    θ, uu, vv = promote(float(Distributions.params(G).θ), float(u), float(v))
     θ >= one(θ) || throw(DomainError(θ, "A Gumbel generator requires θ ≥ 1."))
     uu, vv = _clp(uu), _clp(vv)
     x = -log(uu)
@@ -78,7 +78,7 @@ end
 # =====================================================================
 
 @inline function _inv_ϕ¹(G::Copulas.GumbelGenerator, y::Real)
-    θ, m = promote(float(G.θ), _negative_derivative_magnitude(y, "Gumbel"))
+    θ, m = promote(float(Distributions.params(G).θ), _negative_derivative_magnitude(y, "Gumbel"))
     T = typeof(θ)
     iszero(m) && return T(Inf)
     isinf(m) && return zero(T)

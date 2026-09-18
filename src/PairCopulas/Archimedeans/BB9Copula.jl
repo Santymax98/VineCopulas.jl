@@ -13,12 +13,12 @@
 # In this coordinate, log|ϕ′| is smooth and strictly decreasing.
 
 @inline function _bb9_logc(G::Copulas.BB9Generator)
-    θ, δ = promote(float(G.θ), float(G.δ))
+    θ, δ = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ))
     return -θ * log(δ)
 end
 
 @inline function _arch_coordinate(G::Copulas.BB9Generator, u::Real)
-    θ, δ, uu = promote(float(G.θ), float(G.δ), float(u))
+    θ, δ, uu = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(u))
 
     zero(uu) < uu <= one(uu) || throw(DomainError(u, "The BB9 probability must belong to (0, 1].",))
 
@@ -29,7 +29,7 @@ end
 end
 
 @inline function _arch_probability(G::Copulas.BB9Generator, x::Real,)
-    θ, δ, xx = promote(float(G.θ), float(G.δ), float(x))
+    θ, δ, xx = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(x))
     T = typeof(xx)
 
     logc = -θ * log(δ)
@@ -46,7 +46,7 @@ end
 end
 
 @inline function _arch_logderivative(G::Copulas.BB9Generator, x::Real,)
-    θ, δ, xx = promote(float(G.θ), float(G.δ), float(x))
+    θ, δ, xx = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(x))
     T = typeof(xx)
 
     logc = -θ * log(δ)
@@ -66,7 +66,7 @@ function _arch_inverse_logderivative(G::Copulas.BB9Generator, logm::Real,)
 
     isnan(lm) && throw(DomainError(logm, "log|ϕ'| cannot be NaN."))
 
-    θ, δ = T(G.θ), T(G.δ)
+    θ, δ = T(Distributions.params(G).θ), T(Distributions.params(G).δ)
     θ >= one(T) || throw(DomainError(θ, "The BB9 generator requires θ ≥ 1.",))
 
     δ > zero(T) || throw(DomainError(δ, "The BB9 generator requires δ > 0.",))
@@ -166,7 +166,7 @@ function _inv_ϕ¹(G::Copulas.BB9Generator, y::Real)
 
     isinf(x) && return x
 
-    θ, δ, xx = promote(float(G.θ), float(G.δ), x)
+    θ, δ, xx = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), x)
     logc = -θ * log(δ)
 
     # Stable reconstruction: s = exp(x) - exp(logc) = exp(logc) * expm1(x-logc).

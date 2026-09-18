@@ -20,7 +20,7 @@
 # decreasing for every genuine BB6 generator (θ > 1 and δ > 1).
 
 @inline function _arch_coordinate(G::Copulas.BB6Generator, u::Real)
-    θ, uu = promote(float(G.θ), float(u))
+    θ, uu = promote(float(Distributions.params(G).θ), float(u))
 
     # logw = log((1-u)^θ)
     logw = θ * log1p(-uu)
@@ -30,7 +30,7 @@
 end
 
 @inline function _arch_probability(G::Copulas.BB6Generator, x::Real)
-    θ, xx = promote(float(G.θ), float(x))
+    θ, xx = promote(float(Distributions.params(G).θ), float(x))
 
     # logH = log(1 - exp(-exp(x)))
     logH = _log1mexp_negexp(xx)
@@ -40,7 +40,7 @@ end
 end
 
 @inline function _arch_logderivative(G::Copulas.BB6Generator, x::Real,)
-    θ, δ, xx = promote(float(G.θ), float(G.δ), float(x))
+    θ, δ, xx = promote(float(Distributions.params(G).θ), float(Distributions.params(G).δ), float(x))
     T = typeof(xx)
 
     xx == -T(Inf) && return T(Inf)
@@ -73,7 +73,7 @@ function _arch_inverse_logderivative(G::Copulas.BB6Generator, logm::Real,)
     lm == -T(Inf) && return T(Inf)
     lm == T(Inf) && return -T(Inf)
 
-    θ, δ = T(G.θ), T(G.δ)
+    θ, δ = T(Distributions.params(G).θ), T(Distributions.params(G).δ)
 
     θ > one(T) || throw(DomainError(θ, "A genuine BB6 generator requires θ > 1; θ = 1 reduces to Gumbel.",))
     δ > one(T) || throw(DomainError(δ, "A genuine BB6 generator requires δ > 1; δ = 1 reduces to Joe.",))
@@ -103,7 +103,7 @@ end
 # In x = log(s^(1/δ)), the Archimedean sum s₁+s₂ becomes a scaled
 # log-sum-exp operation.
 @inline function _arch_combine(G::Copulas.BB6Generator, a::Real, b::Real,)
-    δ, aa, bb = promote(float(G.δ), float(a), float(b))
+    δ, aa, bb = promote(float(Distributions.params(G).δ), float(a), float(b))
     return LogExpFunctions.logaddexp(δ * aa, δ * bb) / δ
 end
 
@@ -111,7 +111,7 @@ end
 # coordinate. A microscopic order reversal is interpreted as a zero summand,
 # analogously to the saturated conditional-probability handling for BB2.
 @inline function _arch_difference(G::Copulas.BB6Generator, total::Real, base::Real,)
-    δ, tt, bb = promote(float(G.δ), float(total), float(base))
+    δ, tt, bb = promote(float(Distributions.params(G).δ), float(total), float(base))
     T = typeof(tt)
 
     stotal = δ * tt
@@ -142,7 +142,7 @@ function _inv_ϕ¹(G::Copulas.BB6Generator, y::Real)
     isinf(m) && return zero(T)
 
     x = _arch_inverse_logderivative(G, log(m))
-    δ, xx = promote(float(G.δ), x)
+    δ, xx = promote(float(Distributions.params(G).δ), x)
 
     # s = exp(δx)
     return exp(δ * xx)
