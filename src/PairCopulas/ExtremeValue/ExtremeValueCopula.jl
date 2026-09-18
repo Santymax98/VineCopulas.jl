@@ -29,6 +29,7 @@ const _EVFastSmoothTail = Union{
     Copulas.AsymLogTail,
     Copulas.AsymGalambosTail,
     Copulas.AsymMixedTail,
+    Copulas.tEVTail,
 }
 
 @inline function _ev_conditional(C::Copulas.ExtremeValueCopula{2}, base::Real, dim::Int8,)
@@ -133,6 +134,18 @@ end
 # ---------------------------------------------------------------------
 # A, A' and conditional factors from public copula parameters.
 # ---------------------------------------------------------------------
+
+@inline function _ev_tev_parameters(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+
+    ν = p.ν + zero(t)
+    ρ = (hasproperty(p, :ρ) ? p.ρ : p.R[1, 2]) + zero(t)
+
+    return ν, ρ
+end
 
 @inline function _ev_A_dA(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.GalambosTail},
@@ -274,6 +287,43 @@ end
     dA = B*g
 
     B1, B2 = _ev_pickands_factors(C, t, A, dA)
+    return A, dA, B1, B2
+end
+
+@inline function _ev_A_dA(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
+    t::Real,
+)
+    ν, ρ = _ev_tev_parameters(C, t)
+
+    α = inv(ν)
+    c = sqrt((one(ν) + ν) / (one(ρ) - ρ*ρ))
+
+    a = t
+    b = one(t) - t
+
+    log_r = log(a) - log1p(-a)
+    log_s = -log_r
+
+    rα = exp(α*log_r)
+    sα = exp(α*log_s)
+
+    z1 = c*(rα - ρ)
+    z2 = c*(sα - ρ)
+
+    D = Distributions.TDist(ν + one(ν))
+    F1 = Distributions.cdf(D, z1)
+    F2 = Distributions.cdf(D, z2)
+
+    A = a*F1 + b*F2
+
+    # The density terms in d/dt[t F1 + (1-t) F2] cancel exactly.
+    dA = F1 - F2
+
+    # Consequently the two conditional Pickands factors simplify exactly.
+    B1 = F2
+    B2 = F1
+
     return A, dA, B1, B2
 end
 
@@ -462,6 +512,59 @@ end
 end
 
 @inline function _ev_A_dA_d2A(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
+    t::Real,
+)
+    ν, ρ = _ev_tev_parameters(C, t)
+
+    α = inv(ν)
+    c = sqrt((one(ν) + ν) / (one(ρ) - ρ*ρ))
+
+    a = t
+    b = one(t) - t
+
+    log_r = log(a) - log1p(-a)
+    log_s = -log_r
+
+    rα = exp(α*log_r)
+    sα = exp(α*log_s)
+
+    z1 = c*(rα - ρ)
+    z2 = c*(sα - ρ)
+
+    D = Distributions.TDist(ν + one(ν))
+    F1 = Distributions.cdf(D, z1)
+    F2 = Distributions.cdf(D, z2)
+
+    A = a*F1 + b*F2
+    dA = F1 - F2
+
+    # Since
+    #
+    #   a*f1*z1' + b*f2*z2' = 0,
+    #
+    # we may evaluate
+    #
+    #   A'' = f1*z1' - f2*z2'
+    #
+    # from whichever side is numerically better.  Near t=0 use z1;
+    # near t=1 use z2.
+    if a <= b
+        rαm1 = exp((α - one(α))*log_r)
+        dz1 = c*α*rαm1/(b*b)
+        f1 = Distributions.pdf(D, z1)
+        d2A = f1*dz1/b
+    else
+        sαm1 = exp((α - one(α))*log_s)
+        dz2 = -c*α*sαm1/(a*a)
+        f2 = Distributions.pdf(D, z2)
+        d2A = -f2*dz2/a
+    end
+
+    return A, dA, d2A
+end
+
+@inline function _ev_A_dA_d2A(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
     t::Real,
 )
@@ -532,6 +635,20 @@ end
            α > one(α) &&
            θ1 > zero(θ1) &&
            θ2 > zero(θ2)
+end
+
+@inline function _ev_fast_eligible(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
+)
+    p = Distributions.params(C)
+
+    ν = p.ν
+    ρ = hasproperty(p, :ρ) ? p.ρ : p.R[1, 2]
+
+    return isfinite(ν) &&
+           isfinite(ρ) &&
+           ν > zero(ν) &&
+           -one(ρ) < ρ < one(ρ)
 end
 
 @inline _ev_fast_eligible(
@@ -627,6 +744,18 @@ end
 
 @inline function _ev_promote_inputs(C::Copulas.ExtremeValueCopula{2}, q::Real, base::Real)
     vals = promote(float(q), float(base), values(Distributions.params(C))...)
+    return vals[1], vals[2]
+end
+
+@inline function _ev_promote_inputs(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
+    q::Real,
+    base::Real,
+)
+    p = Distributions.params(C)
+    ρ = hasproperty(p, :ρ) ? p.ρ : p.R[1, 2]
+
+    vals = promote(float(q), float(base), float(p.ν), float(ρ))
     return vals[1], vals[2]
 end
 
