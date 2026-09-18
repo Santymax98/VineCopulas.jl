@@ -517,3 +517,72 @@ end
         @test hinv2(Camh, q2, u) ≈ v atol=5e-9 rtol=5e-9
     end
 end
+
+@testitem "Gumbel-Barnett public-parameter closed kernels" tags=[:PairCopula, :Archimedean, :Regression] begin
+    using Distributions
+    using ForwardDiff
+
+    buf = zeros(2)
+
+    for theta in (0.0, 0.01, 0.2, 0.5, 0.9, 1.0)
+        C = GumbelBarnettCopula(2, theta)
+
+        for (u, v) in (
+            (0.37, 0.72),
+            (0.2, 0.83),
+            (1e-8, 0.19),
+            (1 - 1e-8, 0.83),
+            (1e-6, 1 - 1e-6),
+        )
+            lc, h1, h2 =
+                @inferred VineCopulas._pair_step(C, u, v, buf)
+
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+
+            @test hinv1(C, h1, v) ≈ u atol=5e-9 rtol=5e-9
+            @test hinv2(C, h2, u) ≈ v atol=5e-9 rtol=5e-9
+
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) ==
+                  (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) ==
+                  (lc, h2)
+
+            # Compare with the public API at ordinary representable points.
+            @test lc ≈ logpdf(C, [u, v]) atol=2e-10 rtol=2e-10
+
+            # Independent high-precision reference. Differentiate the explicit
+            # conditional CDF rather than reusing the local density formula.
+            setprecision(BigFloat, 256) do
+                θb = BigFloat(theta)
+                ub = BigFloat(u)
+                vb = BigFloat(v)
+
+                href(x) = begin
+                    lx = log(x)
+                    lv = log(vb)
+
+                    x *
+                    (1 - θb * lx) *
+                    exp(-θb * lx * lv)
+                end
+
+                cref = ForwardDiff.derivative(href, ub)
+
+                @test BigFloat(lc) ≈
+                      log(cref) atol=big"5e-12" rtol=big"5e-13"
+            end
+        end
+    end
+
+    # θ = 0 is exact independence.
+    C0 = GumbelBarnettCopula(2, 0.0)
+
+    for (u, v) in ((0.2, 0.7), (1e-8, 0.9), (0.999999, 1e-4))
+        @test VineCopulas._pair_logpdf(C0, u, v, buf) == 0.0
+        @test hfunc1(C0, u, v) == u
+        @test hfunc2(C0, u, v) == v
+        @test hinv1(C0, u, v) == u
+        @test hinv2(C0, v, u) == v
+    end
+end
