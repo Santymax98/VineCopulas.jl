@@ -10,7 +10,15 @@ const ARCH_GRID = (0.05, 0.25, 0.50, 0.75, 0.95)
 const S_GRID = (1e-3, 0.03, 0.20, 1.00, 5.00)
 
 @inline _is_extreme_value(C) = C isa Copulas.ExtremeValueCopula{2}
-@inline _is_singular_extreme_value(C) = _is_extreme_value(C) && C.tail isa Union{Copulas.CuadrasAugeTail,Copulas.MOTail,Copulas.BC2Tail,Copulas.EmpiricalEVTail}
+const _TEST_SINGULAR_EV_TAIL = Union{
+    Copulas.CuadrasAugeTail,
+    Copulas.MOTail,
+    Copulas.BC2Tail,
+    Copulas.EmpiricalEVTail,
+}
+
+@inline _is_singular_extreme_value(C) =
+    C isa Copulas.ExtremeValueCopula{2,<:_TEST_SINGULAR_EV_TAIL}
 
 function _finite_pdf_h1(C, u, v; h=1e-5)
     a, b = max(u-h, TEST_EPSU), min(u+h, 1-TEST_EPSU)
@@ -22,8 +30,11 @@ function _finite_pdf_h2(C, u, v; h=1e-5)
     return (hfunc2(C, u, b)-hfunc2(C, u, a))/(b-a)
 end
 
-@inline _conditional_dist1(C::Copulas.ExtremeValueCopula{2}, v::Real) = Copulas.BivEVDistortion(C.tail, Int8(2), float(v))
-@inline _conditional_dist2(C::Copulas.ExtremeValueCopula{2}, u::Real) = Copulas.BivEVDistortion(C.tail, Int8(1), float(u))
+@inline _conditional_dist1(C::Copulas.ExtremeValueCopula{2}, v::Real) =
+    Copulas.condition(C, 2, float(v))
+
+@inline _conditional_dist2(C::Copulas.ExtremeValueCopula{2}, u::Real) =
+    Copulas.condition(C, 1, float(u))
 
 elliptical_candidates() = Pair{String,Copulas.Copula{2}}[
     "Gaussian" => Copulas.GaussianCopula([1.0 0.5; 0.5 1.0]),
