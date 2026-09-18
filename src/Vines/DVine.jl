@@ -213,20 +213,41 @@ function _rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::DVineCopula{p}, 
     return out
 end
 
-function _inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::DVineCopula{p}, Z::AbstractMatrix{<:Real}) where {p}
+_inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::DVineCopula{p}, Z::AbstractMatrix{<:Real}) where {p} =
+    _inverse_rosenblatt_internal!(out, vc, Z, nothing)
+
+# The D-vine engine generates the path from `order[1]` onwards, so a fixed
+# block that heads the path is seeded directly. A fixed block at the other end
+# runs the same engine on the reversed path, which is the same vine with every
+# pair copula's arguments swapped.
+function _inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::DVineCopula{p}, Z::AbstractMatrix{<:Real}, block) where {p}
+    nfixed = block === nothing ? 0 : length(block[1])
+    if nfixed > 0 && !_heads_order(vc.order, block[1])
+        return _inverse_rosenblatt_internal!(out, _reverse_dvine(vc), Z, block)
+    end
     Zx = _as_pxn(p, Z)
     n = size(Zx,2)
     W = Matrix{Float64}(undef, p, n)
     @inbounds for j in 1:p
         @views W[j,:] .= _clp.(Zx[vc.order[j],:])
     end
+    if nfixed > 0
+        # The fixed block heads the path: row j of the path takes its known
+        # uniform and the inverse chain for that row is skipped.
+        js, Ujs = block
+        @inbounds for j in 1:nfixed
+            r = findfirst(==(vc.order[j]), js)
+            @views W[j,:] .= Ujs[r,:]
+        end
+    end
     X = Matrix{Float64}(undef, p, n)
     Lwork = Matrix{Float64}(undef, p, n)
     Rwork = Vector{Float64}(undef, n)
     @inbounds X[1,:] .= W[1,:]
     @inbounds for i in 2:p
-        first = _dvine_left_conditionals!(Lwork, Rwork, vc, X, i)
         @views X[i,:] .= W[i,:]
+        i <= nfixed && continue
+        first = _dvine_left_conditionals!(Lwork, Rwork, vc, X, i)
         # Invert from farthest conditioned pair to nearest.
         for m in first:(i-1)
             C = _prepare_pair(vc.edges[i-m][m])
@@ -240,6 +261,26 @@ function _inverse_rosenblatt_internal!(out::AbstractMatrix{<:Real}, vc::DVineCop
         @views out[label,:] .= X[invord[label],:]
     end
     return out
+end
+
+# The same D-vine read from the other end of its path. Edge (k, i) of the
+# reversed path is C_{ord'[i], ord'[i+k] | ...} = C_{ord[p+1-i], ord[p+1-i-k] | ...},
+# which is edge (k, p+1-k-i) of the original with its two arguments swapped.
+function _reverse_dvine(vc::DVineCopula{p}) where {p}
+    ord = reverse(collect(vc.order))
+    E = [[_swap_pair(vc.edges[k][p + 1 - k - i]) for i in 1:(p - k)] for k in 1:vc.trunc]
+    return DVineCopula(ord, E; trunc=vc.trunc)
+end
+
+# A D-vine path can be generated from either end, so a fixed block at either
+# end of `order(vc)` heads a sampling order.
+admits_conditioning(vc::DVineCopula{p}, js) where {p} =
+    _heads_order(vc.order, js) || _tails_order(vc.order, js)
+
+function _conditioning_refusal(vc::DVineCopula{p}, js) where {p}
+    return "exact conditioning needs the fixed variables $(collect(js)) to sit at one end " *
+           "of the D-vine path, but the path is $(collect(vc.order)); refit with " *
+           "`order = ...` placing them at an end, or condition by rejection"
 end
 
 function _dvine_edge_description(vc::DVineCopula{p}, k::Int, i::Int) where {p}

@@ -274,4 +274,68 @@
         check_sampling(vine; n=32)
         nothing
     end
+
+    # ------------------------------------------------------------------
+    # Conditional sampling contracts
+    # ------------------------------------------------------------------
+
+    # P(U_{f1} ≤ a, U_{f2} ≤ b | U_js = ujs) for the two free coordinates
+    # `free` of `vine`, by midpoint integration of the joint density on an
+    # m×m grid over the free coordinates, normalised by the same integral over
+    # the unit square. The ratio is the conditional law by definition, so this
+    # oracle is independent of the sampling recursion under test and holds for
+    # every family and truncation level.
+    function conditional_box_probability(vine, free, js, ujs, a, b; m=400)
+        length(free) == 2 || throw(ArgumentError("the oracle integrates two free coordinates"))
+        p = length(vine)
+        g = ((1:m) .- 0.5) ./ m
+        U = Matrix{Float64}(undef, p, m * m)
+        for (r, j) in enumerate(js)
+            U[j, :] .= ujs[r]
+        end
+        col = 0
+        for x in g, y in g
+            col += 1
+            U[free[1], col] = x
+            U[free[2], col] = y
+        end
+        dens = exp.(logpdf(vine, U))
+        inbox = (view(U, free[1], :) .<= a) .& (view(U, free[2], :) .<= b)
+        return sum(dens[inbox]) / sum(dens)
+    end
+
+    # A conditional draw with `fixed = (js, ujs)` leaves two free coordinates.
+    # Checks: the fixed rows are exact, the free rows are the Rosenblatt
+    # image of the uniforms fed in, and the empirical conditional law matches
+    # the density oracle. `inverting` is the vine whose Rosenblatt transform
+    # inverts the draw: `vine` itself, except for a D-vine fixed at the far
+    # end of its path, which samples along the reversed path.
+    function check_conditional_sampling(vine, js, ujs; inverting=vine, seed=2026, n=100_000, atol=1e-2, rt_atol=1e-7)
+        p = length(vine)
+        free = setdiff(1:p, js)
+        length(free) == 2 || throw(ArgumentError("fixture must leave two free coordinates"))
+        @test admits_conditioning(vine, js)
+
+        rng = stable_rng(seed)
+        Z = rand(rng, p, 16)
+        U = inverse_rosenblatt(vine, Z; fixed=(js, ujs))
+        @test size(U) == (p, 16)
+        for (r, j) in enumerate(js)
+            @test all(U[j, :] .== ujs[r])
+        end
+        R = rosenblatt(inverting, U)
+        @test R[free, :] ≈ Z[free, :] atol=rt_atol rtol=rt_atol
+
+        U = rand(rng, vine, n; fixed=(js, ujs))
+        @test size(U) == (p, n)
+        for (r, j) in enumerate(js)
+            @test all(U[j, :] .== ujs[r])
+        end
+        for (a, b) in ((0.2, 0.2), (0.5, 0.5), (0.8, 0.3), (0.3, 0.9))
+            emp = count((view(U, free[1], :) .<= a) .& (view(U, free[2], :) .<= b)) / n
+            ref = conditional_box_probability(vine, free, js, ujs, a, b)
+            @test emp ≈ ref atol=atol
+        end
+        nothing
+    end
 end

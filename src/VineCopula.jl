@@ -77,30 +77,32 @@ function _qmc_points(rng::Random.AbstractRNG, p::Int, N::Int; randomized::Bool=t
         throw(ErrorException("QuasiMonteCarlo devolvió dimensiones inesperadas $(size(X))"))
     end
 end
-_qmc_points(p::Int, N::Int; randomized::Bool=true) =
-    _qmc_points(Random.MersenneTwister(_CDF_QMC_SEED[]), p, N; randomized=randomized)
+
+_qmc_points(p::Int, N::Int; randomized::Bool=true) = _qmc_points(Random.MersenneTwister(_CDF_QMC_SEED[]), p, N; randomized=randomized)
 
 """
-    simulate_qmc([rng::AbstractRNG,] vine, N; randomized=true)
+    simulate_qmc([rng::AbstractRNG,] vine, N; randomized=true, fixed=nothing)
 
 Generate `N` quasi-Monte Carlo observations from a vine copula using Sobol
 points followed by the inverse Rosenblatt transform. The returned matrix has
 size `p × N`, with rows corresponding to variables and columns to observations.
 
 When `randomized=true` the Sobol points are Owen-scrambled and `rng` drives the
-scramble, so two calls with the same generator state return the same points and
-two independent generators give two independent QMC replicates. Without an
-`rng` the scramble uses a fixed internal seed, so the point set is the same on
-every call. When `randomized=false` the raw Sobol points are returned and `rng`
-is ignored.
+scramble. Without an `rng` the scramble uses a fixed internal seed, preserving
+the deterministic historical behaviour. When `randomized=false`, `rng` is
+ignored.
+
+The `fixed` keyword has the same meaning as in [`inverse_rosenblatt`](@ref):
+the fixed coordinates are held at their supplied values and the remaining
+coordinates are drawn conditionally.
 """
-function simulate_qmc(rng::Random.AbstractRNG, vc::AbstractVineCopula{p}, N::Integer;
-                      randomized::Bool=true) where {p}
+function simulate_qmc(rng::Random.AbstractRNG, vc::AbstractVineCopula{p}, N::Integer; randomized::Bool=true, fixed=nothing) where {p}
     Z = _qmc_points(rng, p, Int(N); randomized=randomized)
-    return inverse_rosenblatt(vc, Z)
+    return inverse_rosenblatt(vc, Z; fixed=fixed)
 end
-function simulate_qmc(vc::AbstractVineCopula{p}, N::Integer; randomized::Bool=true) where {p}
-    return simulate_qmc(Random.MersenneTwister(_CDF_QMC_SEED[]), vc, N; randomized=randomized)
+
+function simulate_qmc(vc::AbstractVineCopula{p}, N::Integer; randomized::Bool=true, fixed=nothing) where {p}
+    return simulate_qmc(Random.MersenneTwister(_CDF_QMC_SEED[]), vc, N; randomized=randomized, fixed=fixed,)
 end
 
 # -------------------- Distributions.jl interface --------------------
@@ -122,32 +124,66 @@ end
 Distributions.pdf(vc::AbstractVineCopula{p}, u::AbstractVector{<:Real}) where {p} = exp(Distributions.logpdf(vc, u))
 Distributions.pdf(vc::AbstractVineCopula{p}, U::AbstractMatrix{<:Real}) where {p} = exp.(Distributions.logpdf(vc, U))
 
-function Distributions.rand(rng::Distributions.AbstractRNG, vc::AbstractVineCopula{p}) where {p}
-    return vec(Distributions.rand(rng, vc, 1))
+"""
+    rand([rng], vine, n; fixed=nothing)
+    rand!([rng], A, vine; fixed=nothing)
+
+Draw `n` observations from a vine copula as a `p × n` matrix.
+
+With `fixed = (js, Ujs)` the coordinates `js` are held at the uniforms `Ujs` and the
+remaining coordinates are drawn from their conditional law given those values, so the
+result is an exact sample from ``C(u_{-js} \\mid u_{js})``. `Ujs` is a
+`length(js) × n` matrix, or a tuple or vector of `length(js)` scalars broadcast over
+every column, of uniforms in `[0, 1]`; any other value is an `ArgumentError`. The rows
+`js` of the result hold the supplied values exactly, and a boundary value `0` or `1`
+conditions the recursion at the nearest interior floating-point number. The draw
+is exact only when [`admits_conditioning`](@ref)`(vine, js)` is `true`; otherwise an
+`ArgumentError` names the fix. See [`inverse_rosenblatt`](@ref) for the mechanism.
+"""
+function Distributions.rand(rng::Distributions.AbstractRNG, vc::AbstractVineCopula{p}; fixed=nothing) where {p}
+    return vec(Distributions.rand(rng, vc, 1; fixed=fixed))
 end
 
-function Distributions.rand(rng::Distributions.AbstractRNG, vc::AbstractVineCopula{p}, n::Int) where {p}
+function Distributions.rand(rng::Distributions.AbstractRNG, vc::AbstractVineCopula{p}, n::Int; fixed=nothing) where {p}
     n >= 0 || throw(ArgumentError("n debe ser no negativo"))
     Z = rand(rng, p, n)
-    return inverse_rosenblatt!(similar(Z), vc, Z)
+    return inverse_rosenblatt!(similar(Z), vc, Z; fixed=fixed)
 end
 
-function Distributions.rand(rng::Distributions.AbstractRNG, vc::AbstractVineCopula{p}, n::Integer) where {p}
-    return Distributions.rand(rng, vc, Int(n))
+function Distributions.rand(rng::Distributions.AbstractRNG, vc::AbstractVineCopula{p}, n::Integer; fixed=nothing) where {p}
+    return Distributions.rand(rng, vc, Int(n); fixed=fixed)
 end
 
-function Distributions.rand!(rng::Distributions.AbstractRNG, A::AbstractMatrix{<:Real}, vc::AbstractVineCopula{p}) where {p}
+# Distributions.jl's rng-less methods do not forward keywords, so the `fixed`
+# keyword needs its own rng-less entry points. They use the same default
+# generator Distributions.jl uses.
+function Distributions.rand(vc::AbstractVineCopula{p}; fixed=nothing) where {p}
+    return Distributions.rand(Distributions.default_rng(), vc; fixed=fixed)
+end
+
+function Distributions.rand(vc::AbstractVineCopula{p}, n::Int; fixed=nothing) where {p}
+    return Distributions.rand(Distributions.default_rng(), vc, n; fixed=fixed)
+end
+
+function Distributions.rand(vc::AbstractVineCopula{p}, n::Integer; fixed=nothing) where {p}
+    return Distributions.rand(Distributions.default_rng(), vc, Int(n); fixed=fixed)
+end
+
+function Distributions.rand!(rng::Distributions.AbstractRNG, A::AbstractMatrix{<:Real}, vc::AbstractVineCopula{p}; fixed=nothing) where {p}
     size(A,1) == p || throw(ArgumentError("A debe ser p×n con p=$p"))
     Z = rand(rng, p, size(A,2))
-    inverse_rosenblatt!(A, vc, Z)
+    inverse_rosenblatt!(A, vc, Z; fixed=fixed)
     return A
+end
+
+function Distributions.rand!(A::AbstractMatrix{<:Real}, vc::AbstractVineCopula{p}; fixed=nothing) where {p}
+    return Distributions.rand!(Distributions.default_rng(), A, vc; fixed=fixed)
 end
 
 # Draw the sample the numerical `cdf` integrates over. `rng === nothing` keeps the
 # historical defaults: a fixed-seed Owen scramble for `:qmc` and the global
 # generator for `:mc`. A caller-supplied `rng` drives both methods.
-function _cdf_sample(vc::AbstractVineCopula, method::Symbol, N::Integer, randomized::Bool,
-                     rng::Union{Nothing,Random.AbstractRNG})
+function _cdf_sample(vc::AbstractVineCopula, method::Symbol, N::Integer, randomized::Bool, rng::Union{Nothing,Random.AbstractRNG})
     method in (:qmc, :mc) || throw(ArgumentError("method debe ser :qmc o :mc"))
     if method === :qmc
         return rng === nothing ? simulate_qmc(vc, N; randomized=randomized) :
@@ -157,21 +193,15 @@ function _cdf_sample(vc::AbstractVineCopula, method::Symbol, N::Integer, randomi
     end
 end
 
-function Distributions.cdf(vc::AbstractVineCopula{p}, u::AbstractVector{<:Real};
-                           method::Symbol=:qmc,
-                           N::Integer=_CDF_NSAMPLES[],
-                           randomized::Bool=true,
-                           rng::Union{Nothing,Random.AbstractRNG}=nothing) where {p}
+function Distributions.cdf(vc::AbstractVineCopula{p}, u::AbstractVector{<:Real}; method::Symbol=:qmc, N::Integer=_CDF_NSAMPLES[],
+                           randomized::Bool=true, rng::Union{Nothing,Random.AbstractRNG}=nothing) where {p}
     _check_vector_dim(p, u)
     U = _cdf_sample(vc, method, N, randomized, rng)
     return _box_probability(U, u)
 end
 
-function Distributions.cdf(vc::AbstractVineCopula{p}, Ueval::AbstractMatrix{<:Real};
-                           method::Symbol=:qmc,
-                           N::Integer=_CDF_NSAMPLES[],
-                           randomized::Bool=true,
-                           rng::Union{Nothing,Random.AbstractRNG}=nothing) where {p}
+function Distributions.cdf(vc::AbstractVineCopula{p}, Ueval::AbstractMatrix{<:Real}; method::Symbol=:qmc, N::Integer=_CDF_NSAMPLES[],
+                           randomized::Bool=true, rng::Union{Nothing,Random.AbstractRNG}=nothing) where {p}
     X = _as_pxn(p, Ueval)
     Usim = _cdf_sample(vc, method, N, randomized, rng)
     out = Vector{Float64}(undef, size(X,2))
@@ -235,37 +265,145 @@ function rosenblatt!(out::AbstractMatrix{<:Real}, vc::AbstractVineCopula{p}, U::
 end
 
 """
-    inverse_rosenblatt(vine, z)
-    inverse_rosenblatt(vine, Z)
+    inverse_rosenblatt(vine, z; fixed=nothing)
+    inverse_rosenblatt(vine, Z; fixed=nothing)
 
 Apply the inverse Rosenblatt transform. This maps independent uniforms on the
 unit hypercube into observations from the vine copula. Matrix inputs and outputs
 use the `p × n` convention.
+
+With `fixed = (js, Ujs)` the coordinates `js` are not generated from `Z`: their
+raw uniforms are taken from `Ujs` (a `length(js) × n` matrix, or a tuple or
+vector of `length(js)` scalars broadcast over every column) and only the
+remaining coordinates are generated, each conditionally on the fixed block and
+on the coordinates generated before it. Every value of `Ujs` must lie in
+`[0, 1]`, or an `ArgumentError` is thrown, and it is validated before any
+numerical helper sees it. The rows `js` of the result hold the supplied values
+exactly; a boundary value `0` or `1` conditions the recursion at the nearest
+interior floating-point number, which is the limit of the conditional law at
+that edge. The rows `Z[js, :]` are ignored, so an
+unconditional `Z` can be passed unchanged. The result is an exact draw from the
+conditional copula ``C(u_{-js} \\mid u_{js})`` whenever
+[`admits_conditioning`](@ref)`(vine, js)` is `true`, which is the case when
+`js` heads a sampling order of the vine. Otherwise an `ArgumentError` names the
+fit-side option that makes the predicate true. A `js => Ujs` pair is accepted
+in place of the tuple.
 """
-function inverse_rosenblatt(vc::AbstractVineCopula{p}, z::AbstractVector{<:Real}) where {p}
+function inverse_rosenblatt(vc::AbstractVineCopula{p}, z::AbstractVector{<:Real}; fixed=nothing) where {p}
     _check_vector_dim(p, z)
-    return vec(inverse_rosenblatt(vc, reshape(z, p, 1)))
+    return vec(inverse_rosenblatt(vc, reshape(z, p, 1); fixed=fixed))
 end
 
-function inverse_rosenblatt(vc::AbstractVineCopula{p}, Z::AbstractMatrix{<:Real}) where {p}
+function inverse_rosenblatt(vc::AbstractVineCopula{p}, Z::AbstractMatrix{<:Real}; fixed=nothing) where {p}
     X = _as_pxn(p, Z)
     out = similar(Matrix{Float64}(X), p, size(X,2))
-    return inverse_rosenblatt!(out, vc, X)
+    return inverse_rosenblatt!(out, vc, X; fixed=fixed)
 end
 
 """
-    inverse_rosenblatt!(out, vine, Z)
+    inverse_rosenblatt!(out, vine, Z; fixed=nothing)
 
 In-place inverse Rosenblatt transform. `out` and `Z` must have the same `p × n`
-shape.
+shape. `fixed` has the same meaning as in [`inverse_rosenblatt`](@ref).
 """
-function inverse_rosenblatt!(out::AbstractMatrix{<:Real}, vc::AbstractVineCopula{p}, Z::AbstractMatrix{<:Real}) where {p}
+function inverse_rosenblatt!(out::AbstractMatrix{<:Real}, vc::AbstractVineCopula{p}, Z::AbstractMatrix{<:Real}; fixed=nothing) where {p}
     X = _as_pxn(p, Z)
     size(out) == size(X) || throw(ArgumentError("out debe tener tamaño $(size(X)); recibió $(size(out))"))
-    return _inverse_rosenblatt_internal!(out, vc, X)
+    fixed === nothing && return _inverse_rosenblatt_internal!(out, vc, X)
+    return _inverse_rosenblatt_internal!(out, vc, X, _conditioning_block(vc, fixed, size(X, 2), eltype(out)))
+end
+
+"""
+    admits_conditioning(vine, js) -> Bool
+
+Whether fixing the coordinates `js` admits an exact conditional draw of the
+remaining coordinates through the vine's own sampling recursion, that is,
+whether `js` heads a sampling order of `vine`.
+
+The inverse Rosenblatt transform generates the coordinates one at a time, each
+conditionally on the ones generated before it. When the fixed set is exactly the
+first `length(js)` coordinates that recursion generates, seeding them with known
+values and generating the rest gives an exact sample from
+``C(u_{-js} \\mid u_{js})`` at the cost of an unconditional `rand`. For a
+[`DVineCopula`](@ref) this holds when `js` sits at either end of the path
+`order(vine)`; for a [`CVineCopula`](@ref) when `js` is the first
+`length(js)` roots of `order(vine)`; for a standard [`RVineCopula`](@ref) when
+`js` is the tail of `order(vine)`, which `fit(RVineCopula, U; sampling_tail=js)`
+arranges whenever the selected trees allow it. The order of the labels inside
+`js` does not matter.
+
+When the predicate is `false`, `rand(vine, n; fixed=(js, Ujs))` refuses with an
+`ArgumentError` rather than returning an approximate draw.
+"""
+function admits_conditioning end
+
+# Validate the `fixed` keyword against the vine and the batch size, and return
+# the labels together with a `length(js) × n` block of the supplied uniforms.
+# Public input is validated against [0, 1] before numerical kernels may
+# interiorize probabilities as needed. The block takes the element type of the
+# destination so no number type is forced on a caller.
+@inline function _validate_fixed_uniform(u)
+    if !(u isa Real && isfinite(u) && zero(u) <= u <= one(u))
+        throw(ArgumentError(
+            "fixed values must be finite uniforms in [0, 1]; got $u"
+        ))
+    end
+    return u
+end
+
+function _conditioning_block(vc::AbstractVineCopula{p}, fixed, n::Int, ::Type{T}) where {p,T}
+    fixed isa Union{Tuple,Pair} && length(fixed) == 2 || throw(ArgumentError(
+        "fixed must be a `(js, Ujs)` tuple or a `js => Ujs` pair"
+    ))
+    js0, Ujs = fixed
+    js = collect(Int, js0)
+    k = length(js)
+    1 <= k <= p - 1 || throw(ArgumentError(
+        "fixed must name between 1 and $(p - 1) of the $p coordinates; got $k"
+    ))
+    allunique(js) && all(j -> 1 <= j <= p, js) || throw(ArgumentError(
+        "fixed labels must be distinct and in 1:$p; got $js"
+    ))
+    admits_conditioning(vc, js) || throw(ArgumentError(_conditioning_refusal(vc, js)))
+
+    U = Matrix{T}(undef, k, n)
+    if Ujs isa AbstractMatrix
+        size(Ujs) == (k, n) || throw(DimensionMismatch(
+            "fixed values must be $(k)×$(n) to match the fixed labels and the batch; got $(size(Ujs))"
+        ))
+        @inbounds for col in 1:n, r in 1:k
+            u = _validate_fixed_uniform(Ujs[r, col])
+            U[r, col] = u
+        end
+    else
+        length(Ujs) == k || throw(DimensionMismatch(
+            "fixed values must hold one scalar per fixed label ($k); got $(length(Ujs))"
+        ))
+        @inbounds for (r, u0) in enumerate(Ujs)
+            u = _validate_fixed_uniform(u0)
+            @views U[r, :] .= u
+        end
+    end
+    return js, U
+end
+
+# Whether `js` is, as a set, the first `length(js)` entries of `ord`.
+function _heads_order(ord, js)
+    k = length(js)
+    1 <= k <= length(ord) - 1 || return false
+    return Set{Int}(js) == Set{Int}(ord[i] for i in 1:k)
+end
+
+# Whether `js` is, as a set, the last `length(js)` entries of `ord`.
+function _tails_order(ord, js)
+    k = length(js)
+    p = length(ord)
+    1 <= k <= p - 1 || return false
+    return Set{Int}(js) == Set{Int}(ord[i] for i in (p - k + 1):p)
 end
 
 # Clear fallbacks.
 _logpdf_internal(::AbstractVineCopula, ::Any) = throw(ArgumentError("logpdf no implementado para este tipo de vine"))
 _rosenblatt_internal!(::AbstractMatrix, ::AbstractVineCopula, ::AbstractMatrix) = throw(ArgumentError("rosenblatt no implementado para este tipo de vine"))
 _inverse_rosenblatt_internal!(::AbstractMatrix, ::AbstractVineCopula, ::AbstractMatrix) = throw(ArgumentError("inverse_rosenblatt no implementado para este tipo de vine"))
+_inverse_rosenblatt_internal!(::AbstractMatrix, ::AbstractVineCopula, ::AbstractMatrix, ::Any) = throw(ArgumentError("conditional inverse_rosenblatt is not implemented for this vine type"))

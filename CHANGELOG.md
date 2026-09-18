@@ -4,6 +4,16 @@ All notable changes to `VineCopulas.jl` are documented here. Version numbers fol
 
 ## [Unreleased]
 
+### Added
+
+- Exact conditional simulation through the vine's own sampling recursion: `rand`, `rand!`, `simulate_qmc`, `inverse_rosenblatt`, and `inverse_rosenblatt!` accept `fixed=(js, Ujs)` to hold the coordinates `js` at known uniforms and draw the remaining coordinates from their conditional law, at the cost of an unconditional draw.
+- `admits_conditioning(vine, js)`, the structure predicate that says when that draw is exact: `js` at either end of a D-vine path, the first roots of a C-vine, or the tail of a standard R-vine's order. A draw whose predicate is `false` refuses with an `ArgumentError` that names the fit-side fix.
+- `fit(RVineCopula, U; sampling_tail=js)` peels the selected trees so that `js` sits at the end of the order whenever the trees allow it, without changing the trees or the pair copulas.
+
+### Fixed
+
+- The Clayton pair kernels for `θ > 0` work in log space: `hinv1`/`hinv2` collapsed to the clamp floor once `q·ϕ⁽¹⁾(ϕ⁻¹(v))` underflowed and returned `NaN` once `v^(-θ)` overflowed, and the h-functions and density saturated at the same overflow, so a conditioning argument below about `1e-108` (θ = 2) gave a wrong or non-finite conditional. Every representable argument now gives a finite one.
+
 ### Changed
 
 - Standard general R-vines truncated below full depth support Rosenblatt/inverse Rosenblatt transforms, `rand`, `simulate_qmc`, and the simulation-based numerical `cdf`. The execution-plan transforms introduced in 0.1.2 already honoured the truncation depth; the guard that refused them, the legacy matrix traversal it protected, and the documentation that stated the limitation are removed. A test checks a truncated standard R-vine against the same edges padded to full depth with independence pair-copulas.
