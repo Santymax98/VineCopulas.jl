@@ -107,6 +107,22 @@ end
     rand!(A, rv; fixed=([5], (0.25,)))
     @test all(A[5, :] .== 0.25)
     @test all(simulate_qmc(rv, 16; fixed=([5], (0.5,)))[5, :] .== 0.5)
+
+    # Integration with the RNG-aware QMC API: the caller controls the Owen
+    # scramble while conditional coordinates remain fixed exactly.
+    Q1 = simulate_qmc(M.stable_rng(991), rv, 16; fixed=([5], (0.5,)))
+    Q2 = simulate_qmc(M.stable_rng(991), rv, 16; fixed=([5], (0.5,)))
+    Q3 = simulate_qmc(M.stable_rng(992), rv, 16; fixed=([5], (0.5,)))
+    @test Q1 == Q2
+    @test all(Q1[5, :] .== 0.5)
+    @test Q1[1:4, :] != Q3[1:4, :]
+
+    # With an unscrambled Sobol sequence the RNG is intentionally irrelevant.
+    Qraw1 = simulate_qmc(M.stable_rng(991), rv, 16;
+                         randomized=false, fixed=([5], (0.5,)))
+    Qraw2 = simulate_qmc(M.stable_rng(992), rv, 16;
+                         randomized=false, fixed=([5], (0.5,)))
+    @test Qraw1 == Qraw2
     Z = rand(rng, 5, n)
     @test inverse_rosenblatt(rv, Z[:, 1]; fixed=([5], (0.5,)))[5] == 0.5
     @test inverse_rosenblatt!(similar(Z), rv, Z; fixed=([5], (0.5,)))[5, :] == fill(0.5, n)
