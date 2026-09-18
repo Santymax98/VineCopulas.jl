@@ -31,6 +31,9 @@ _inverse_test_generator(C::Copulas.BB2Copula{2}) =
 _inverse_test_generator(C::Copulas.BB3Copula{2}) =
     Copulas.BB3Generator(Distributions.params(C).θ, Distributions.params(C).δ)
 
+_inverse_test_generator(C::Copulas.BB9Copula{2}) =
+    Copulas.BB9Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+
 # The generator remains an independent mathematical reference only.
 function _check_derivative_inverse(C::Copulas.Copula{2}, s; atol=1e-9, rtol=1e-9)
     G = _inverse_test_generator(C)
@@ -53,7 +56,7 @@ end
                 # in the functional roundtrip below.
                 C isa Union{Copulas.GumbelCopula{2},Copulas.JoeCopula{2}} && continue
                 @testset "$name" for s in S_GRID
-                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2},Copulas.BB7Copula{2},Copulas.BB8Copula{2},Copulas.BB2Copula{2},Copulas.BB3Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
+                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2},Copulas.BB7Copula{2},Copulas.BB8Copula{2},Copulas.BB2Copula{2},Copulas.BB3Copula{2},Copulas.BB9Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
                 end
             end
         end
@@ -509,7 +512,7 @@ end
         δ in (0.05, 0.3, 1.0, 5.0),
         s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 100.0)
 
-        _check_derivative_inverse(Copulas.BB9Generator(θ, δ), s; atol=5e-9, rtol=5e-9,)
+        _check_derivative_inverse(Copulas.BB9Copula(2, θ, δ), s; atol=5e-9, rtol=5e-9,)
     end
 
     # Coordinate ↔ probability.
@@ -517,9 +520,9 @@ end
         δ in (0.05, 0.5, 1.0, 5.0),
         u in (0.01, 0.2, 0.5, 0.9, 0.99)
 
-        G = Copulas.BB9Generator(θ, δ)
-        x = VineCopulas._arch_coordinate(G, u)
-        recovered = VineCopulas._arch_probability(G, x)
+        C = Copulas.BB9Copula(2, θ, δ)
+        x = VineCopulas._arch_coordinate(C, u)
+        recovered = VineCopulas._arch_probability(C, x)
 
         @test recovered ≈ u atol=5e-12 rtol=5e-12
     end
@@ -528,22 +531,23 @@ end
     for θ in (1.0, 1.5, 3.0),
         δ in (0.1, 1.0, 5.0)
 
-        G = Copulas.BB9Generator(θ, δ)
+        C = Copulas.BB9Copula(2, θ, δ)
         logc = -θ * log(δ)
 
-        @test VineCopulas._arch_coordinate(G, 1.0) ≈ logc
-        @test VineCopulas._arch_probability(G, logc) ≈ 1.0
+        @test VineCopulas._arch_coordinate(C, 1.0) ≈ logc
+        @test VineCopulas._arch_probability(C, logc) ≈ 1.0
     end
 
     # Monotonicity and derivative inversion.
     for θ in (1.0, 1.01, 1.5, 4.0),
         δ in (0.1, 1.0, 5.0)
 
+        C = Copulas.BB9Copula(2, θ, δ)
         G = Copulas.BB9Generator(θ, δ)
         ss = (1e-4, 1e-2, 1.0, 50.0)
 
         ys = [Copulas.ϕ⁽¹⁾(G, s) for s in ss]
-        recovered = [VineCopulas._inv_ϕ¹(G, y) for y in ys]
+        recovered = [VineCopulas._inv_ϕ¹(C, y) for y in ys]
 
         @test issorted(ys)
         @test issorted(recovered)
@@ -554,23 +558,24 @@ end
     for θ in (1.0, 1.5, 3.0),
         δ in (0.2, 1.0, 4.0)
 
-        G = Copulas.BB9Generator(θ, δ)
+        C = Copulas.BB9Copula(2, θ, δ)
 
-        a = VineCopulas._arch_coordinate(G, 0.25)
-        b = VineCopulas._arch_coordinate(G, 0.70)
-        total = VineCopulas._arch_combine(G, a, b)
+        a = VineCopulas._arch_coordinate(C, 0.25)
+        b = VineCopulas._arch_coordinate(C, 0.70)
+        total = VineCopulas._arch_combine(C, a, b)
 
-        @test VineCopulas._arch_difference(G, total, b,) ≈ a atol=5e-11 rtol=5e-11
-        @test VineCopulas._arch_difference(G, total, a,) ≈ b atol=5e-11 rtol=5e-11
+        @test VineCopulas._arch_difference(C, total, b,) ≈ a atol=5e-11 rtol=5e-11
+        @test VineCopulas._arch_difference(C, total, a,) ≈ b atol=5e-11 rtol=5e-11
     end
 
     # Arbitrary precision through the public derivative interface.
     setprecision(BigFloat, 256) do
+        C = Copulas.BB9Copula(2, big"2.5", big"0.7",)
         G = Copulas.BB9Generator(big"2.5", big"0.7",)
 
         s = big"1e6"
         y = Copulas.ϕ⁽¹⁾(G, s)
-        recovered = VineCopulas._inv_ϕ¹(G, y)
+        recovered = VineCopulas._inv_ϕ¹(C, y)
 
         @test !iszero(y)
         @test recovered ≈ s rtol=big"1e-40"
@@ -580,9 +585,9 @@ end
         c = G.δ^(-G.θ)
         x_extreme = log(s_extreme + c)
 
-        logm = VineCopulas._arch_logderivative(G, x_extreme,)
+        logm = VineCopulas._arch_logderivative(C, x_extreme,)
 
-        recovered_x = VineCopulas._arch_inverse_logderivative(G, logm,)
+        recovered_x = VineCopulas._arch_inverse_logderivative(C, logm,)
 
         recovered_extreme = exp(log(c)) * expm1(recovered_x - log(c))
 
@@ -590,17 +595,18 @@ end
     end
 
     # Finite derivative boundary at s = 0.
+    C = Copulas.BB9Copula(2, 1.5, 0.8)
     G = Copulas.BB9Generator(1.5, 0.8)
     maxm = -Copulas.ϕ⁽¹⁾(G, 0.0)
 
-    @test VineCopulas._inv_ϕ¹(G, -maxm,) ≈ 0.0
+    @test VineCopulas._inv_ϕ¹(C, -maxm,) ≈ 0.0
 
-    @test VineCopulas._inv_ϕ¹(G, -0.0,) == Inf
+    @test VineCopulas._inv_ϕ¹(C, -0.0,) == Inf
 
-    @test_throws DomainError VineCopulas._inv_ϕ¹(G, -(maxm * 1.01),)
-    @test_throws DomainError VineCopulas._inv_ϕ¹(G, -Inf,)
-    @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1,)
-    @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN,)
+    @test_throws DomainError VineCopulas._inv_ϕ¹(C, -(maxm * 1.01),)
+    @test_throws DomainError VineCopulas._inv_ϕ¹(C, -Inf,)
+    @test_throws DomainError VineCopulas._inv_ϕ¹(C, 0.1,)
+    @test_throws DomainError VineCopulas._inv_ϕ¹(C, NaN,)
 
     # θ = 1 gives the independence generator mathematically.
     Gind = Copulas.BB9Generator(1.0, 0.3)
