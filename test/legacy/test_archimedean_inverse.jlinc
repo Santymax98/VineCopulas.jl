@@ -19,6 +19,9 @@ _inverse_test_generator(C::Copulas.BB1Copula{2}) =
 _inverse_test_generator(C::Copulas.BB6Copula{2}) =
     Copulas.BB6Generator(Distributions.params(C).θ, Distributions.params(C).δ)
 
+_inverse_test_generator(C::Copulas.BB7Copula{2}) =
+    Copulas.BB7Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+
 # The generator remains an independent mathematical reference only.
 function _check_derivative_inverse(C::Copulas.Copula{2}, s; atol=1e-9, rtol=1e-9)
     G = _inverse_test_generator(C)
@@ -41,7 +44,7 @@ end
                 # in the functional roundtrip below.
                 C isa Union{Copulas.GumbelCopula{2},Copulas.JoeCopula{2}} && continue
                 @testset "$name" for s in S_GRID
-                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
+                    _check_derivative_inverse(C isa Union{Copulas.BB1Copula{2},Copulas.BB6Copula{2},Copulas.BB7Copula{2}} ? C : C.G, s; atol=1e-7, rtol=1e-7)
                 end
             end
         end
@@ -326,7 +329,7 @@ end
             δ in (0.1, 0.5, 1.5, 5.0),
             s in (1e-8, 1e-3, 0.1, 1.0, 10.0, 100.0)
 
-            _check_derivative_inverse(Copulas.BB7Generator(θ, δ), s; atol=5e-9, rtol=5e-9,)
+            _check_derivative_inverse(Copulas.BB7Copula(2, θ, δ), s; atol=5e-9, rtol=5e-9,)
         end
 
         # Coordinate ↔ probability.
@@ -334,21 +337,23 @@ end
             δ in (0.1, 1.0, 5.0),
             u in (0.01, 0.2, 0.5, 0.9, 0.99)
 
-            G = Copulas.BB7Generator(θ, δ)
-            L = VineCopulas._arch_coordinate(G, u)
+            C = Copulas.BB7Copula(2, θ, δ)
+
+            L = VineCopulas._arch_coordinate(C, u)
 
             @test L >= 0
-            @test VineCopulas._arch_probability(G, L) ≈ u atol=5e-12 rtol=5e-12
+            @test VineCopulas._arch_probability(C, L) ≈ u atol=5e-12 rtol=5e-12
         end
 
         # Monotonicity and derivative inversion.
         for θ in (1.01, 1.5, 4.0), δ in (0.2, 2.0)
+            C = Copulas.BB7Copula(2, θ, δ)
             G = Copulas.BB7Generator(θ, δ)
             ss = (1e-4, 1e-2, 1.0, 50.0)
 
             ys = [Copulas.ϕ⁽¹⁾(G, s) for s in ss]
             recovered = [
-                VineCopulas._inv_ϕ¹(G, y)
+                VineCopulas._inv_ϕ¹(C, y)
                 for y in ys
             ]
 
@@ -359,33 +364,33 @@ end
 
         # BB7 shares the log(1+s) coordinate algebra with BB2 and BB3.
         for θ in (1.1, 2.0), δ in (0.3, 3.0)
-            G = Copulas.BB7Generator(θ, δ)
+            C = Copulas.BB7Copula(2, θ, δ)
+            a = VineCopulas._arch_coordinate(C, 0.25)
+            b = VineCopulas._arch_coordinate(C, 0.70)
+            total = VineCopulas._arch_combine(C, a, b)
 
-            a = VineCopulas._arch_coordinate(G, 0.25)
-            b = VineCopulas._arch_coordinate(G, 0.70)
-            total = VineCopulas._arch_combine(G, a, b)
-
-            @test VineCopulas._arch_difference(G, total, b) ≈ a atol=5e-11 rtol=5e-11
-            @test VineCopulas._arch_difference(G, total, a) ≈ b atol=5e-11 rtol=5e-11
+            @test VineCopulas._arch_difference(C, total, b) ≈ a atol=5e-11 rtol=5e-11
+            @test VineCopulas._arch_difference(C, total, a) ≈ b atol=5e-11 rtol=5e-11
         end
 
         # Arbitrary precision.
         setprecision(BigFloat, 256) do
+            C = Copulas.BB7Copula(2, big"2.5", big"0.3")
             G = Copulas.BB7Generator(big"2.5", big"0.3")
             s = big"1e20"
             y = Copulas.ϕ⁽¹⁾(G, s)
-            recovered = VineCopulas._inv_ϕ¹(G, y)
+            recovered = VineCopulas._inv_ϕ¹(C, y)
 
             @test recovered ≈ s rtol=big"1e-40"
         end
 
         # Boundary behavior.
-        G = Copulas.BB7Generator(1.2, 1.5)
+        C = Copulas.BB7Copula(2, 1.2, 1.5)
 
-        @test VineCopulas._inv_ϕ¹(G, -Inf) == 0.0
-        @test VineCopulas._inv_ϕ¹(G, -0.0) == Inf
-        @test_throws DomainError VineCopulas._inv_ϕ¹(G, 0.1)
-        @test_throws DomainError VineCopulas._inv_ϕ¹(G, NaN)
+        @test VineCopulas._inv_ϕ¹(C, -Inf) == 0.0
+        @test VineCopulas._inv_ϕ¹(C, -0.0) == Inf
+        @test_throws DomainError VineCopulas._inv_ϕ¹(C, 0.1)
+        @test_throws DomainError VineCopulas._inv_ϕ¹(C, NaN)
 
         # θ = 1 is the Clayton subfamily.  The corresponding
         # Archimedean generators differ by a positive rescaling of their
