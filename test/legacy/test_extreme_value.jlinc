@@ -69,7 +69,7 @@ end
     @testset "Galambos boundary Pickands factors" begin
         C = Copulas.ExtremeValueCopula(2, Copulas.GalambosTail(1.5))
         for t in (1e-12, 1e-10, 1e-8, 1-1e-8, 1-1e-10, 1-1e-12)
-            _, _, B1, B2 = VineCopulas._ev_A_dA(C.tail, t)
+            _, _, B1, B2 = VineCopulas._ev_A_dA(C, t)
             @test isfinite(B1)
             @test isfinite(B2)
             @test 0.0 <= B1 <= 1.0
@@ -85,9 +85,7 @@ end
     @testset "Husler-Reiss boundary Pickands factors" begin
         C = Copulas.ExtremeValueCopula(2, Copulas.HuslerReissTail(1.2))
         for t in (1e-12, 1e-10, 1e-8, 1-1e-8, 1-1e-10, 1-1e-12)
-            A = Copulas.A(C.tail, t)
-            dA = Copulas.dA(C.tail, t)
-            B1, B2 = VineCopulas._ev_pickands_factors(C.tail, t, A, dA)
+            A, dA, B1, B2 = VineCopulas._ev_A_dA(C, t)
             @test isfinite(B1)
             @test isfinite(B2)
             @test 0.0 <= B1 <= 1.0
@@ -95,7 +93,7 @@ end
         end
     end
 
-    @testset "h-functions agree with BivEVDistortion" begin
+    @testset "h-functions agree with public Copulas.condition" begin
         for (name, C) in extreme_value_candidates()
             @testset "$name" begin
                 for u in EV_INTERIOR_GRID, v in EV_INTERIOR_GRID
@@ -148,6 +146,12 @@ end
     end
 
     @testset "LogTail reuses the analytic Gumbel inverse" begin
+        # Regression: direct subtraction of generator coordinates loses
+        # precision here. Both public families must share the stable inverse.
+        E = Copulas.ExtremeValueCopula(2, Copulas.LogTail(4.0))
+        G = Copulas.GumbelCopula(2, 4.0)
+        @test hinv1(E, 0.99999999, 0.01) == hinv1(G, 0.99999999, 0.01)
+        @test hinv2(E, 0.99999999, 0.01) == hinv2(G, 0.99999999, 0.01)
         for θ in (1.01, 1.5, 4.0)
             E = Copulas.ExtremeValueCopula(2, Copulas.LogTail(θ))
             G = Copulas.GumbelCopula(2, θ)

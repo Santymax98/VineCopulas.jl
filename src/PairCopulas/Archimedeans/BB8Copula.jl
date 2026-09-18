@@ -1,13 +1,3 @@
-# ---------------------------------------------------------------------
-# BB8Copula pair-copula density hook
-# ---------------------------------------------------------------------
-# This family currently uses the Archimedean generator formula implemented in
-# _arch_pair_logpdf_generic. The separate method is intentional: it gives this
-# rvinecopulib-compatible family a stable place for a closed-form density
-# implementation without touching the vine engines.
-
-@inline _arch_pair_logpdf(G::Copulas.BB8Generator, u::Real, v::Real) = _arch_pair_logpdf_generic(G, u, v)
-
 # =====================================================================
 # BB8
 # =====================================================================
@@ -20,8 +10,8 @@
 # coordinate. A genuine BB8 generator has 0 < δ < 1 because δ = 1 is
 # reduced to Joe by the Copulas.jl constructor.
 
-@inline function _arch_coordinate(G::Copulas.BB8Generator, u::Real)
-    ϑ, δ, uu = promote(float(Distributions.params(G).ϑ), float(Distributions.params(G).δ), float(u))
+@inline function _arch_coordinate(C::Copulas.BB8Copula{2}, u::Real)
+    ϑ, δ, uu = promote(float(Distributions.params(C).ϑ), float(Distributions.params(C).δ), float(u))
 
     zero(uu) < uu <= one(uu) ||
         throw(DomainError(u, "The BB8 probability must belong to (0, 1].",))
@@ -38,8 +28,8 @@
     return logη - lognumerator
 end
 
-@inline function _arch_probability(G::Copulas.BB8Generator, s::Real)
-    ϑ, δ, ss = promote(float(Distributions.params(G).ϑ), float(Distributions.params(G).δ), float(s))
+@inline function _arch_probability(C::Copulas.BB8Copula{2}, s::Real)
+    ϑ, δ, ss = promote(float(Distributions.params(C).ϑ), float(Distributions.params(C).δ), float(s))
 
     ss >= zero(ss) || throw(DomainError(s, "The BB8 generator coordinate must be non-negative.",))
 
@@ -53,8 +43,8 @@ end
     return -expm1(log1p(-q) / ϑ) / δ
 end
 
-@inline function _arch_logderivative(G::Copulas.BB8Generator, s::Real,)
-    ϑ, δ, ss = promote(float(Distributions.params(G).ϑ), float(Distributions.params(G).δ), float(s))
+@inline function _arch_logderivative(C::Copulas.BB8Copula{2}, s::Real,)
+    ϑ, δ, ss = promote(float(Distributions.params(C).ϑ), float(Distributions.params(C).δ), float(s))
     T = typeof(ss)
 
     ss >= zero(ss) || throw(DomainError(s, "The BB8 generator coordinate must be non-negative.",))
@@ -71,19 +61,19 @@ end
     return log(η) - log(δ) - log(ϑ) - ss + (a - one(T)) * log1p(-q)
 end
 
-function _arch_inverse_logderivative(G::Copulas.BB8Generator, logm::Real,)
+function _arch_inverse_logderivative(C::Copulas.BB8Copula{2}, logm::Real,)
     lm = float(logm)
     T = typeof(lm)
 
     isnan(lm) && throw(DomainError(logm, "log|ϕ'| cannot be NaN."))
 
-    ϑ, δ = T(Distributions.params(G).ϑ), T(Distributions.params(G).δ)
+    ϑ, δ = T(Distributions.params(C).ϑ), T(Distributions.params(C).δ)
 
-    ϑ >= one(T) || throw(DomainError(ϑ, "The BB8 generator requires ϑ ≥ 1.",))
+    ϑ >= one(T) || throw(DomainError(ϑ, "The BB8 copula requires ϑ ≥ 1.",))
 
-    zero(T) < δ < one(T) || throw(DomainError(δ, "A genuine BB8 generator requires 0 < δ < 1; δ = 1 reduces to Joe.",))
+    zero(T) < δ < one(T) || throw(DomainError(δ, "A genuine BB8 copula requires 0 < δ < 1; δ = 1 reduces to Joe.",))
 
-    maxlm = _arch_logderivative(G, zero(T))
+    maxlm = _arch_logderivative(C, zero(T))
     tol = T(64) * eps(T) * max(one(T), abs(maxlm))
 
     # Unlike BB1, BB3, BB6 and BB7, BB8 has a finite derivative
@@ -106,7 +96,7 @@ function _arch_inverse_logderivative(G::Copulas.BB8Generator, logm::Real,)
     # becomes an unconstrained real variable.
     function f(z)
         s = exp(z)
-        return _arch_logderivative(G, s) - lm
+        return _arch_logderivative(C, s) - lm
     end
 
     function df(z)
@@ -130,9 +120,9 @@ function _arch_inverse_logderivative(G::Copulas.BB8Generator, logm::Real,)
 end
 
 # BB8 uses s itself as coordinate.
-@inline _arch_combine(::Copulas.BB8Generator, a::Real, b::Real,) = a + b
+@inline _arch_combine(::Copulas.BB8Copula{2}, a::Real, b::Real,) = a + b
 
-@inline function _arch_difference(::Copulas.BB8Generator, total::Real, base::Real,)
+@inline function _arch_difference(::Copulas.BB8Copula{2}, total::Real, base::Real,)
     tt, bb = promote(float(total), float(base))
     T = typeof(tt)
 
@@ -145,11 +135,11 @@ end
     return tt - bb
 end
 
-@inline _arch_hfunc(G::Copulas.BB8Generator, target::Real, base::Real,) = _arch_hfunc_coordinate(G, target, base)
+@inline _arch_hfunc(C::Copulas.BB8Copula{2}, target::Real, base::Real,) = _arch_hfunc_coordinate(C, target, base)
 
-@inline _arch_hinv(G::Copulas.BB8Generator, q::Real, base::Real,) = _arch_hinv_coordinate(G, q, base)
+@inline _arch_hinv(C::Copulas.BB8Copula{2}, q::Real, base::Real,) = _arch_hinv_coordinate(C, q, base)
 
-function _inv_ϕ¹(G::Copulas.BB8Generator, y::Real)
+function _inv_ϕ¹(C::Copulas.BB8Copula{2}, y::Real)
     m = _negative_derivative_magnitude(y, "BB8")
     T = typeof(m)
 
@@ -157,5 +147,57 @@ function _inv_ϕ¹(G::Copulas.BB8Generator, y::Real)
 
     # Do not map m = Inf to zero automatically: BB8 has a finite
     # derivative magnitude at s = 0, so Inf is outside its range.
-    return _arch_inverse_logderivative(G, log(m))
+    return _arch_inverse_logderivative(C, log(m))
+end
+
+
+# Direct bivariate density avoids cancellation when reconstructing derivatives.
+@inline function _bb8_pair_logpdf(C::Copulas.BB8Copula{2}, u::Real, v::Real)
+    p = Distributions.params(C)
+    ϑ, δ, uu, vv = promote(float(p.ϑ), float(p.δ), float(u), float(v))
+    ϑ >= one(ϑ) || throw(DomainError(ϑ, "A BB8 copula requires ϑ ≥ 1."))
+    zero(δ) < δ <= one(δ) || throw(DomainError(δ, "A BB8 copula requires 0 < δ ≤ 1."))
+    uu, vv = _clp(uu), _clp(vv)
+    isone(ϑ) && return zero(ϑ)
+    log1mδu = log1p(-δ * uu)
+    log1mδv = log1p(-δ * vv)
+    logη = log(-expm1(ϑ * log1p(-δ)))
+    logx = log(-expm1(ϑ * log1mδu))
+    logy = log(-expm1(ϑ * log1mδv))
+    logz = logx + logy - logη
+    log1mz = LogExpFunctions.log1mexp(logz)
+    logϑmz = LogExpFunctions.logsubexp(log(ϑ), logz)
+    return log(δ) - logη + (inv(ϑ) - 2) * log1mz + logϑmz +
+           (ϑ - one(ϑ)) * (log1mδu + log1mδv)
+end
+
+@inline _arch_pair_logpdf(C::Copulas.BB8Copula{2}, u::Real, v::Real) =
+    _bb8_pair_logpdf(C, u, v)
+
+@inline _pair_logpdf(C::Copulas.BB8Copula{2}, u::Real, v::Real, ::Vector{Float64}) =
+    _arch_pair_logpdf(C, _clp(u), _clp(v))
+@inline hfunc1(C::Copulas.BB8Copula{2}, u::Real, v::Real) =
+    _clp(_arch_hfunc(C, _clp(u), _clp(v)))
+@inline hfunc2(C::Copulas.BB8Copula{2}, u::Real, v::Real) =
+    _clp(_arch_hfunc(C, _clp(v), _clp(u)))
+@inline hinv1(C::Copulas.BB8Copula{2}, q::Real, v::Real) =
+    _clp(_arch_hinv(C, _clp(q), _clp(v)))
+@inline hinv2(C::Copulas.BB8Copula{2}, q::Real, u::Real) =
+    _clp(_arch_hinv(C, _clp(q), _clp(u)))
+
+@inline function _pair_hfuncs(C::Copulas.BB8Copula{2}, u::Real, v::Real)
+    h1, h2 = _arch_hfuncs(C, _clp(u), _clp(v))
+    return _clp(h1), _clp(h2)
+end
+@inline function _pair_step(C::Copulas.BB8Copula{2}, u::Real, v::Real, ::Vector{Float64})
+    logc, h1, h2 = _arch_pair_step(C, _clp(u), _clp(v))
+    return logc, _clp(h1), _clp(h2)
+end
+@inline function _pair_logpdf_h1(C::Copulas.BB8Copula{2}, u::Real, v::Real, ::Vector{Float64})
+    logc, h1 = _arch_pair_logpdf_h1(C, _clp(u), _clp(v))
+    return logc, _clp(h1)
+end
+@inline function _pair_logpdf_h2(C::Copulas.BB8Copula{2}, u::Real, v::Real, ::Vector{Float64})
+    logc, h2 = _arch_pair_logpdf_h2(C, _clp(u), _clp(v))
+    return logc, _clp(h2)
 end

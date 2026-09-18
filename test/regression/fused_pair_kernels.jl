@@ -223,3 +223,523 @@ end
         end
     end
 end
+@testitem "BB1 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions
+    buf = zeros(2)
+    for theta in (0.2, 1.2, 5.0), delta in (1.01, 1.5, 3.0)
+        C = BB1Copula(2, theta, delta)
+        for (u, v) in ((0.37, 0.72), (1e-8, 0.19), (1 - 1e-8, 0.83), (1e-6, 1 - 1e-6))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+            @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+end
+
+@testitem "BB6 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions
+    buf = zeros(2)
+    for theta in (1.001, 1.2, 3.0), delta in (1.001, 1.5, 3.0)
+        C = BB6Copula(2, theta, delta)
+        for (u, v) in ((0.37, 0.72), (1e-8, 0.19), (1 - 1e-8, 0.83), (1e-6, 1 - 1e-6))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+            if u == 1e-8 && v == 0.19 && (theta, delta) in ((1.001, 3.0), (3.0, 1.5), (3.0, 3.0))
+                # The Float64 public logpdf loses precision in the extreme lower tail.
+                # Use the same public distribution API at high precision as the numerical
+                # oracle rather than forcing the stable VineCopulas kernel to reproduce
+                # that Float64 cancellation.
+                setprecision(BigFloat, 256) do
+                    Cbig = Copulas.BB6Copula(2, BigFloat(theta), BigFloat(delta))
+                    ref = logpdf(Cbig, BigFloat[BigFloat(u), BigFloat(v)])
+                    @test BigFloat(lc) ≈ ref atol=big"5e-13" rtol=big"5e-13"
+                end
+            else
+                @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+            end
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+end
+
+@testitem "BB7 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions
+    buf = zeros(2)
+    for theta in (1.001, 1.2, 3.0), delta in (0.1, 1.5, 5.0)
+        C = BB7Copula(2, theta, delta)
+        for (u, v) in ((0.37, 0.72), (1e-8, 0.19), (1 - 1e-8, 0.83), (1e-6, 1 - 1e-6))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+            @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+end
+
+@testitem "BB8 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions
+    buf = zeros(2)
+    for theta in (1.001, 1.2, 3.0), delta in (0.05, 0.5, 0.999)
+        C = BB8Copula(2, theta, delta)
+        for (u, v) in ((0.37, 0.72), (1e-8, 0.19), (1 - 1e-8, 0.83), (1e-6, 1 - 1e-6))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+            @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+            if theta == 3.0 && delta == 0.999 &&
+               (u, v) in ((1 - 1e-8, 0.83), (1e-6, 1 - 1e-6))
+                # High precision guards against cancellation in the density reconstruction.
+                setprecision(BigFloat, 256) do
+                    Cbig = Copulas.BB8Copula(2, BigFloat(theta), BigFloat(delta))
+                    ref = logpdf(Cbig, BigFloat[BigFloat(u), BigFloat(v)])
+                    @test BigFloat(lc) ≈ ref atol=big"5e-13" rtol=big"5e-13"
+                end
+            end
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+end
+
+@testitem "BB2 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions
+    buf = zeros(2)
+    for theta in (0.01, 0.5, 2.0), delta in (0.01, 0.5, 2.0)
+        C = BB2Copula(2, theta, delta)
+        for (u, v) in ((0.37, 0.72), (1e-8, 0.19), (1 - 1e-8, 0.83), (1e-6, 1 - 1e-6))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+            @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+
+    # The Float64 public condition can overflow in this lower-tail regime.
+    # Keep the public API as the oracle, evaluated at high precision.
+    C = BB2Copula(2, 0.5, 0.5)
+    setprecision(BigFloat, 256) do
+        Cbig = Copulas.BB2Copula(2, big"0.5", big"0.5")
+        u, v, q = 1e-8, 0.19, 1e-8
+        conditional = Copulas.condition(Cbig, 1, BigFloat(u))
+        @test BigFloat(hfunc2(C, u, v)) ≈ cdf(conditional, BigFloat(v)) atol=big"5e-13" rtol=big"5e-13"
+        @test BigFloat(hinv2(C, q, u)) ≈ quantile(conditional, BigFloat(q)) atol=big"5e-21" rtol=big"5e-13"
+        @test BigFloat(VineCopulas._pair_logpdf(C, u, v, buf)) ≈
+              logpdf(Cbig, BigFloat[BigFloat(u), BigFloat(v)]) atol=big"5e-11" rtol=big"5e-13"
+    end
+end
+@testitem "BB3 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions, LogExpFunctions
+
+    # Copulas.jl's BB3 public logpdf clips inputs using Float64-specific
+    # bounds even for BigFloat inputs. Extreme-tail correctness is checked
+    # against the defining density at the original, unclipped point.
+    function _bb3_logpdf_big_reference(theta, delta, u, v)
+        setprecision(BigFloat, 256) do
+            θ, δ, ub, vb = BigFloat(theta), BigFloat(delta), BigFloat(u), BigFloat(v)
+            p, logδ = inv(θ), log(δ)
+            t1, t2 = -log(ub), -log(vb)
+            a, b = δ * t1^θ, δ * t2^θ
+            L = LogExpFunctions.logexpm1(LogExpFunctions.logaddexp(a, b))
+            r = exp(p * (log(L) - logδ))
+            oneps = exp(L)
+            g1 = δ^(-p) * p * L^(p - 1) / oneps
+            g2 = δ^(-p) * p * ((p - 1) * L^(p - 2) - L^(p - 1)) / oneps^2
+            φdd = exp(-r) * (g1^2 - g2)
+            φdd > 0 || error("Invalid BB3 BigFloat reference density")
+            logSu = logδ + log(θ) + a + (θ - 1) * log(t1) - log(ub)
+            logSv = logδ + log(θ) + b + (θ - 1) * log(t2) - log(vb)
+            return log(φdd) + logSu + logSv
+        end
+    end
+
+    buf = zeros(2)
+    for theta in (1.0, 1.001, 1.2, 3.0), delta in (0.2, 1.5, 5.0)
+        C = BB3Copula(2, theta, delta)
+        for (u, v) in ((0.37, 0.72), (0.2, 0.83))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+            @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+            @test BigFloat(lc) ≈ _bb3_logpdf_big_reference(theta, delta, u, v) atol=big"5e-12" rtol=big"5e-13"
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+    for delta in (0.2, 1.0, 1.5, 5.0),
+        (u, v) in ((1e-8, 0.19), (1e-6, 0.999999))
+        C = BB3Copula(2, 3.0, delta)
+        fast = @inferred VineCopulas._pair_logpdf(C, u, v, buf)
+        ref = _bb3_logpdf_big_reference(3.0, delta, u, v)
+        @test BigFloat(fast) ≈ ref atol=big"5e-12" rtol=big"5e-13"
+    end
+end
+@testitem "BB9 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions
+    buf = zeros(2)
+    for theta in (1.0, 1.001, 1.5, 3.0), delta in (0.05, 0.7, 5.0)
+        C = BB9Copula(2, theta, delta)
+        for (u, v) in ((0.37, 0.72), (1e-8, 0.19), (1 - 1e-8, 0.83), (1e-6, 1 - 1e-6))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+            @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+            setprecision(BigFloat, 256) do
+                Cbig = Copulas.BB9Copula(2, BigFloat(theta), BigFloat(delta))
+                ref = logpdf(Cbig, BigFloat[BigFloat(u), BigFloat(v)])
+                @test BigFloat(lc) ≈ ref atol=big"5e-12" rtol=big"5e-13"
+            end
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+end
+
+@testitem "BB10 public-parameter density and fused kernels" tags=[:PairCopula, :BB, :Regression] begin
+    using Distributions
+
+    buf = zeros(2)
+
+    for theta in (0.2, 0.5, 1.0, 1.5, 3.0),
+        delta in (0.0, 0.05, 0.7, 0.999)
+
+        C = BB10Copula(2, theta, delta)
+
+        for (u, v) in (
+            (0.37, 0.72),
+            (1e-8, 0.19),
+            (1 - 1e-8, 0.83),
+            (1e-6, 1 - 1e-6),
+        )
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+
+            @test lc ≈ logpdf(C, [u, v]) atol=1e-10 rtol=1e-10
+
+            setprecision(BigFloat, 256) do
+                Cbig = Copulas.BB10Copula(
+                    2,
+                    BigFloat(theta),
+                    BigFloat(delta),
+                )
+                ref = logpdf(
+                    Cbig,
+                    BigFloat[BigFloat(u), BigFloat(v)],
+                )
+
+                @test BigFloat(lc) ≈ ref atol=big"5e-12" rtol=big"5e-13"
+            end
+
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+end
+
+@testitem "AMH public-parameter closed kernels" tags=[:PairCopula, :Archimedean, :Regression] begin
+    using Distributions
+    using ForwardDiff
+
+    buf = zeros(2)
+
+    # Ordinary parameters: compare against the public Copulas.jl API.
+    for theta in (-1.0, -0.9, -0.5, 0.0, 0.5, 0.9, 0.999)
+        C = AMHCopula(2, theta)
+
+        for (u, v) in ((0.37, 0.72), (0.2, 0.83), (1e-8, 0.19), (1 - 1e-8, 0.83))
+            lc, h1, h2 = @inferred VineCopulas._pair_step(C, u, v, buf)
+
+            @test lc ≈ logpdf(C, [u, v]) atol=2e-10 rtol=2e-10
+
+            # Independent high-precision density reference: differentiate
+            # the explicit AMH conditional rather than reusing the local
+            # closed density formula.
+            setprecision(BigFloat, 256) do
+                θb, ub, vb = BigFloat(theta), BigFloat(u), BigFloat(v)
+
+                href(x) = begin
+                    D = 1 - θb * (1 - x) * (1 - vb)
+                    x * (1 - θb * (1 - x)) / D^2
+                end
+
+                cref = ForwardDiff.derivative(href, ub)
+
+                @test BigFloat(lc) ≈ log(cref) atol=big"5e-12" rtol=big"5e-13"
+            end
+
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+            @test hinv1(C, h1, v) ≈ u atol=5e-9 rtol=5e-9
+            @test hinv2(C, h2, u) ≈ v atol=5e-9 rtol=5e-9
+
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) == (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) == (lc, h2)
+        end
+    end
+
+    # θ = 0 is exact independence.
+    C0 = AMHCopula(2, 0.0)
+
+    for (u, v) in ((0.2, 0.7), (1e-8, 0.9), (0.999999, 1e-4))
+        @test VineCopulas._pair_logpdf(C0, u, v, buf) == 0.0
+        @test hfunc1(C0, u, v) == u
+        @test hfunc2(C0, u, v) == v
+        @test hinv1(C0, u, v) == u
+        @test hinv2(C0, v, u) == v
+    end
+
+    # θ = 1 is the Clayton(θ=1) copula at the copula level.  This also
+    # validates the AMH limit without relying on the degenerate AMH
+    # generator representation at θ = 1.
+    Camh = AMHCopula(2, 1.0)
+    Cclayton = ClaytonCopula(2, 1.0)
+
+    for (u, v) in ((0.37, 0.72), (0.01, 0.83), (0.999, 0.2))
+        @test VineCopulas._pair_logpdf(Camh, u, v, buf) ≈
+              VineCopulas._pair_logpdf(Cclayton, u, v, buf) atol=2e-12 rtol=2e-12
+
+        @test hfunc1(Camh, u, v) ≈ hfunc1(Cclayton, u, v) atol=2e-12 rtol=2e-12
+        @test hfunc2(Camh, u, v) ≈ hfunc2(Cclayton, u, v) atol=2e-12 rtol=2e-12
+
+        q1 = hfunc1(Camh, u, v)
+        q2 = hfunc2(Camh, u, v)
+
+        @test hinv1(Camh, q1, v) ≈ u atol=5e-9 rtol=5e-9
+        @test hinv2(Camh, q2, u) ≈ v atol=5e-9 rtol=5e-9
+    end
+end
+
+@testitem "Gumbel-Barnett public-parameter closed kernels" tags=[:PairCopula, :Archimedean, :Regression] begin
+    using Distributions
+    using ForwardDiff
+
+    buf = zeros(2)
+
+    for theta in (0.0, 0.01, 0.2, 0.5, 0.9, 1.0)
+        C = GumbelBarnettCopula(2, theta)
+
+        for (u, v) in (
+            (0.37, 0.72),
+            (0.2, 0.83),
+            (1e-8, 0.19),
+            (1 - 1e-8, 0.83),
+            (1e-6, 1 - 1e-6),
+        )
+            lc, h1, h2 =
+                @inferred VineCopulas._pair_step(C, u, v, buf)
+
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+
+            @test hinv1(C, h1, v) ≈ u atol=5e-9 rtol=5e-9
+            @test hinv2(C, h2, u) ≈ v atol=5e-9 rtol=5e-9
+
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) ==
+                  (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) ==
+                  (lc, h2)
+
+            # Compare with the public API at ordinary representable points.
+            @test lc ≈ logpdf(C, [u, v]) atol=2e-10 rtol=2e-10
+
+            # Independent high-precision reference. Differentiate the explicit
+            # conditional CDF rather than reusing the local density formula.
+            setprecision(BigFloat, 256) do
+                θb = BigFloat(theta)
+                ub = BigFloat(u)
+                vb = BigFloat(v)
+
+                href(x) = begin
+                    lx = log(x)
+                    lv = log(vb)
+
+                    x *
+                    (1 - θb * lx) *
+                    exp(-θb * lx * lv)
+                end
+
+                cref = ForwardDiff.derivative(href, ub)
+
+                @test BigFloat(lc) ≈
+                      log(cref) atol=big"5e-12" rtol=big"5e-13"
+            end
+        end
+    end
+
+    # θ = 0 is exact independence.
+    C0 = GumbelBarnettCopula(2, 0.0)
+
+    for (u, v) in ((0.2, 0.7), (1e-8, 0.9), (0.999999, 1e-4))
+        @test VineCopulas._pair_logpdf(C0, u, v, buf) == 0.0
+        @test hfunc1(C0, u, v) == u
+        @test hfunc2(C0, u, v) == v
+        @test hinv1(C0, u, v) == u
+        @test hinv2(C0, v, u) == v
+    end
+end
+
+@testitem "Inverse-Gaussian public-parameter closed kernels" tags=[:PairCopula, :Archimedean, :Regression] begin
+    using Distributions
+
+    buf = zeros(2)
+
+    # Finite parameters: compare the local closed form with the public API.
+    for theta in (0.0, 0.01, 0.2, 0.5, 1.0, 2.0, 10.0, 1e6)
+        C = InvGaussianCopula(2, theta)
+
+        for (u, v) in (
+            (0.37, 0.72),
+            (0.2, 0.83),
+            (1e-8, 0.19),
+            (1 - 1e-8, 0.83),
+            (1e-6, 1 - 1e-6),
+        )
+            lc, h1, h2 =
+                @inferred VineCopulas._pair_step(C, u, v, buf)
+
+            @test h1 == hfunc1(C, u, v)
+            @test h2 == hfunc2(C, u, v)
+
+            uhat = hinv1(C, h1, v)
+            vhat = hinv2(C, h2, u)
+
+            if isapprox(uhat, u; atol=5e-9, rtol=5e-9)
+                @test uhat ≈ u atol=5e-9 rtol=5e-9
+            else
+                # Float64 can quantize a flat conditional tail: require the inverse
+                # to map back to exactly the same representable conditional probability.
+                @test hfunc1(C, uhat, v) == h1
+
+                setprecision(BigFloat, 256) do
+                    Cb = InvGaussianCopula(2, BigFloat(theta))
+                    ub, vb = BigFloat(u), BigFloat(v)
+
+                    q1b = hfunc1(Cb, ub, vb)
+                    @test hinv1(Cb, q1b, vb) ≈ ub rtol=big"1e-45"
+                end
+            end
+
+            if isapprox(vhat, v; atol=5e-9, rtol=5e-9)
+                @test vhat ≈ v atol=5e-9 rtol=5e-9
+            else
+                # Same criterion for the second conditional inverse.
+                @test hfunc2(C, u, vhat) == h2
+
+                setprecision(BigFloat, 256) do
+                    Cb = InvGaussianCopula(2, BigFloat(theta))
+                    ub, vb = BigFloat(u), BigFloat(v)
+
+                    q2b = hfunc2(Cb, ub, vb)
+                    @test hinv2(Cb, q2b, ub) ≈ vb rtol=big"1e-45"
+                end
+            end
+
+            @test VineCopulas._pair_logpdf_h1(C, u, v, buf) ==
+                  (lc, h1)
+            @test VineCopulas._pair_logpdf_h2(C, u, v, buf) ==
+                  (lc, h2)
+
+            @test lc ≈ logpdf(C, [u, v]) atol=2e-10 rtol=2e-10
+
+            if theta > 0
+                setprecision(BigFloat, 256) do
+                    Cbig = Copulas.InvGaussianCopula(
+                        2,
+                        BigFloat(theta),
+                    )
+
+                    ref = logpdf(
+                        Cbig,
+                        BigFloat[BigFloat(u), BigFloat(v)],
+                    )
+
+                    @test BigFloat(lc) ≈
+                          ref atol=big"5e-12" rtol=big"5e-13"
+                end
+            end
+        end
+    end
+
+    # θ = 0 is exact independence.
+    C0 = InvGaussianCopula(2, 0.0)
+
+    for (u, v) in ((0.2, 0.7), (1e-8, 0.9), (0.999999, 1e-4))
+        @test VineCopulas._pair_logpdf(C0, u, v, buf) == 0.0
+        @test hfunc1(C0, u, v) == u
+        @test hfunc2(C0, u, v) == v
+        @test hinv1(C0, u, v) == u
+        @test hinv2(C0, v, u) == v
+    end
+
+    # θ = ∞ is exactly Gumbel(2) at the copula level.
+    Cig = InvGaussianCopula(2, Inf)
+    Cg = GumbelCopula(2, 2.0)
+
+    for (u, v) in (
+        (0.37, 0.72),
+        (0.01, 0.83),
+        (0.999, 0.2),
+        (1e-8, 0.19),
+    )
+        lig = VineCopulas._pair_logpdf(Cig, u, v, buf)
+        lg = VineCopulas._pair_logpdf(Cg, u, v, buf)
+
+        @test lig ≈ lg atol=2e-12 rtol=2e-12
+
+        @test hfunc1(Cig, u, v) ≈
+              hfunc1(Cg, u, v) atol=2e-12 rtol=2e-12
+
+        @test hfunc2(Cig, u, v) ≈
+              hfunc2(Cg, u, v) atol=2e-12 rtol=2e-12
+
+        q1 = hfunc1(Cig, u, v)
+        q2 = hfunc2(Cig, u, v)
+
+        @test hinv1(Cig, q1, v) ≈ u atol=5e-9 rtol=5e-9
+        @test hinv2(Cig, q2, u) ≈ v atol=5e-9 rtol=5e-9
+    end
+end
+
+@testitem "Generic Archimedean fallback uses public APIs only" tags=[:PairCopula, :Archimedean, :Regression] begin
+    using Copulas
+    using Distributions
+    using VineCopulas
+
+    # A generic frailty generator gives us an ArchimedeanCopula that has no
+    # VineCopulas family-specific fast path.  This exercises the public fallback
+    # rather than any concrete-family specialization.
+    G = Copulas.FrailtyGenerator(Gamma(2.0, 1.0))
+    C = Copulas.ArchimedeanCopula(2, G)
+
+    u, v, q = 0.37, 0.72, 0.41
+    buf = zeros(2)
+
+    D1 = Copulas.condition(C, 2, v)
+    D2 = Copulas.condition(C, 1, u)
+
+    @test hfunc1(C, u, v) ≈ cdf(D1, u) atol=1e-12 rtol=1e-12
+    @test hfunc2(C, u, v) ≈ cdf(D2, v) atol=1e-12 rtol=1e-12
+
+    @test hinv1(C, q, v) ≈ quantile(D1, q) atol=1e-12 rtol=1e-12
+    @test hinv2(C, q, u) ≈ quantile(D2, q) atol=1e-12 rtol=1e-12
+
+    expected_logc = logpdf(C, [u, v])
+    observed_logc = VineCopulas._pair_logpdf(C, u, v, buf)
+
+    @test observed_logc ≈ expected_logc atol=1e-12 rtol=1e-12
+
+    logc, h1, h2 = VineCopulas._pair_step(C, u, v, buf)
+
+    @test logc ≈ expected_logc atol=1e-12 rtol=1e-12
+    @test h1 ≈ cdf(D1, u) atol=1e-12 rtol=1e-12
+    @test h2 ≈ cdf(D2, v) atol=1e-12 rtol=1e-12
+end

@@ -22,8 +22,18 @@ const _EVDistortionTail = Union{
     Copulas.EmpiricalEVTail
 }
 
-@inline function _ev_conditional(C::Copulas.ExtremeValueCopula{2}, base::Real, dim::Int8)
-    return Copulas.BivEVDistortion(C.tail, dim, base)
+const _EVFastSmoothTail = Union{
+    Copulas.GalambosTail,
+    Copulas.HuslerReissTail,
+    Copulas.MixedTail,
+    Copulas.AsymLogTail,
+    Copulas.AsymGalambosTail,
+    Copulas.AsymMixedTail,
+    Copulas.tEVTail,
+}
+
+@inline function _ev_conditional(C::Copulas.ExtremeValueCopula{2}, base::Real, dim::Int8,)
+    return Copulas.condition(C, Int(dim), base)
 end
 
 @inline function _ev_clean_factor(B::T, scale::T) where {T<:AbstractFloat}
@@ -44,7 +54,7 @@ end
     return log(B)
 end
 
-@inline function _ev_pickands_factors(tail, t::Real, A::Real, dA::Real)
+@inline function _ev_pickands_factors(C, t::Real, A::Real, dA::Real)
     omt = one(t) - t
     scale = abs(A) + abs(t*dA) + abs(omt*dA)
     B1 = _ev_clean_factor(A - t*dA, scale)
@@ -52,8 +62,16 @@ end
     return B1, B2
 end
 
-@inline function _ev_pickands_factors(tail::Copulas.GalambosTail, t::Real, A::Real, dA::Real)
-    θ = Distributions.params(tail).θ + zero(t)
+@inline function _ev_pickands_factors(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.GalambosTail},
+    t::Real,
+    A::Real,
+    dA::Real,
+)
+    θ = Distributions.params(C).θ + zero(t)
+
+    iszero(θ) && return one(t), one(t)
+
     z = θ*(log(t) - log1p(-t))
     p = (θ + one(θ))/θ
     B1 = -expm1(-p*LogExpFunctions.log1pexp(-z))
@@ -61,121 +79,657 @@ end
     return B1, B2
 end
 
-@inline function _ev_pickands_factors(tail::Copulas.HuslerReissTail, t::Real, A::Real, dA::Real)
-    θ = Distributions.params(tail).θ + zero(t)
+@inline function _ev_pickands_factors(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.HuslerReissTail},
+    t::Real,
+    A::Real,
+    dA::Real,
+)
+    p = Distributions.params(C)
+    θ = p.θ + zero(t)
+
+    iszero(θ) && return one(t), one(t)
+
     hθ = θ/(one(θ) + one(θ))
     z = log(t) - log1p(-t)
     a1 = inv(θ) + hθ*z
     a2 = inv(θ) - hθ*z
+
     N = Distributions.Normal()
     B1 = Distributions.cdf(N, a2)
     B2 = Distributions.cdf(N, a1)
     return B1, B2
 end
 
-@inline function _ev_pickands_factors(tail::Copulas.MixedTail, t::Real, A::Real, dA::Real)
-    θ = Distributions.params(tail).θ + zero(t)
+@inline function _ev_pickands_factors(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.MixedTail},
+    t::Real,
+    A::Real,
+    dA::Real,
+)
+    θ = Distributions.params(C).θ + zero(t)
     omt = one(t) - t
     B1 = one(t) - θ*t*t
     B2 = one(t) - θ*omt*omt
     return B1, B2
 end
 
-@inline function _ev_pickands_factors(tail::Copulas.AsymMixedTail, t::Real, A::Real, dA::Real)
-    θ1, θ2 = Distributions.params(tail).θ₁ + zero(t), Distributions.params(tail).θ₂ + zero(t)
+@inline function _ev_pickands_factors(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
+    t::Real,
+    A::Real,
+    dA::Real,
+)
+    p = Distributions.params(C)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
     omt = one(t) - t
+
     B1 = one(t) - θ1*t*t - 2θ2*t*t*t
     B2 = one(t) - (θ1 + 3θ2)*omt*omt + 2θ2*omt*omt*omt
     return B1, B2
 end
 
-@inline function _ev_A_dA(tail, t::Real)
-    A = Copulas.A(tail, t)
-    dA = Copulas.dA(tail, t)
-    B1, B2 = _ev_pickands_factors(tail, t, A, dA)
+
+# ---------------------------------------------------------------------
+# A, A' and conditional factors from public copula parameters.
+# ---------------------------------------------------------------------
+
+@inline function _ev_tev_parameters(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+
+    ν = p.ν + zero(t)
+    ρ = (hasproperty(p, :ρ) ? p.ρ : p.R[1, 2]) + zero(t)
+
+    return ν, ρ
+end
+
+@inline function _ev_A_dA(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.GalambosTail},
+    t::Real,
+)
+    θ = Distributions.params(C).θ + zero(t)
+
+    if iszero(θ)
+        A = one(t)
+        dA = zero(t)
+        return A, dA, one(t), one(t)
+    end
+
+    a = t
+    b = one(t) - t
+
+    L1 = -θ*log(a)
+    L2 = -θ*log(b)
+    M = max(L1, L2)
+
+    E1 = exp(L1 - M)
+    E2 = exp(L2 - M)
+    S = E1 + E2
+
+    B = exp(-M/θ) * S^(-inv(θ))
+    A = one(t) - B
+
+    D = E2/b - E1/a
+    dA = B*(D/S)
+
+    B1, B2 = _ev_pickands_factors(C, t, A, dA)
     return A, dA, B1, B2
 end
 
-# Copulas.jl's generic fused helper clamps the Pickands coordinate to
-# [1e-12, 1-1e-12]. Polynomial tails can be evaluated exactly beyond that
-# artificial Float64-scale boundary, which is essential for BigFloat inverses.
-@inline function _ev_A_dA(tail::Copulas.MixedTail, t::Real)
-    θ = Distributions.params(tail).θ + zero(t)
+@inline function _ev_A_dA(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.HuslerReissTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+    θ = p.θ + zero(t)
+
+    if iszero(θ)
+        A = one(t)
+        dA = zero(t)
+        return A, dA, one(t), one(t)
+    end
+
+    omt = one(t) - t
+    z = log(t) - log1p(-t)
+    hθ = θ/(one(θ) + one(θ))
+
+    a1 = inv(θ) + hθ*z
+    a2 = inv(θ) - hθ*z
+
+    N = Distributions.Normal()
+    F1 = Distributions.cdf(N, a1)
+    F2 = Distributions.cdf(N, a2)
+
+    A = t*F1 + omt*F2
+    dA = F1 - F2
+
+    B1, B2 = _ev_pickands_factors(C, t, A, dA)
+    return A, dA, B1, B2
+end
+
+@inline function _ev_A_dA(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.MixedTail},
+    t::Real,
+)
+    θ = Distributions.params(C).θ + zero(t)
+
     A = one(t) - θ*t + θ*t*t
     dA = θ*(2t - one(t))
-    B1, B2 = _ev_pickands_factors(tail, t, A, dA)
+
+    B1, B2 = _ev_pickands_factors(C, t, A, dA)
     return A, dA, B1, B2
 end
 
-@inline function _ev_A_dA(tail::Copulas.AsymMixedTail, t::Real)
-    θ1, θ2 = Distributions.params(tail).θ₁ + zero(t), Distributions.params(tail).θ₂ + zero(t)
+@inline function _ev_A_dA(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymLogTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+
+    α = p.α + zero(t)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
+
+    a = t
+    b = one(t) - t
+
+    r1 = (θ1*b)^α
+    r2 = (θ2*a)^α
+    R = r1 + r2
+
+    root = R^inv(α)
+    D = r2/a - r1/b
+
+    A = root + (θ1 - θ2)*a + one(t) - θ1
+    dA = R^(inv(α) - one(α))*D + θ1 - θ2
+
+    B1, B2 = _ev_pickands_factors(C, t, A, dA)
+    return A, dA, B1, B2
+end
+
+@inline function _ev_A_dA(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymGalambosTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+
+    α = p.α + zero(t)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
+
+    a = t
+    b = one(t) - t
+
+    # Let
+    #
+    #   B = ((θ1*a)^(-α) + (θ2*b)^(-α))^(-1/α),
+    #
+    # so A(t) = 1 - B.
+    #
+    # Evaluate the negative powers through log-sum-exp to avoid
+    # overflow/underflow in the tails.
+    x1 = -α*log(θ1*a)
+    x2 = -α*log(θ2*b)
+
+    logsum = LogExpFunctions.logaddexp(x1, x2)
+
+    w1 = exp(x1 - logsum)
+    w2 = exp(x2 - logsum)
+    B = exp(-logsum/α)
+
+    A = one(t) - B
+
+    g = w2/b - w1/a
+    dA = B*g
+
+    B1, B2 = _ev_pickands_factors(C, t, A, dA)
+    return A, dA, B1, B2
+end
+
+@inline function _ev_A_dA(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
+    t::Real,
+)
+    ν, ρ = _ev_tev_parameters(C, t)
+
+    α = inv(ν)
+    c = sqrt((one(ν) + ν) / (one(ρ) - ρ*ρ))
+
+    a = t
+    b = one(t) - t
+
+    log_r = log(a) - log1p(-a)
+    log_s = -log_r
+
+    rα = exp(α*log_r)
+    sα = exp(α*log_s)
+
+    z1 = c*(rα - ρ)
+    z2 = c*(sα - ρ)
+
+    D = Distributions.TDist(ν + one(ν))
+    F1 = Distributions.cdf(D, z1)
+    F2 = Distributions.cdf(D, z2)
+
+    A = a*F1 + b*F2
+
+    # The density terms in d/dt[t F1 + (1-t) F2] cancel exactly.
+    dA = F1 - F2
+
+    # Consequently the two conditional Pickands factors simplify exactly.
+    B1 = F2
+    B2 = F1
+
+    return A, dA, B1, B2
+end
+
+@inline function _ev_A_dA(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
+
     A = one(t) - (θ1 + θ2)*t + θ1*t*t + θ2*t*t*t
     dA = -(θ1 + θ2) + 2θ1*t + 3θ2*t*t
-    B1, B2 = _ev_pickands_factors(tail, t, A, dA)
+
+    B1, B2 = _ev_pickands_factors(C, t, A, dA)
     return A, dA, B1, B2
 end
 
-# Centralize the use of Copulas.jl's fused Pickands derivative fast path.
-# Polynomial tails override it to avoid Copulas.jl's fixed 1e-12 clamp.
-@inline _ev_A_dA_d2A(tail, t::Real) = Copulas._A_dA_d²A(tail, t)
 
-@inline function _ev_A_dA_d2A(tail::Copulas.MixedTail, t::Real)
-    θ = Distributions.params(tail).θ + zero(t)
+# ---------------------------------------------------------------------
+# Fused A, A', A'' kernels used by the safeguarded inverse.
+# ---------------------------------------------------------------------
+
+@inline function _ev_A_dA_d2A(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.GalambosTail},
+    t::Real,
+)
+    θ = Distributions.params(C).θ + zero(t)
+
+    if iszero(θ)
+        return one(t), zero(t), zero(t)
+    end
+
+    a = t
+    b = one(t) - t
+
+    L1 = -θ*log(a)
+    L2 = -θ*log(b)
+    M = max(L1, L2)
+
+    E1 = exp(L1 - M)
+    E2 = exp(L2 - M)
+    S = E1 + E2
+
+    B = exp(-M/θ) * S^(-inv(θ))
+    A = one(t) - B
+
+    inva = inv(a)
+    invb = inv(b)
+
+    D = E2*invb - E1*inva
+    dA = B*(D/S)
+
+    term1 = (E2*invb^2 + E1*inva^2)/S
+    term2 = (D/S)^2
+    d2A = (one(θ) + θ)*B*(term1 - term2)
+
+    return A, dA, d2A
+end
+
+@inline function _ev_A_dA_d2A(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.HuslerReissTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+    θ = p.θ + zero(t)
+
+    if iszero(θ)
+        return one(t), zero(t), zero(t)
+    end
+
+    omt = one(t) - t
+    z = log(t) - log1p(-t)
+    hθ = θ/(one(θ) + one(θ))
+
+    a1 = inv(θ) + hθ*z
+    a2 = inv(θ) - hθ*z
+
+    N = Distributions.Normal()
+    F1 = Distributions.cdf(N, a1)
+    F2 = Distributions.cdf(N, a2)
+
+    A = t*F1 + omt*F2
+    dA = F1 - F2
+
+    ϕ1 = Distributions.pdf(N, a1)
+    ϕ2 = Distributions.pdf(N, a2)
+    d2A = θ*(ϕ1 + ϕ2)/(2t*omt)
+
+    return A, dA, d2A
+end
+
+@inline function _ev_A_dA_d2A(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.MixedTail},
+    t::Real,
+)
+    θ = Distributions.params(C).θ + zero(t)
+
     A = one(t) - θ*t + θ*t*t
     dA = θ*(2t - one(t))
-    return A, dA, 2θ
+    d2A = 2θ
+
+    return A, dA, d2A
 end
 
-@inline function _ev_A_dA_d2A(tail::Copulas.AsymMixedTail, t::Real)
-    θ1, θ2 = Distributions.params(tail).θ₁ + zero(t), Distributions.params(tail).θ₂ + zero(t)
+@inline function _ev_A_dA_d2A(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymLogTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+
+    α = p.α + zero(t)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
+
+    a = t
+    b = one(t) - t
+
+    r1 = (θ1*b)^α
+    r2 = (θ2*a)^α
+    R = r1 + r2
+
+    root = R^inv(α)
+    D = r2/a - r1/b
+
+    A = root + (θ1 - θ2)*a + one(t) - θ1
+    dA = R^(inv(α) - one(α))*D + θ1 - θ2
+
+    # Equivalent to
+    #
+    #   (α-1) R^(1/α-2) (R E - D²),
+    #
+    # but using the exact simplification
+    #
+    #   R E - D² = r1*r2 / (a² b²)
+    #
+    # avoids cancellation.
+    d2A = (α - one(α)) *
+          R^(inv(α) - (one(α) + one(α))) *
+          r1*r2/(a*a*b*b)
+
+    return A, dA, d2A
+end
+
+@inline function _ev_A_dA_d2A(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymGalambosTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+
+    α = p.α + zero(t)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
+
+    a = t
+    b = one(t) - t
+
+    x1 = -α*log(θ1*a)
+    x2 = -α*log(θ2*b)
+
+    logsum = LogExpFunctions.logaddexp(x1, x2)
+
+    w1 = exp(x1 - logsum)
+    w2 = exp(x2 - logsum)
+    B = exp(-logsum/α)
+
+    A = one(t) - B
+
+    g = w2/b - w1/a
+    dA = B*g
+
+    # Copulas.jl writes this as
+    #
+    #   (1+α)B[
+    #       w2/b² + w1/a² - (w2/b - w1/a)²
+    #   ].
+    #
+    # Since w1+w2=1, the bracket simplifies exactly to
+    #
+    #   w1*w2/(a²*b²),
+    #
+    # avoiding cancellation near the boundaries.
+    d2A = (one(α) + α) * B * w1*w2/(a*a*b*b)
+
+    return A, dA, d2A
+end
+
+@inline function _ev_A_dA_d2A(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
+    t::Real,
+)
+    ν, ρ = _ev_tev_parameters(C, t)
+
+    α = inv(ν)
+    c = sqrt((one(ν) + ν) / (one(ρ) - ρ*ρ))
+
+    a = t
+    b = one(t) - t
+
+    log_r = log(a) - log1p(-a)
+    log_s = -log_r
+
+    rα = exp(α*log_r)
+    sα = exp(α*log_s)
+
+    z1 = c*(rα - ρ)
+    z2 = c*(sα - ρ)
+
+    D = Distributions.TDist(ν + one(ν))
+    F1 = Distributions.cdf(D, z1)
+    F2 = Distributions.cdf(D, z2)
+
+    A = a*F1 + b*F2
+    dA = F1 - F2
+
+    # Since
+    #
+    #   a*f1*z1' + b*f2*z2' = 0,
+    #
+    # we may evaluate
+    #
+    #   A'' = f1*z1' - f2*z2'
+    #
+    # from whichever side is numerically better.  Near t=0 use z1;
+    # near t=1 use z2.
+    if a <= b
+        rαm1 = exp((α - one(α))*log_r)
+        dz1 = c*α*rαm1/(b*b)
+        f1 = Distributions.pdf(D, z1)
+        d2A = f1*dz1/b
+    else
+        sαm1 = exp((α - one(α))*log_s)
+        dz2 = -c*α*sαm1/(a*a)
+        f2 = Distributions.pdf(D, z2)
+        d2A = -f2*dz2/a
+    end
+
+    return A, dA, d2A
+end
+
+@inline function _ev_A_dA_d2A(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
+    t::Real,
+)
+    p = Distributions.params(C)
+    θ1 = p.θ₁ + zero(t)
+    θ2 = p.θ₂ + zero(t)
+
     A = one(t) - (θ1 + θ2)*t + θ1*t*t + θ2*t*t*t
     dA = -(θ1 + θ2) + 2θ1*t + 3θ2*t*t
-    return A, dA, 2θ1 + 6θ2*t
+    d2A = 2θ1 + 6θ2*t
+
+    return A, dA, d2A
 end
+
+
+# Only use the local smooth kernels away from singular/limit parameter values.
+@inline _ev_fast_eligible(::Copulas.ExtremeValueCopula{2}) = false
+
+@inline function _ev_fast_eligible(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.GalambosTail},
+)
+    θ = Distributions.params(C).θ
+    return isfinite(θ) && θ > zero(θ)
+end
+
+@inline function _ev_fast_eligible(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.HuslerReissTail},
+)
+    p = Distributions.params(C)
+    hasproperty(p, :θ) || return false
+    θ = p.θ
+    return isfinite(θ) && θ > zero(θ)
+end
+
+@inline _ev_fast_eligible(
+    ::Copulas.ExtremeValueCopula{2,<:Copulas.MixedTail},
+) = true
+
+@inline function _ev_fast_eligible(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymGalambosTail},
+)
+    p = Distributions.params(C)
+
+    α = p.α
+    θ1 = p.θ₁
+    θ2 = p.θ₂
+
+    return isfinite(α) &&
+           isfinite(θ1) &&
+           isfinite(θ2) &&
+           α > zero(α) &&
+           θ1 > zero(θ1) &&
+           θ2 > zero(θ2)
+end
+
+@inline function _ev_fast_eligible(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymLogTail},
+)
+    p = Distributions.params(C)
+
+    α = p.α
+    θ1 = p.θ₁
+    θ2 = p.θ₂
+
+    return isfinite(α) &&
+           isfinite(θ1) &&
+           isfinite(θ2) &&
+           α > one(α) &&
+           θ1 > zero(θ1) &&
+           θ2 > zero(θ2)
+end
+
+@inline function _ev_fast_eligible(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
+)
+    p = Distributions.params(C)
+
+    ν = p.ν
+    ρ = hasproperty(p, :ρ) ? p.ρ : p.R[1, 2]
+
+    return isfinite(ν) &&
+           isfinite(ρ) &&
+           ν > zero(ν) &&
+           -one(ρ) < ρ < one(ρ)
+end
+
+@inline _ev_fast_eligible(
+    ::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
+) = true
+
 
 @inline function _ev_loghfuncs(C::Copulas.ExtremeValueCopula{2}, u::Real, v::Real)
     x, y = -log(u), -log(v)
     s = x + y
     t = x/s
-    A, _, B1, B2 = _ev_A_dA(C.tail, t)
+    A, _, B1, B2 = _ev_A_dA(C, t)
     logC = -s*A
     return logC + y + _ev_logfactor(B1), logC + x + _ev_logfactor(B2)
 end
 
-@inline function _ev_hfunc1(C::Copulas.ExtremeValueCopula{2}, u::Real, v::Real)
+@inline function _ev_hfunc1(
+    C::Copulas.ExtremeValueCopula{2},
+    u::Real,
+    v::Real,
+)
+    return Distributions.cdf(_ev_conditional(C, v, Int8(2)), u)
+end
+
+@inline function _ev_hfunc2(
+    C::Copulas.ExtremeValueCopula{2},
+    u::Real,
+    v::Real,
+)
+    return Distributions.cdf(_ev_conditional(C, u, Int8(1)), v)
+end
+
+@inline function _ev_hfunc1(
+    C::Copulas.ExtremeValueCopula{2,TT},
+    u::Real,
+    v::Real,
+) where {TT<:_EVFastSmoothTail}
+    _ev_fast_eligible(C) ||
+        return Distributions.cdf(_ev_conditional(C, v, Int8(2)), u)
+
     logh1, _ = _ev_loghfuncs(C, u, v)
     return exp(logh1)
 end
 
-@inline function _ev_hfunc2(C::Copulas.ExtremeValueCopula{2}, u::Real, v::Real)
+@inline function _ev_hfunc2(
+    C::Copulas.ExtremeValueCopula{2,TT},
+    u::Real,
+    v::Real,
+) where {TT<:_EVFastSmoothTail}
+    _ev_fast_eligible(C) ||
+        return Distributions.cdf(_ev_conditional(C, u, Int8(1)), v)
+
     _, logh2 = _ev_loghfuncs(C, u, v)
     return exp(logh2)
-end
-
-@inline function _ev_hfunc1(C::Copulas.ExtremeValueCopula{2,TT}, u::Real, v::Real) where {TT<:_EVDistortionTail}
-    return Distributions.cdf(_ev_conditional(C, v, Int8(2)), u)
-end
-
-@inline function _ev_hfunc2(C::Copulas.ExtremeValueCopula{2,TT}, u::Real, v::Real) where {TT<:_EVDistortionTail}
-    return Distributions.cdf(_ev_conditional(C, u, Int8(1)), v)
 end
 
 # Smooth extreme-value families can produce both h-functions from one Pickands
 # evaluation. Singular/distortion tails retain their Copulas.jl conditional
 # path because atoms require generalized conditional distributions.
-@inline function _pair_hfuncs(C::Copulas.ExtremeValueCopula{2}, u::Real, v::Real)
+@inline function _pair_hfuncs(
+    C::Copulas.ExtremeValueCopula{2},
+    u::Real,
+    v::Real,
+)
     uu, vv = _clp(u), _clp(v)
-    logh1, logh2 = _ev_loghfuncs(C, uu, vv)
-    return _clp(exp(logh1)), _clp(exp(logh2))
+    return _clp(_ev_hfunc1(C, uu, vv)), _clp(_ev_hfunc2(C, uu, vv))
 end
 
 @inline function _pair_hfuncs(
     C::Copulas.ExtremeValueCopula{2,TT},
     u::Real,
     v::Real,
-) where {TT<:_EVDistortionTail}
+) where {TT<:_EVFastSmoothTail}
     uu, vv = _clp(u), _clp(v)
-    return _clp(_ev_hfunc1(C, uu, vv)), _clp(_ev_hfunc2(C, uu, vv))
+
+    if !_ev_fast_eligible(C)
+        return _clp(_ev_hfunc1(C, uu, vv)), _clp(_ev_hfunc2(C, uu, vv))
+    end
+
+    logh1, logh2 = _ev_loghfuncs(C, uu, vv)
+    return _clp(exp(logh1)), _clp(exp(logh2))
 end
 
 function hfunc1(C::Copulas.ExtremeValueCopula{2}, uv::Tuple{<:Real,<:Real})
@@ -189,7 +743,19 @@ function hfunc2(C::Copulas.ExtremeValueCopula{2}, uv::Tuple{<:Real,<:Real})
 end
 
 @inline function _ev_promote_inputs(C::Copulas.ExtremeValueCopula{2}, q::Real, base::Real)
-    vals = promote(float(q), float(base), values(Distributions.params(C.tail))...)
+    vals = promote(float(q), float(base), values(Distributions.params(C))...)
+    return vals[1], vals[2]
+end
+
+@inline function _ev_promote_inputs(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
+    q::Real,
+    base::Real,
+)
+    p = Distributions.params(C)
+    ρ = hasproperty(p, :ρ) ? p.ρ : p.R[1, 2]
+
+    vals = promote(float(q), float(base), float(p.ν), float(ρ))
     return vals[1], vals[2]
 end
 
@@ -268,18 +834,18 @@ function _ev_solve_logit(fdf, x0::T) where {T<:AbstractFloat}
 end
 
 @inline function _ev_g1(C::Copulas.ExtremeValueCopula{2}, t::Real, logv::Real, logq::Real)
-    A, dA, d2A = _ev_A_dA_d2A(C.tail, t)
+    A, dA, d2A = _ev_A_dA_d2A(C, t)
     omt = one(t) - t
-    B1, B2 = _ev_pickands_factors(C.tail, t, A, dA)
+    B1, B2 = _ev_pickands_factors(C, t, A, dA)
     g = logv*((A - omt)/omt) + _ev_logfactor(B1) - logq
     dg = iszero(B1) ? oftype(g, -Inf) : logv*B2/(omt*omt) - t*d2A/B1
     return g, dg
 end
 
 @inline function _ev_g2(C::Copulas.ExtremeValueCopula{2}, t::Real, logu::Real, logq::Real)
-    A, dA, d2A = _ev_A_dA_d2A(C.tail, t)
+    A, dA, d2A = _ev_A_dA_d2A(C, t)
     omt = one(t) - t
-    B1, B2 = _ev_pickands_factors(C.tail, t, A, dA)
+    B1, B2 = _ev_pickands_factors(C, t, A, dA)
     g = logu*((A - t)/t) + _ev_logfactor(B2) - logq
     dg = iszero(B2) ? oftype(g, Inf) : -logu*B1/(t*t) + omt*d2A/B2
     return g, dg
@@ -337,6 +903,62 @@ function _ev_generalized_quantile(D, q::Real)
     throw(ErrorException("Copulas.jl returned a conditional quantile below the requested probability."))
 end
 
+
+# LogTail is exactly the bivariate Gumbel-Hougaard copula.  Keep its
+# conditional inverse analytic, but derive it directly from the public
+# copula parameter instead of going through Copulas.jl generator internals.
+#
+# With y = -log(base), b = θ - 1 and r = (x^θ + y^θ)^(1/θ),
+#
+#     q = exp(y-r) * (y/r)^b,
+#
+# hence
+#
+#     r + b*log(r) = y + b*log(y) - log(q).
+#
+# This equation is inverted with the principal Lambert-W branch.
+@inline function _ev_log_hinv(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.LogTail},
+    q::Real,
+    base::Real,
+)
+    return _gumbel_hinv_from_theta(Distributions.params(C).θ, q, base)
+end
+
+@inline function _ev_hinv1(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.LogTail},
+    q::Real,
+    v::Real,
+)
+    θ = Distributions.params(C).θ
+
+    if isfinite(θ)
+        return _ev_log_hinv(C, q, v)
+    end
+
+    return _ev_generalized_quantile(
+        _ev_conditional(C, v, Int8(2)),
+        q,
+    )
+end
+
+@inline function _ev_hinv2(
+    C::Copulas.ExtremeValueCopula{2,<:Copulas.LogTail},
+    q::Real,
+    u::Real,
+)
+    θ = Distributions.params(C).θ
+
+    if isfinite(θ)
+        return _ev_log_hinv(C, q, u)
+    end
+
+    return _ev_generalized_quantile(
+        _ev_conditional(C, u, Int8(1)),
+        q,
+    )
+end
+
 @inline function _ev_hinv1(C::Copulas.ExtremeValueCopula{2,TT}, q::Real, v::Real) where {TT<:_EVDistortionTail}
     return _ev_generalized_quantile(_ev_conditional(C, v, Int8(2)), q)
 end
@@ -345,16 +967,43 @@ end
     return _ev_generalized_quantile(_ev_conditional(C, u, Int8(1)), q)
 end
 
-@inline function _ev_hinv1(C::Copulas.ExtremeValueCopula{2,TT}, q::Real, v::Real) where {TT<:Copulas.LogTail}
-    return _arch_hinv(Copulas.GumbelGenerator(Distributions.params(C).θ), q, v)
+@inline function _ev_hinv1(
+    C::Copulas.ExtremeValueCopula{2},
+    q::Real,
+    v::Real,
+)
+    return _ev_generalized_quantile(_ev_conditional(C, v, Int8(2)), q)
 end
 
-@inline function _ev_hinv2(C::Copulas.ExtremeValueCopula{2,TT}, q::Real, u::Real) where {TT<:Copulas.LogTail}
-    return _arch_hinv(Copulas.GumbelGenerator(Distributions.params(C).θ), q, u)
+@inline function _ev_hinv2(
+    C::Copulas.ExtremeValueCopula{2},
+    q::Real,
+    u::Real,
+)
+    return _ev_generalized_quantile(_ev_conditional(C, u, Int8(1)), q)
 end
 
-@inline _ev_hinv1(C::Copulas.ExtremeValueCopula{2}, q::Real, v::Real) = _ev_hinv1_numeric(C, q, v)
-@inline _ev_hinv2(C::Copulas.ExtremeValueCopula{2}, q::Real, u::Real) = _ev_hinv2_numeric(C, q, u)
+@inline function _ev_hinv1(
+    C::Copulas.ExtremeValueCopula{2,TT},
+    q::Real,
+    v::Real,
+) where {TT<:_EVFastSmoothTail}
+    _ev_fast_eligible(C) ||
+        return _ev_generalized_quantile(_ev_conditional(C, v, Int8(2)), q)
+
+    return _ev_hinv1_numeric(C, q, v)
+end
+
+@inline function _ev_hinv2(
+    C::Copulas.ExtremeValueCopula{2,TT},
+    q::Real,
+    u::Real,
+) where {TT<:_EVFastSmoothTail}
+    _ev_fast_eligible(C) ||
+        return _ev_generalized_quantile(_ev_conditional(C, u, Int8(1)), q)
+
+    return _ev_hinv2_numeric(C, q, u)
+end
 
 function hinv1(C::Copulas.ExtremeValueCopula{2}, q::Real, v::Real)
     q, v = _clp(q), _clp(v)
