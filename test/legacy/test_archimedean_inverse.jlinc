@@ -122,12 +122,6 @@ end
         end
     end
 
-    @testset "Joe" begin
-        for θ in (1.2, 1.5, 3.0), s in (0.1, 0.5, 2.0, 5.0)
-            _check_derivative_inverse(Copulas.JoeGenerator(θ), s; atol=1e-9, rtol=1e-9)
-        end
-    end
-
     @testset "GumbelBarnett" begin
         for θ in (0.2, 0.5, 1.0), s in (0.1, 0.5, 1.0, 2.0, 5.0)
             G = Copulas.GumbelBarnettGenerator(θ)

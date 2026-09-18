@@ -97,21 +97,21 @@ end
             @test ulo <= u <= uhi
 
             logq = log(q)
-            logh_lo = VineCopulas._joe_logh_x(C.G, -log1p(-ulo), base)
-            logh_hi = VineCopulas._joe_logh_x(C.G, -log1p(-uhi), base)
+            logh_lo = VineCopulas._joe_logh_x(C, -log1p(-ulo), base)
+            logh_hi = VineCopulas._joe_logh_x(C, -log1p(-uhi), base)
 
             if logq <= logh_lo
                 @test u == ulo
             elseif logq > logh_hi
                 @test u == uhi
             else
-                loghu = VineCopulas._joe_logh_x(C.G, -log1p(-u), base)
+                loghu = VineCopulas._joe_logh_x(C, -log1p(-u), base)
                 tol = 128eps(Float64) * max(1.0, abs(logq), abs(loghu))
                 @test loghu >= logq - tol
 
                 uprev = prevfloat(u)
                 if uprev > 0.0
-                    loghp = VineCopulas._joe_logh_x(C.G, -log1p(-uprev), base)
+                    loghp = VineCopulas._joe_logh_x(C, -log1p(-uprev), base)
                     @test loghp <= logq + tol
                 end
             end
