@@ -39,6 +39,8 @@
 # - fixed or Dissmann-style automatic R-vine structure
 # - Kendall tau-b, Spearman rho, Hoeffding D, maximum correlation, Gaussian
 #   mutual information, Chatterjee xi, or user-supplied tree weights
+# - group-constrained first tree for R-vines: every group of variables
+#   induces a connected subtree of tree 1
 # - user-specified truncation and dependence threshold
 #
 # Intentionally deferred
@@ -138,6 +140,23 @@ const _TREE_CRITERIA = (:tau, :rho, :hoeffd, :mcor, :joe, :cxi)
 end
 @inline _check_tree_criterion(criterion::Function) = criterion
 @inline _check_tree_criterion(criterion) = throw(ArgumentError("tree_criterion must be one of $(_TREE_CRITERIA), or a function (u_a, u_b, a, b, D) -> Real"))
+
+"""
+    _check_groups(groups, p)
+
+`groups` is `nothing` or a vector of `p` integer group ids, one per variable; the ids
+themselves carry no meaning beyond equality.
+"""
+@inline function _check_groups(groups, p::Int)
+    groups === nothing && return nothing
+    groups isa AbstractVector{<:Integer} || throw(ArgumentError(
+        "groups must be nothing or a vector of integer group ids, one per variable"
+    ))
+    length(groups) == p || throw(DimensionMismatch(
+        "groups has length $(length(groups)) but the data has $p variables"
+    ))
+    return collect(Int, groups)
+end
 
 """
     _check_threshold(threshold, criterion)

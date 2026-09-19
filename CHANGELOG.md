@@ -11,6 +11,7 @@ All notable changes to `VineCopulas.jl` are documented here. Version numbers fol
 - `fit(RVineCopula, U; sampling_tail=js)` peels the selected trees so that `js` sits at the end of the order whenever the trees allow it, without changing the trees or the pair copulas.
 - Four built-in tree criteria beside `:tau` and `:rho`, each the absolute value of a documented statistic: `tree_criterion=:hoeffd` (Hoeffding's `D`, Hollander & Wolfe form scaled by 30), `:mcor` (the maximum correlation coefficient by the ACE algorithm of Breiman & Friedman, with vinecopulib's smoother and tolerances), `:joe` (Joe's Gaussian-copula mutual information `-log(1 - r²)/2` on normal scores, unbounded), and `:cxi` (Chatterjee's coefficient, symmetrised by the larger direction). The manual states the estimator, the range and the reference of each.
 - `tree_criterion` accepts a function `(u_a, u_b, a, b, D) -> Real` on every vine engine. It is called once per candidate edge `(a, b | D)` with the two conditional pseudo-observation vectors and the labels, and its value, used as is, is the edge weight in structure selection. A value that is not a finite `Real` is an `ArgumentError` naming the edge.
+- `fit(RVineCopula, U; groups=g)` optionally constrains automatic R-vine tree-1 selection so that every group of variables induces a connected subtree. The constrained maximum spanning tree is selected exactly; higher trees are unchanged, and `groups` cannot be combined with a fixed `structure`.
 
 ### Fixed
 

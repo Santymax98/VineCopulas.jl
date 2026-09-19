@@ -239,6 +239,66 @@ longer a dependence threshold in the usual sense. For example
 ``[0, 1]`` deliberately; with it, `threshold=2.3` is exactly `:tau` with
 `threshold=0.3`, and `threshold=0.3` forces nothing.
 
+### Group-constrained first tree
+
+`groups` is an optional structural constraint for automatic R-vine selection.
+It takes one integer group id per variable:
+
+```julia
+model = fit(RVineCopula, U; groups=[1, 1, 1, 2, 2, 2])
+```
+
+Let the variables be partitioned into groups $G_1,\ldots,G_K$. Among the
+admissible first-tree spanning trees, `groups` restricts selection to those for
+which every $G_k$ induces a connected subtree. Under the edge weights $w_e$
+supplied by `tree_criterion`, tree 1 solves
+
+```math
+\max_{T} \sum_{e\in T} w_e
+\qquad
+\text{subject to } T[G_k]\text{ connected for every }k.
+```
+
+This is a clustered spanning-tree connectivity constraint. For the complete
+candidate graph available at R-vine tree 1, the constrained maximum spanning
+tree decomposes into maximum spanning trees within the groups and a maximum
+spanning tree on the contracted graph of groups.
+
+The implementation obtains the same optimum in one deterministic Kruskal pass:
+within-group candidates are processed before cross-group candidates, while
+decreasing edge weight and the existing deterministic tie break are preserved
+inside each class.
+
+Thus grouped tree-1 selection has the same asymptotic complexity as the
+unconstrained Kruskal selection. Its implementation is tested against brute
+force enumeration of all admissible spanning trees on small instances.
+
+`groups` affects tree 1 only. From tree 2 onward, candidate edges are determined
+by the R-vine proximity condition and selection proceeds exactly as in the
+ordinary sequential fit.
+
+Two limiting cases reproduce the unconstrained fit exactly:
+
+```julia
+groups = ones(Int, p)   # all variables in one group
+groups = collect(1:p)   # one group per variable
+```
+
+`groups` composes with `tree_criterion`, `threshold`, `trunc`, and
+`sampling_tail`. It cannot be combined with `structure`, because a fixed
+structure already determines tree 1.
+
+The partition should be interpreted as structural information supplied by the
+user rather than inferred from the data. Its usefulness therefore depends on
+whether the grouping is meaningful for the application.
+
+The effect is particularly relevant for truncated vines, where the first trees
+determine which dependencies are represented explicitly. In the special
+full-depth Gaussian case, different R-vine structures can represent the same
+Gaussian copula; remaining differences are then due to finite-sample
+sequential estimation rather than to the group constraint itself.
+
+
 ## Fixed-structure fitting
 
 If the R-vine structure is part of the statistical design, pass it explicitly:
