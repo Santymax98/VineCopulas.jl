@@ -133,15 +133,11 @@ end
 const _TREE_CRITERIA = (:tau, :rho, :hoeffd, :mcor, :joe, :cxi)
 
 @inline function _check_tree_criterion(criterion::Symbol)
-    criterion in _TREE_CRITERIA || throw(ArgumentError(
-        "tree_criterion must be one of $(_TREE_CRITERIA), or a function (u_a, u_b, a, b, D) -> Real"
-    ))
+    criterion in _TREE_CRITERIA || throw(ArgumentError("tree_criterion must be one of $(_TREE_CRITERIA), or a function (u_a, u_b, a, b, D) -> Real"))
     return criterion
 end
 @inline _check_tree_criterion(criterion::Function) = criterion
-@inline _check_tree_criterion(criterion) = throw(ArgumentError(
-    "tree_criterion must be one of $(_TREE_CRITERIA), or a function (u_a, u_b, a, b, D) -> Real"
-))
+@inline _check_tree_criterion(criterion) = throw(ArgumentError("tree_criterion must be one of $(_TREE_CRITERIA), or a function (u_a, u_b, a, b, D) -> Real"))
 
 """
     _check_threshold(threshold, criterion)
@@ -157,13 +153,9 @@ finite value for a custom function.
     if criterion isa Function
         return t
     elseif criterion === :joe
-        t >= 0.0 || throw(ArgumentError(
-            "threshold must be non-negative for tree_criterion = :joe, whose values lie in [0, ∞)"
-        ))
+        t >= 0.0 || throw(ArgumentError("threshold must be non-negative for tree_criterion = :joe, whose values lie in [0, ∞)"))
     else
-        0.0 <= t <= 1.0 || throw(ArgumentError(
-            "threshold must lie in [0,1] for tree_criterion = :$criterion, whose values lie in [0, 1]"
-        ))
+        0.0 <= t <= 1.0 || throw(ArgumentError("threshold must lie in [0,1] for tree_criterion = :$criterion, whose values lie in [0, 1]"))
     end
     return t
 end

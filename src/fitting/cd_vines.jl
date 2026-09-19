@@ -31,10 +31,7 @@ function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, 
     # candidate pair at this tree is conditioned on it.
     scores = zeros(Float64, length(labels))
     @inbounds for j in 2:length(labels), i in 1:j-1
-        w = _tree_dependence(
-            cond[labels[i]], cond[labels[j]],
-            labels[i], labels[j], D, criterion,
-        )
+        w = _tree_dependence(cond[labels[i]], cond[labels[j]], labels[i], labels[j], D, criterion,)
         scores[i] += w
         scores[j] += w
     end
@@ -74,10 +71,7 @@ function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, family_set=:def
         level = Dict{Int,_PairSelection}()
 
         @inbounds for child in children
-            dep = _tree_dependence(
-                cond[root], cond[child],
-                root, child, D, tree_criterion,
-            )
+            dep = _tree_dependence(cond[root], cond[child], root, child, D, tree_criterion,)
             pdata = Matrix{Float64}(undef, 2, size(X, 2))
             pdata[1, :] .= cond[root]
             pdata[2, :] .= cond[child]
@@ -123,10 +117,7 @@ function _dependence_matrix(X::Matrix{Float64}, criterion)
     p = size(X, 1)
     W = zeros(Float64, p, p)
     @inbounds for j in 2:p, i in 1:j-1
-        w = _tree_dependence(
-            view(X, i, :), view(X, j, :),
-            i, j, Int[], criterion,
-        )
+        w = _tree_dependence(view(X, i, :), view(X, j, :), i, j, Int[], criterion,)
         W[i, j] = w
         W[j, i] = w
     end
@@ -274,12 +265,7 @@ function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, order_method::S
 
         @inbounds for i in 1:m
             # Edge (ord[i], ord[i+t] | ord[i+1], …, ord[i+t-1]).
-            dep = _tree_dependence(
-                L[i], R[i + t],
-                ord[i], ord[i + t],
-                ord[(i + 1):(i + t - 1)],
-                tree_criterion,
-            )
+            dep = _tree_dependence(L[i], R[i + t], ord[i], ord[i + t], ord[(i + 1):(i + t - 1)], tree_criterion,)
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= L[i]
             pdata[2, :] .= R[i + t]
