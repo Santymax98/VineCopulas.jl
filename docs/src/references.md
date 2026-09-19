@@ -45,11 +45,13 @@ and stable.
 - Müller, D., and Czado, C. (2019). Dependence modelling in ultra high
   dimensions with vine copulas and the graphical Lasso. *Computational
   Statistics & Data Analysis*. (Candidate-edge restriction.)
-- Wu, B. Y., and Lin, C.-W. (2015). On the clustered Steiner tree problem.
-  *Journal of Combinatorial Optimization*. (Clustered trees: every cluster
-  induces a connected subtree.)
-- Feremans, C., Labbé, M., and Laporte, G. (2003). Generalized network
-  design problems. *European Journal of Operational Research*.
+- Guttmann-Beck, N., Sorek, Z., and Stern, M. (2019). Clustered spanning
+  tree — conditions for feasibility. *Discrete Mathematics & Theoretical
+  Computer Science*, 21(1).
+- D'Emidio, M., Forlizzi, L., Frigioni, D., Leucci, S., and Proietti, G.
+  (2019). Hardness, approximability, and fixed-parameter tractability of the
+  clustered shortest-path tree problem. *Journal of Combinatorial
+  Optimization*, 38(1), 165–184.
 
 ## Dependence measures used as tree criteria
 

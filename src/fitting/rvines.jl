@@ -64,25 +64,24 @@ end
 """
     _maximum_spanning_tree(candidates, nvertices; groups=nothing)
 
-Deterministic Kruskal maximum spanning tree over `candidates`: heaviest first, ties by
-the labels. With `groups`, a vector of group ids indexed by vertex, the tree is a
-maximiser of the same objective over the spanning trees in which every group induces a
-connected subtree,
+Deterministic Kruskal maximum spanning tree over `candidates`, ordered by
+decreasing weight with the existing label-based tie break.
 
-```math
-\\max_{T \\in \\mathcal T_{\\mathcal G}} \\sum_{e \\in T} w_e, \\qquad
-\\mathcal T_{\\mathcal G} = \\{ T \\in \\mathcal T(V) : T[G_k] \\text{ connected for every } k \\},
-```
+When `groups` is supplied, it contains one integer group id per tree-1 vertex.
+The selected tree is restricted so that every group induces a connected
+subtree.
 
-which decomposes into a maximum spanning tree inside each group plus a maximum
-spanning tree of the quotient graph on the groups (edge weight: the heaviest
-cross-group pair). The sort key `(is cross, -weight, labels…)` makes one Kruskal pass
-compute exactly that: while only within-group candidates are seen no component holds
-two groups, so the pass is Kruskal on each group's complete graph; when the cross-group
-candidates arrive every component is one group, so the pass is Kruskal on the
-quotient. The proof is in the manual, *Group-constrained first tree*. The candidate
-graph must be complete inside every group, which holds for tree 1 only.
+For the complete candidate graph of R-vine tree 1, the constrained optimum is
+obtained exactly by processing within-group edges before cross-group edges,
+with decreasing weight inside each class. Equivalently, this builds a maximum
+spanning tree inside each group and then connects the contracted groups through
+cross-group edges.
+
+The grouped form is used only for tree 1. Higher R-vine trees retain the
+ordinary proximity-constrained selection.
 """
+
+
 function _maximum_spanning_tree(
     candidates::Vector{_RVCandidate},
     nvertices::Int;

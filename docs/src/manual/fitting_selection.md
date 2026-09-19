@@ -241,140 +241,63 @@ longer a dependence threshold in the usual sense. For example
 
 ### Group-constrained first tree
 
-In a large panel the variables often come with a known partition: sectors,
-regions, asset classes. `groups` restricts the first tree to the spanning
-trees in which every group induces a connected subtree, and selects the best
-of those under the same criterion. It is an optional structural prior on tree
-1, not part of Dißmann's procedure, and only the R-vine engine takes it.
+`groups` is an optional structural constraint for automatic R-vine selection.
+It takes one integer group id per variable:
 
 ```julia
 model = fit(RVineCopula, U; groups=[1, 1, 1, 2, 2, 2])
 ```
 
-**The problem it solves.** Let ``V = \{1, \dots, p\}``, let the tree-1
-candidate graph be the complete graph ``K_V`` (every pair is admissible;
-`threshold` forces an independence copula on an edge but does not remove it
-from the candidate set), let ``w`` be the criterion's weights, and let
-``V = G_1 \,\dot\cup\, \cdots \,\dot\cup\, G_K`` be the partition. Write
-``\mathcal T(S)`` for the spanning trees of the complete graph on ``S``, and
+Let the variables be partitioned into groups $G_1,\ldots,G_K$. Among the
+admissible first-tree spanning trees, `groups` restricts selection to those for
+which every $G_k$ induces a connected subtree. Under the edge weights $w_e$
+supplied by `tree_criterion`, tree 1 solves
 
 ```math
-\mathcal T_{\mathcal G} = \{ T \in \mathcal T(V) : T[G_k] \text{ is connected for every } k \}.
+\max_{T} \sum_{e\in T} w_e
+\qquad
+\text{subject to } T[G_k]\text{ connected for every }k.
 ```
 
-Unconstrained selection solves ``\max_{T \in \mathcal T(V)} \sum_{e \in T} w_e``;
-`groups` solves
+This is a clustered spanning-tree connectivity constraint. For the complete
+candidate graph available at R-vine tree 1, the constrained maximum spanning
+tree decomposes into maximum spanning trees within the groups and a maximum
+spanning tree on the contracted graph of groups.
 
-```math
-\max_{T \in \mathcal T_{\mathcal G}} \sum_{e \in T} w_e .
+The implementation obtains the same optimum in one deterministic Kruskal pass:
+within-group candidates are processed before cross-group candidates, while
+decreasing edge weight and the existing deterministic tie break are preserved
+inside each class.
+
+Thus grouped tree-1 selection has the same asymptotic complexity as the
+unconstrained Kruskal selection. Its implementation is tested against brute
+force enumeration of all admissible spanning trees on small instances.
+
+`groups` affects tree 1 only. From tree 2 onward, candidate edges are determined
+by the R-vine proximity condition and selection proceeds exactly as in the
+ordinary sequential fit.
+
+Two limiting cases reproduce the unconstrained fit exactly:
+
+```julia
+groups = ones(Int, p)   # all variables in one group
+groups = collect(1:p)   # one group per variable
 ```
 
-An edge of ``T`` is *within* if both ends lie in one group and *cross*
-otherwise, and ``V / \mathcal G`` is the quotient multigraph whose vertices are
-the groups and whose edges are the cross pairs with their weights.
+`groups` composes with `tree_criterion`, `threshold`, `trunc`, and
+`sampling_tail`. It cannot be combined with `structure`, because a fixed
+structure already determines tree 1.
 
-**Lemma 1.** ``T \in \mathcal T_{\mathcal G}`` if and only if
-``T = \big(\bigcup_k T_k\big) \cup C`` with ``T_k \in \mathcal T(G_k)`` for every
-``k`` and ``C`` a set of cross edges whose image in ``V / \mathcal G`` is a
-spanning tree of ``V / \mathcal G``.
+The partition should be interpreted as structural information supplied by the
+user rather than inferred from the data. Its usefulness therefore depends on
+whether the grouping is meaningful for the application.
 
-*Proof.* (``\Rightarrow``) ``T[G_k]`` is acyclic, as a subgraph of a tree, and
-connected, so it is a spanning tree of ``G_k`` with ``|G_k| - 1`` edges, and
-these are exactly the within edges of ``T`` in ``G_k``. Counting,
-``|V| - 1 = \sum_k (|G_k| - 1) + |C|`` gives ``|C| = K - 1``. Contracting each
-connected ``T[G_k]`` to a point maps ``T`` onto a connected multigraph on ``K``
-vertices with ``K - 1`` edges, that is, a spanning tree of ``V / \mathcal G``.
-(``\Leftarrow``) The union is connected, within a group by ``T_k`` and across
-groups by ``C``, and has ``\sum_k (|G_k| - 1) + (K - 1) = |V| - 1`` edges, so it
-is a spanning tree, and ``T[G_k] \supseteq T_k`` is connected. ``\square``
+The effect is particularly relevant for truncated vines, where the first trees
+determine which dependencies are represented explicitly. In the special
+full-depth Gaussian case, different R-vine structures can represent the same
+Gaussian copula; remaining differences are then due to finite-sample
+sequential estimation rather than to the group constraint itself.
 
-**Proposition 2 (decomposition).** The two parts of Lemma 1 are chosen
-independently and the objective is additive over them, so
-
-```math
-\max_{T \in \mathcal T_{\mathcal G}} \sum_{e \in T} w_e
-\;=\;
-\sum_{k=1}^{K} \max_{T_k \in \mathcal T(G_k)} \sum_{e \in T_k} w_e
-\;+\;
-\max_{C \in \mathcal T(V / \mathcal G)} \sum_{e \in C} w_e ,
-```
-
-and a maximiser is any union of a maximum spanning tree of each ``K_{G_k}``
-with a maximum spanning tree of ``V / \mathcal G``. A maximum spanning tree of
-a multigraph uses only the heaviest edge between any two vertices, so the
-second term is the maximum spanning tree of the simple graph on the groups
-with edge weight ``\max\{w_{ab} : a \in G_k,\, b \in G_l\}``. ``\square``
-
-**Proposition 3 (the sort key is exact).** Kruskal's algorithm over the
-tree-1 candidates ordered by the key ``(\text{is cross},\, -w_e,\, \dots)``,
-every within edge before every cross edge, each block in descending weight,
-the existing deterministic tie-break after, returns a maximiser of
-Proposition 2.
-
-*Proof.* Phase 1 sees only within edges. A union-find component never holds
-two groups during this phase, so for each ``k`` the test "the two ends are in
-different components" is Kruskal's test on ``K_{G_k}`` with the edges in
-descending weight; by Kruskal's theorem the accepted edges of ``G_k`` form a
-maximum spanning tree of ``K_{G_k}``, and since ``K_{G_k}`` is connected the
-phase ends with each group as one component. Phase 2 sees only cross edges,
-and every component is now exactly one group, so the test is Kruskal's test
-on ``V / \mathcal G`` with the edges in descending weight; the accepted cross
-edges form a maximum spanning tree of ``V / \mathcal G``. By Lemma 1 the union
-is in ``\mathcal T_{\mathcal G}``, and it attains the right-hand side of
-Proposition 2. ``\square``
-
-**Remarks.**
-
-1. The constrained optimum is at most the unconstrained one, since
-   ``\mathcal T_{\mathcal G} \subseteq \mathcal T(V)``, with equality if and only
-   if some unconstrained maximum spanning tree already has every ``T[G_k]``
-   connected. Where the groups are the strongly dependent blocks of the data,
-   the two coincide and the constraint changes nothing; where the data
-   contradict the partition, tree 1 gives up cross-group edges, and the
-   dependence they carried moves to conditional pair-copulas in the higher
-   trees.
-2. Ties are broken by the same deterministic key as before, so the result is
-   unique given the key, and `groups = ones(Int, p)` or `groups = 1:p` is the
-   unconstrained fit exactly: with one group there are no cross edges, and
-   with singleton groups there are no within edges, so the key reduces to the
-   old one.
-3. The argument needs a complete candidate graph inside each group, which
-   holds for tree 1 only. From tree 2 the vertices are the edges of the
-   previous tree and the proximity condition fixes the candidate set, so a
-   group constraint there would not decompose, and `groups` does not offer
-   one.
-4. The cost is unchanged: one sort of the ``\binom{p}{2}`` candidates.
-5. Statistically the constraint is a prior on tree 1 alone: within-group
-   dependence is explained by direct pair-copulas first, and exactly ``K - 1``
-   direct cross-group pairs are modelled in tree 1; cross-group dependence is
-   otherwise carried by conditional pair-copulas in the higher trees. The
-   constraint decides which pairs are modelled directly, not how well they
-   fit: at full depth every R-vine is the same model when the pair-copula
-   family can represent the joint law, and the log-likelihood difference is
-   then sequential-estimation error. At a truncation level the choice is
-   visible, and a partition that cuts across the true blocks costs
-   log-likelihood. `benchmarks/fitting/grouped_tree1.jl` measures both on
-   block-structured Gaussian data.
-6. In the language of constrained spanning trees, ``\mathcal T_{\mathcal G}``
-   is the set of *clustered* spanning trees of the partition, in the sense
-   of the clustered tree problems (Wu & Lin 2015; see also the generalised
-   network design survey of Feremans, Labbé & Laporte 2003), and Proposition
-   2 is the observation that the clustered maximum spanning tree with a
-   complete candidate graph decomposes into local trees and a tree on the
-   contracted graph. Among vine models, the closest relatives we know are the
-   regular-vine market-sector model of Brechmann & Czado (2013), which
-   imposes a sector-wise structure through sector indices, and the
-   candidate-edge restriction of Müller & Czado (2019), which removes edges
-   from the candidate set through a graphical Lasso. Neither is this
-   constraint: `groups` removes no candidate and adds no variable, it
-   restricts the admissible trees. We know of no vine paper that states it,
-   and the package documents it as an optional structural prior.
-
-`groups` composes with every other selection control: `tree_criterion`
-supplies the weights ``w``, `threshold` still forces independence copulas on
-the weak edges of the selected tree, `trunc` still cuts the depth, and
-`sampling_tail` still peels the selected trees. It cannot be combined with
-`structure`, which fixes tree 1 already.
 
 ## Fixed-structure fitting
 
