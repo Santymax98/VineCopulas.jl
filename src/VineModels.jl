@@ -227,13 +227,13 @@ function _is_cvine_topology(vc::AbstractVineCopula)
     end
     expected = Set{Tuple{Int,Tuple{Int,Int},Tuple}}()
     for t in 1:q, child in roots[(t + 1):end]
-        push!(expected, (t, Tuple(sort((roots[t], child))), Tuple(sort(roots[1:(t - 1)]))))
+        push!(expected, (t, minmax(roots[t], child), Tuple(sort(roots[1:(t - 1)]))))
     end
     # Complete the inactive order deterministically when truncated.
     append!(roots, remaining)
     empty!(expected)
     for t in 1:q, child in roots[(t + 1):end]
-        push!(expected, (t, Tuple(sort((roots[t], child))), Tuple(sort(roots[1:(t - 1)]))))
+        push!(expected, (t, minmax(roots[t], child), Tuple(sort(roots[1:(t - 1)]))))
     end
     return actual == expected
 end
@@ -259,7 +259,7 @@ function _is_dvine_topology(vc::AbstractVineCopula)
     actual = Set(_edge_signature(e) for e in vine_edges(vc))
     expected = Set{Tuple{Int,Tuple{Int,Int},Tuple}}()
     for t in 1:q, i in 1:(p - t)
-        push!(expected, (t, Tuple(sort((ord[i], ord[i + t]))), Tuple(sort(ord[(i + 1):(i + t - 1)]))))
+        push!(expected, (t, minmax(ord[i], ord[i + t]), Tuple(sort(ord[(i + 1):(i + t - 1)]))))
     end
     return actual == expected
 end
