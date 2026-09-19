@@ -274,7 +274,7 @@ end
     end
 end
 
-@testitem "Fit API – C-vine quick and full" tags=[:Fit, :Vine, :CVine] setup=[M] begin
+@testitem "Fit API – C-vine quick fit" tags=[:Fit, :Vine, :CVine] setup=[M] begin
     using Test
     using Distributions
     using Copulas
@@ -292,19 +292,18 @@ end
     @test truncation(C) == 2
     @test all(isfinite, logpdf(C, U[:, 1:20]))
 
-    F = fit(CopulaModel, CVineCopula, U; order=[1,2,3], family_set=fams, allow_rotations=false,)
-    @test Copulas.fitted_distribution(F) isa CVineCopula
-    @test Copulas.fitting_method(F) == :sequential
-    @test length(Copulas.StatsBase.coef(F)) == Copulas.StatsBase.dof(F)
-    @test length(Copulas.StatsBase.coefnames(F)) == Copulas.StatsBase.dof(F)
-    @test isfinite(Copulas.StatsBase.aic(F))
-    @test isfinite(Copulas.StatsBase.bic(F))
+    Cdefault = fit(CVineCopula, U; method=:default, order=[1,2,3], family_set=fams, allow_rotations=false,)
+    Csequential = fit(CVineCopula, U; method=:sequential, order=[1,2,3], family_set=fams, allow_rotations=false,)
+    Cpositional = fit(CVineCopula, U, :sequential; order=[1,2,3], family_set=fams, allow_rotations=false,)
+    @test order(Cdefault) == order(Csequential) == order(C)
+    @test edges(Cdefault) == edges(Csequential) == edges(C)
+    @test edges(Cpositional) == edges(C)
 
     Cauto = fit(CVineCopula, U; family_set=(GaussianCopula, ClaytonCopula), allow_rotations=false,)
     @test sort(collect(order(Cauto))) == [1,2,3]
 end
 
-@testitem "Fit API – D-vine exact order and full model" tags=[:Fit, :Vine, :DVine] setup=[M] begin
+@testitem "Fit API – D-vine exact order" tags=[:Fit, :Vine, :DVine] setup=[M] begin
     using Test
     using Distributions
     using Copulas
@@ -321,10 +320,11 @@ end
     @test truncation(C) == 3
     @test all(isfinite, logpdf(C, U[:, 1:20]))
 
-    F = fit(CopulaModel, DVineCopula, U; order=collect(order(C)), family_set=(GaussianCopula, ClaytonCopula), allow_rotations=false,)
-    @test Copulas.fitted_distribution(F) isa DVineCopula
-    @test Copulas.fitting_method(F) == :sequential
-    @test order(Copulas.fitted_distribution(F)) == order(C)
+    Ddefault = fit(DVineCopula, U; method=:default, order=collect(order(C)), family_set=(GaussianCopula, ClaytonCopula), allow_rotations=false,)
+    Dsequential = fit(DVineCopula, U; method=:sequential, order=collect(order(C)), family_set=(GaussianCopula, ClaytonCopula), allow_rotations=false,)
+    @test Ddefault isa DVineCopula
+    @test order(Ddefault) == order(Dsequential) == order(C)
+    @test edges(Ddefault) == edges(Dsequential)
 end
 
 @testitem "R-vine DAG – standard nonidentity order" tags=[:Fit, :Vine, :RVine, :Rosenblatt, :Regression] setup=[M] begin
@@ -442,18 +442,11 @@ end
     @test struct_array(R) == S
     @test all(isfinite, logpdf(R, U[:, 1:50]))
 
-    F = fit(
-        CopulaModel,
-        RVineCopula,
-        U;
-        structure=st,
-        family_set=(GaussianCopula, ClaytonCopula),
-        allow_rotations=false,
-    )
-    @test Copulas.fitted_distribution(F) isa RVineCopula
-    @test collect(order(Copulas.fitted_distribution(F))) == ord
-    @test struct_array(Copulas.fitted_distribution(F)) == S
-    @test length(Copulas.StatsBase.coefnames(F)) == Copulas.StatsBase.dof(F)
+    Rsequential = fit(RVineCopula, U; method=:sequential, structure=st, family_set=(GaussianCopula, ClaytonCopula, FrankCopula), allow_rotations=false,)
+    @test Rsequential isa RVineCopula
+    @test collect(order(Rsequential)) == ord
+    @test struct_array(Rsequential) == S
+    @test edges(Rsequential) == edges(R)
 end
 
 @testitem "Fit API – fixed branching general R-vine" tags=[:Fit, :Vine, :RVine, :Structure, :Regression] setup=[M] begin
@@ -471,18 +464,8 @@ end
     # A single family isolates the fixed-structure sequential traversal from
     # family-selection noise.  All ten edges of a truly branching R-vine must
     # receive the correct conditional pseudo-observations.
-    R = fit(
-        RVineCopula,
-        U;
-        structure=st,
-        family_set=(GaussianCopula,),
-        selection_criterion=:aic,
-        allow_rotations=false,
-        preselect=false,
-        include_independence=false,
-        strict=true,
-    )
-
+    R = fit(RVineCopula, U; structure=st, family_set=(GaussianCopula,), selection_criterion=:aic, allow_rotations=false,
+            preselect=false, include_independence=false, strict=true,)
     @test R isa RVineCopula
     @test order(R) == order(source)
     @test struct_array(R) == struct_array(source)
@@ -511,16 +494,7 @@ end
     U = rand(rng, source, 1200)
 
     fams = (GaussianCopula, ClaytonCopula, FrankCopula)
-    R = fit(
-        RVineCopula,
-        U;
-        family_set=fams,
-        selection_criterion=:bic,
-        tree_criterion=:tau,
-        tree_algorithm=:mst,
-        allow_rotations=false,
-    )
-
+    R = fit(RVineCopula, U; family_set=fams, selection_criterion=:bic, tree_criterion=:tau, tree_algorithm=:mst, allow_rotations=false,)
     @test R isa RVineCopula
     @test sort(collect(order(R))) == collect(1:4)
     @test truncation(R) == 3
@@ -541,26 +515,16 @@ end
     @test Z2 ≈ Z atol=5e-6 rtol=5e-6
     @test all(isfinite, logpdf(R, X))
 
-    F = fit(
-        CopulaModel,
-        RVineCopula,
-        U;
-        trunc=2,
-        family_set=(GaussianCopula, ClaytonCopula),
-        selection_criterion=:bic,
-        allow_rotations=false,
-    )
-    @test Copulas.fitted_distribution(F) isa RVineCopula
-    @test truncation(Copulas.fitted_distribution(F)) == 2
+    Rtruncated = fit(RVineCopula, U; method=:sequential, trunc=2, family_set=(GaussianCopula, ClaytonCopula), selection_criterion=:bic, allow_rotations=false,)
+    @test Rtruncated isa RVineCopula
+    @test truncation(Rtruncated) == 2
     @test VineCopulas._validate_rvine_structure(
-        order(Copulas.fitted_distribution(F)),
-        struct_array(Copulas.fitted_distribution(F)),
+        order(Rtruncated),
+        struct_array(Rtruncated),
         4,
         2,
     ) == :standard
-    @test isfinite(Distributions.loglikelihood(F))
-    @test isfinite(Copulas.StatsBase.aic(F))
-    @test isfinite(Copulas.StatsBase.bic(F))
+    @test isfinite(Distributions.loglikelihood(Rtruncated, U))
 end
 
 
@@ -577,19 +541,8 @@ end
     for seed in (1411, 1412, 1413)
         rng = StableRNG(seed)
         U = 0.01 .+ 0.98 .* rand(rng, 6, 180)
-        R = fit(
-            RVineCopula,
-            U;
-            trunc=3,
-            family_set=(GaussianCopula,),
-            selection_criterion=:aic,
-            tree_criterion=:tau,
-            tree_algorithm=:mst,
-            allow_rotations=false,
-            preselect=false,
-            include_independence=false,
-            strict=true,
-        )
+        R = fit(RVineCopula, U; trunc=3, family_set=(GaussianCopula,), selection_criterion=:aic, tree_criterion=:tau, tree_algorithm=:mst,
+                allow_rotations=false, preselect=false, include_independence=false, strict=true,)
 
         @test R isa RVineCopula
         @test truncation(R) == 3
@@ -616,18 +569,11 @@ end
     U = rand(StableRNG(1404), source, 700)
     legacy = RVineStructure([1,2,3], ([2,3], [2]); trunc=2)
 
-    F = fit(
-        CopulaModel,
-        RVineCopula,
-        U;
-        structure=legacy,
-        family_set=(GaussianCopula, ClaytonCopula, FrankCopula),
-        allow_rotations=false,
-    )
+    R = fit(RVineCopula, U; method=:sequential, structure=legacy, family_set=(GaussianCopula, ClaytonCopula, FrankCopula), allow_rotations=false,)
 
-    @test Copulas.fitted_distribution(F) isa RVineCopula
-    @test struct_array(Copulas.fitted_distribution(F)) == ([2,3], [3])
-    @test VineCopulas._compile_standard_rvine(Copulas.fitted_distribution(F)).p == 3
+    @test R isa RVineCopula
+    @test struct_array(R) == ([2,3], [3])
+    @test VineCopulas._compile_standard_rvine(R).p == 3
 end
 
 @testitem "Fit internals – Kendall tau-b and exact D-vine path" tags=[:Fit, :Numerical, :Structure] setup=[M] begin
@@ -673,4 +619,10 @@ end
     @test_throws ArgumentError fit(CVineCopula, U; threshold=-0.1, family_set=(GaussianCopula,),)
     @test_throws ArgumentError fit(DVineCopula, U; threshold=1.1, family_set=(GaussianCopula,),)
     @test_throws ArgumentError fit(DVineCopula, U; exact_order_max=1, family_set=(GaussianCopula,),)
+    @test_throws ArgumentError fit(CVineCopula, U; method=:mle, family_set=(GaussianCopula,),)
+    @test_throws ArgumentError fit(DVineCopula, U; method=:itau, family_set=(GaussianCopula,),)
+    @test_throws ArgumentError fit(RVineCopula, U; method=:mle, family_set=(GaussianCopula,),)
+    @test_throws ArgumentError fit(CopulaModel, CVineCopula, U; family_set=(GaussianCopula,),)
+    @test_throws ArgumentError fit(CopulaModel, DVineCopula, U; family_set=(GaussianCopula,),)
+    @test_throws ArgumentError fit(CopulaModel, RVineCopula, U; family_set=(GaussianCopula,),)
 end

@@ -463,13 +463,8 @@ end
 # R-vine fitting entry point
 # -----------------------------------------------------------------------------
 
-Copulas._available_fitting_methods(::Type{<:RVineCopula}, d) =
-    d >= 2 ? (:sequential,) : Tuple{}()
-
-function Copulas._fit(
-    ::Type{<:RVineCopula},
-    U0,
-    ::Val{:sequential};
+function _fit_rvine_sequential(
+    U0;
     structure=nothing,
     trunc=nothing,
     family_set=:default,
@@ -554,6 +549,11 @@ function Copulas._fit(
     _compile_standard_rvine(vc)
 
     return vc
+end
+
+function Distributions.fit(::Type{<:RVineCopula}, U; method::Symbol=:default, kwargs...)
+    _check_vine_fit_method(method)
+    return _fit_rvine_sequential(U; kwargs...)
 end
 
 # -----------------------------------------------------------------------------
