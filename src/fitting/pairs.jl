@@ -186,29 +186,8 @@ function _fit_vine_scalar_bounded(constructor, U, lo::Real, hi::Real; xtol::Real
     return C, (;θ̂=(; theta=theta), optimizer=Optim.summary(res), converged=Optim.converged(res), iterations=Optim.iterations(res),)
 end
 
-# For bivariate Gaussian pair-copula selection, maximize the copula
-# likelihood directly in rho.  The public Copulas.jl Gaussian `:mle` currently
-# obtains a correlation matrix from a fitted normal-score MvNormal model; the
-# two estimators need not coincide in finite samples and can therefore change
-# an AIC/BIC family choice.
-const _VINE_GAUSSIAN_RHO_LO = -1.0
-const _VINE_GAUSSIAN_RHO_HI = 1.0
 const _VINE_FRANK_LO = -35.0
 const _VINE_FRANK_HI = 35.0
-
-function _fit_vine_gaussian(U; xtol::Real=1.0e-10)
-    C, meta = _fit_vine_scalar_bounded(rho -> Copulas.GaussianCopula(2, rho), U, _VINE_GAUSSIAN_RHO_LO, _VINE_GAUSSIAN_RHO_HI; xtol=xtol,)
-    rho = Float64(meta.θ̂.theta)
-    # `GaussianCopula(2, 0)` is canonicalized by Copulas.jl to the independent
-    # copula.  Keep this candidate identifiable as Gaussian for family
-    # selection by using the nearest practically equivalent interior value.
-    if iszero(rho)
-        rho = eps(Float64)
-        C = Copulas.GaussianCopula(2, rho)
-    end
-    return C, (; meta..., θ̂=Distributions.params(C))
-end
-
 
 function _fit_vine_frank(U; xtol::Real=1.0e-10)
     C, meta = _fit_vine_scalar_bounded(theta -> Copulas.FrankCopula(2, theta), U, _VINE_FRANK_LO, _VINE_FRANK_HI; xtol=xtol)
@@ -350,7 +329,8 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method:
     # an exact bivariate copula likelihood or a vinecopulib-aligned finite
     # parameter domain is required.
     if FT <: Copulas.GaussianCopula && method === :mle
-        C0, meta = _fit_vine_gaussian(Uf; pair_kwargs...)
+        C0 = Distributions.fit(FT, Uf; method=:mle, pair_kwargs...)
+        meta = (; θ̂=Distributions.params(C0))
     elseif FT <: Copulas.TCopula && method === :mle
         C0, meta = _fit_vine_two_parameter_bounded(
             (rho, nu) -> Copulas.TCopula(nu, [1.0 rho; rho 1.0]), Uf,

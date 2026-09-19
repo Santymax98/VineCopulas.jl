@@ -244,6 +244,19 @@ end
     @test rho ≈ 0.5561662333 atol=5.0e-5
     @test Distributions.loglikelihood(F) ≈ 5.140188517 atol=2.0e-6
 
+    public_fit = fit(GaussianCopula, U; method=:mle)
+    public_rho = Distributions.params(public_fit).Σ[1, 2]
+    public_loglik = Distributions.loglikelihood(public_fit, U)
+    @test rho ≈ public_rho atol=1.0e-8
+    @test Distributions.loglikelihood(F) ≈ public_loglik atol=1.0e-12
+
+    selected = VineCopulas._fit_one_pair_family(GaussianCopula, U, (); pair_method=:mle, selection_criterion=:aic, pair_kwargs=(;),)
+    @test selected.family == "Gaussian"
+    @test selected.method == :mle
+    @test selected.loglik ≈ public_loglik atol=1.0e-12
+    @test selected.score ≈ -2public_loglik + 2 atol=1.0e-12
+    @test selected.theta == Distributions.params(public_fit)
+
     # Check local optimality directly in copula likelihood, not merely against
     # a particular external optimizer implementation.
     for delta in (-0.02, -0.005, 0.005, 0.02)
