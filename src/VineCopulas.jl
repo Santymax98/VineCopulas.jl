@@ -84,6 +84,7 @@ include("fitting.jl")
 include("stats.jl")
 
 export PairCopula,
+       select_paircopula,
        VineCopula,
        AbstractVineStructure,
        AbstractVineCopula,

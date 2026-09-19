@@ -7,7 +7,7 @@ Asymmetric positive-dependence families can represent negative association throu
 During automatic selection:
 
 ```julia
-fit(PairCopula, U; allow_rotations=true)
+select_paircopula(U; allow_rotations=true)
 ```
 
 When `preselect=true`, the empirical dependence sign can remove rotations that cannot match the data. Set `preselect=false` for exhaustive parity or benchmark campaigns.

@@ -6,10 +6,10 @@
 #
 # Design goals
 # ------------
-# 1. Preserve the Distributions.jl / Copulas.jl fitting API:
+# 1. Preserve the Distributions.jl / Copulas.jl fitting API for vine models,
+#    while keeping automatic pair-family selection VineCopulas-owned:
 #
-#       fit(PairCopula, U)                       # quick selected pair copula
-#       fit(CopulaModel, PairCopula, U)          # full statistical model
+#       select_paircopula(U)                     # quick selected pair copula
 #       fit(CVineCopula, U)                      # quick C-vine
 #       fit(CopulaModel, CVineCopula, U)         # full model
 #       fit(DVineCopula, U)

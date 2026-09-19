@@ -447,15 +447,24 @@ function _select_pair(U0::AbstractMatrix{<:Real}; family_set=:default, pair_meth
     return best
 end
 
-# Exact public abstract-pair fitting hook.
-Copulas._available_fitting_methods(::Type{PairCopula}, d) = d == 2 ? (:select,) : Tuple{}()
+"""
+    select_paircopula(U; family_set=:default, pair_method=:default,
+                      selection_criterion=:bic, allow_rotations=true,
+                      preselect=true, include_independence=true,
+                      pair_kwargs=NamedTuple(), strict=false, trace=false)
 
-function Copulas._fit(::Type{PairCopula}, U, ::Val{:select}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
-    allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, pair_kwargs::NamedTuple=NamedTuple(),
-    strict::Bool=false, trace::Bool=false,)
-    fit = _select_pair(U; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
-        preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
-    return fit.copula
+Fit candidate bivariate copula families to U, optionally evaluate their
+0/90/180/270-degree rotations, and select the best candidate by :loglik,
+:aic, or :bic. Returns the selected Copulas.Copula{2}.
+
+The default candidate set is DEFAULT_PAIR_FAMILIES. Use family_set=:all or an
+explicit collection of Copulas.jl family types to change the candidates.
+"""
+function select_paircopula(U::AbstractMatrix{<:Real}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
+                           allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
+                           pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
+                           return _select_pair(U; family_set, pair_method, selection_criterion, allow_rotations,
+                                               preselect, include_independence, pair_kwargs, strict, trace,).copula
 end
 
 # -----------------------------------------------------------------------------
