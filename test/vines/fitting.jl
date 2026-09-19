@@ -1,6 +1,30 @@
 # Vine fitting and model-selection tests.
 # Small family sets keep CI cost bounded; the production default is broader.
 
+@testitem "Fit API – public pair estimator fallback" tags=[:Fit, :PairCopula, :Regression] setup=[M] begin
+    using Test, Distributions, Copulas, VineCopulas, StableRNGs
+
+    U = rand(StableRNG(3101), Copulas.FGMCopula(2, 0.5), 200)
+    for requested in (:default, :itau)
+        model = fit(Copulas.CopulaModel, Copulas.FGMCopula, U; method=requested)
+        selected = VineCopulas._fit_one_pair_family(
+            Copulas.FGMCopula, U, ();
+            pair_method=requested, selection_criterion=:bic, pair_kwargs=(;),
+        )
+        @test selected.method == Copulas.fitting_method(model)
+        @test selected.theta == params(Copulas.fitted_distribution(model))
+        @test selected.loglik == Distributions.loglikelihood(Copulas.fitted_distribution(model), U)
+        @test selected.family == "FGM"
+    end
+    C, meta = VineCopulas._fit_vine_scalar_bounded(
+        theta -> Copulas.ClaytonCopula(2, theta), U,
+        VineCopulas._VINE_CLAYTON_LO, VineCopulas._VINE_CLAYTON_HI,
+    )
+    @test C isa Copulas.ClaytonCopula{2}
+    @test VineCopulas._short_family_name(C) == "Clayton"
+    @test params(C).θ == meta.θ̂.theta
+end
+
 @testitem "Fit API – PairCopula selection" tags=[:Fit, :PairCopula] setup=[M] begin
     using Test
     using Distributions
