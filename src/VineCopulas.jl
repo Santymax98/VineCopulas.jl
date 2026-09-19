@@ -9,14 +9,18 @@ import Roots
 import Optim
 import QuasiMonteCarlo
 import LambertW
+import LinearAlgebra
 import LogExpFunctions
 import SpecialFunctions
 import StatsFuns
+import Statistics
+import StatsBase
 
 using Reexport
 @reexport using Copulas
 import Base: truncate
 import Copulas: rosenblatt, inverse_rosenblatt
+import Copulas: fitted_distribution, fitting_method, infer
 
 """
     PairCopula
@@ -81,6 +85,7 @@ include("Vines/DVine.jl")
 include("Vines/RVine.jl")
 
 include("fitting.jl")
+include("VineModels.jl")
 include("stats.jl")
 
 export PairCopula,
@@ -94,6 +99,11 @@ export PairCopula,
        CVineCopula,
        DVineCopula,
        RVineCopula,
+       VineModel,
+       VineInference,
+       fitted_distribution,
+       fitting_method,
+       infer,
        VineEdge,
        structure,
        order,
@@ -121,6 +131,8 @@ export PairCopula,
        loglikelihood,
        npars,
        aic,
-       bic
+       bic,
+       edge_table,
+       vine_kind
 
 end

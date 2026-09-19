@@ -33,6 +33,53 @@ fitted = fit(RVineCopula, U)
 The returned object is an ordinary `RVineCopula`: it can be evaluated,
 simulated, truncated, and passed to `aic` or `bic`.
 
+## Statistical fitted models and inference
+
+Use `VineModel` when the fitting recipe, observations, likelihood summaries,
+and coefficient vector are needed alongside the fitted distribution:
+
+```julia
+M = fit(VineModel, RVineCopula, U)
+
+fitted_distribution(M)
+fitting_method(M)       # :sequential
+order(M); structure(M); truncation(M)
+coef(M); coefnames(M)
+StatsBase.aic(M); StatsBase.bic(M)
+edge_table(M)
+```
+
+`edge_table(M)` derives one row per active edge with its tree, edge index,
+conditioned and conditioning variables, family, rotation, and natural
+parameters. It does not store a second copy of the fitted structure.
+
+`StatsBase.aic(M)` and `StatsBase.bic(M)` use the final vine likelihood and
+the number of active numerical pair-copula parameters. They are useful
+comparative scores for sequential fits to the same data, but the parameters
+are not a joint maximum-likelihood estimate; their usual joint-MLE asymptotic
+interpretation is therefore not asserted here.
+
+`VineCopulas.aicc(M)` and `VineCopulas.hqc(M)` are currently internal
+convenience criteria computed from that same final likelihood and active
+numerical parameter count. They do not assert a special sequential-vine
+theory. A future sparse-vine criterion should consider mBICV instead.
+
+Inference is a fixed-selection bootstrap:
+
+```julia
+I = infer(M; method=:bootstrap, nresamples=200, rng=MersenneTwister(1))
+StatsBase.vcov(I)
+StatsBase.stderror(I)
+StatsBase.confint(I)
+```
+
+!!! warning "Conditional inference"
+    Current vine covariance inference conditions on the selected structure,
+    pair families, and rotations. Every replicate resamples observations and
+    sequentially refits all active pair parameters, propagating
+    pseudo-observations through the trees. It does not include model-selection
+    uncertainty, and it intentionally does not offer a joint-MLE Hessian.
+
 ## Pair-family selection
 
 Pair-copula selection chooses the best bivariate family for one edge. It can be
