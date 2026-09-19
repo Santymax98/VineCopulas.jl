@@ -82,11 +82,7 @@ ordinary proximity-constrained selection.
 """
 
 
-function _maximum_spanning_tree(
-    candidates::Vector{_RVCandidate},
-    nvertices::Int;
-    groups::Union{Nothing,Vector{Int}}=nothing,
-)
+function _maximum_spanning_tree(candidates::Vector{_RVCandidate}, nvertices::Int; groups::Union{Nothing,Vector{Int}}=nothing,)
     nvertices <= 1 && return _RVCandidate[]
     cross(c) = groups === nothing ? false : groups[c.v1] != groups[c.v2]
     idx = sortperm(
@@ -110,9 +106,7 @@ function _maximum_spanning_tree(
         end
     end
 
-    length(selected) == nvertices - 1 || throw(ArgumentError(
-        "candidate graph is disconnected; proximity condition cannot produce the next R-vine tree"
-    ))
+    length(selected) == nvertices - 1 || throw(ArgumentError("candidate graph is disconnected; proximity condition cannot produce the next R-vine tree"))
     return selected
 end
 
@@ -123,10 +117,7 @@ function _rvine_tree1_candidates(X::Matrix{Float64}, criterion)
     @inbounds for j in 2:p, i in 1:j-1
         ui = @view X[i, :]
         uj = @view X[j, :]
-        push!(out, _RVCandidate(
-            i, j, i, j, Int[], ui, uj,
-            _tree_dependence(ui, uj, i, j, Int[], criterion)
-        ))
+        push!(out, _RVCandidate(i, j, i, j, Int[], ui, uj, _tree_dependence(ui, uj, i, j, Int[], criterion)))
     end
     return out
 end
@@ -150,29 +141,13 @@ function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion)
 
         ua = _edge_conditional(e1, a)
         ub = _edge_conditional(e2, b)
-        push!(out, _RVCandidate(
-            i, j, a, b, D, ua, ub,
-            _tree_dependence(ua, ub, a, b, D, criterion)
-        ))
+        push!(out, _RVCandidate(i, j, a, b, D, ua, ub, _tree_dependence(ua, ub, a, b, D, criterion)))
     end
     return out
 end
 
-function _fit_rvine_candidates(
-    selected::Vector{_RVCandidate},
-    nobs::Int;
-    family_set,
-    pair_method,
-    selection_criterion,
-    allow_rotations,
-    preselect,
-    include_independence,
-    threshold,
-    pair_kwargs,
-    strict,
-    trace,
-    need_h::Bool,
-)
+function _fit_rvine_candidates(selected::Vector{_RVCandidate}, nobs::Int; family_set, pair_method, selection_criterion, allow_rotations,
+                               preselect, include_independence, threshold, pair_kwargs, strict, trace, need_h::Bool,)
     out = Vector{_RVFitEdge}(undef, length(selected))
 
     @inbounds for i in eachindex(selected)
@@ -181,20 +156,9 @@ function _fit_rvine_candidates(
         pdata[1, :] .= c.u_a
         pdata[2, :] .= c.u_b
 
-        fit = _select_pair(
-            pdata;
-            family_set=family_set,
-            pair_method=pair_method,
-            selection_criterion=selection_criterion,
-            allow_rotations=allow_rotations,
-            preselect=preselect,
-            include_independence=include_independence,
-            pair_kwargs=pair_kwargs,
-            strict=strict,
-            trace=trace,
-            force_independence=c.weight < threshold,
-        )
-
+        fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
+                           allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence,
+                           pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=c.weight < threshold,)
         C = fit.copula
         if need_h
             h_a = Vector{Float64}(undef, nobs)
@@ -205,31 +169,13 @@ function _fit_rvine_candidates(
             h_b = Float64[]
         end
 
-        out[i] = _RVFitEdge(
-            c.a, c.b, copy(c.D),
-            _sorted_complete(c.a, c.b, c.D),
-            C, h_a, h_b, fit,
-        )
+        out[i] = _RVFitEdge(c.a, c.b, copy(c.D), _sorted_complete(c.a, c.b, c.D), C, h_a, h_b, fit,)
     end
     return out
 end
 
-function _select_rvine_trees(
-    X::Matrix{Float64},
-    q::Int;
-    family_set,
-    pair_method,
-    selection_criterion,
-    tree_criterion,
-    groups,
-    allow_rotations,
-    preselect,
-    include_independence,
-    threshold,
-    pair_kwargs,
-    strict,
-    trace,
-)
+function _select_rvine_trees(X::Matrix{Float64}, q::Int; family_set, pair_method, selection_criterion, tree_criterion, groups,
+                             allow_rotations, preselect, include_independence, threshold, pair_kwargs, strict, trace,)
     p, n = size(X)
     trees = Vector{Vector{_RVFitEdge}}(undef, q)
 
@@ -239,38 +185,16 @@ function _select_rvine_trees(
     # decompose there.
     candidates = _rvine_tree1_candidates(X, tree_criterion)
     selected = _maximum_spanning_tree(candidates, p; groups=groups)
-    trees[1] = _fit_rvine_candidates(
-        selected, n;
-        family_set=family_set,
-        pair_method=pair_method,
-        selection_criterion=selection_criterion,
-        allow_rotations=allow_rotations,
-        preselect=preselect,
-        include_independence=include_independence,
-        threshold=threshold,
-        pair_kwargs=pair_kwargs,
-        strict=strict,
-        trace=trace,
-        need_h=(q > 1),
-    )
+    trees[1] = _fit_rvine_candidates(selected, n; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
+                                     allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence,
+                                     threshold=threshold, pair_kwargs=pair_kwargs, strict=strict, trace=trace, need_h=(q > 1),)
 
     for t in 2:q
         candidates = _rvine_next_candidates(trees[t - 1], tree_criterion)
         selected = _maximum_spanning_tree(candidates, length(trees[t - 1]))
-        trees[t] = _fit_rvine_candidates(
-            selected, n;
-            family_set=family_set,
-            pair_method=pair_method,
-            selection_criterion=selection_criterion,
-            allow_rotations=allow_rotations,
-            preselect=preselect,
-            include_independence=include_independence,
-            threshold=threshold,
-            pair_kwargs=pair_kwargs,
-            strict=strict,
-            trace=trace,
-            need_h=(t < q),
-        )
+        trees[t] = _fit_rvine_candidates(selected, n; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
+                                         allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence,
+                                         threshold=threshold, pair_kwargs=pair_kwargs, strict=strict, trace=trace, need_h=(t < q),)
     end
     return trees
 end
@@ -279,15 +203,8 @@ end
 # R-vine tree-list -> standard triangular structure (deterministic leaf peeling)
 # -----------------------------------------------------------------------------
 
-@inline _side_key(E::_RVFitEdge, side::Symbol) =
-    Tuple(sort!(vcat(E.D, side === :a ? E.a : E.b)))
-
-function _rvine_peel(
-    trees::Vector{Vector{_RVFitEdge}},
-    p::Int,
-    q::Int;
-    sampling_tail::AbstractVector{<:Integer}=Int[],
-)
+@inline _side_key(E::_RVFitEdge, side::Symbol) = Tuple(sort!(vcat(E.D, side === :a ? E.a : E.b)))
+function _rvine_peel(trees::Vector{Vector{_RVFitEdge}}, p::Int, q::Int; sampling_tail::AbstractVector{<:Integer}=Int[],)
     consumed = [falses(length(trees[t])) for t in 1:q]
     S = [zeros(Int, p - t) for t in 1:q]
     Eout = [Vector{PairCopula}(undef, p - t) for t in 1:q]
@@ -322,9 +239,7 @@ function _rvine_peel(
             get(degree, _side_key(ed, :a), 0) == 1 && push!(leaves, (ed.a, i, :a))
             get(degree, _side_key(ed, :b), 0) == 1 && push!(leaves, (ed.b, i, :b))
         end
-        isempty(leaves) && throw(ArgumentError(
-            "could not peel R-vine tree $top; no leaf satisfies the proximity representation"
-        ))
+        isempty(leaves) && throw(ArgumentError("could not peel R-vine tree $top; no leaf satisfies the proximity representation"))
         sort!(leaves; by=x -> (x[1] in sampling_tail, x[1], x[2], x[3] === :a ? 0 : 1))
         diag, idx, side = first(leaves)
         ord[col] = diag
@@ -350,10 +265,7 @@ function _rvine_peel(
                 found = j
                 break
             end
-            found == 0 && throw(ArgumentError(
-                "R-vine proximity condition violated while peeling column $col at tree $level"
-            ))
-
+            found == 0 && throw(ArgumentError("R-vine proximity condition violated while peeling column $col at tree $level"))
             low = trees[level][found]
             if diag == low.a
                 S[level][col] = low.b
@@ -362,9 +274,7 @@ function _rvine_peel(
                 S[level][col] = low.a
                 Eout[level][col] = _swap_pair(low.copula)
             else
-                throw(ArgumentError(
-                    "peeled diagonal $diag is not a conditioned endpoint in tree $level"
-                ))
+                throw(ArgumentError("peeled diagonal $diag is not a conditioned endpoint in tree $level"))
             end
             consumed[level][found] = true
             checkset = copy(low.D)
@@ -372,15 +282,11 @@ function _rvine_peel(
     end
 
     ord[p] = S[1][p - 1]
-    sort(ord) == collect(1:p) || throw(ArgumentError(
-        "tree decomposition did not peel to a valid permutation: $ord"
-    ))
+    sort(ord) == collect(1:p) || throw(ArgumentError("tree decomposition did not peel to a valid permutation: $ord"))
 
     # Every fitted edge must have been consumed exactly once.
     @inbounds for t in 1:q
-        all(consumed[t]) || throw(ArgumentError(
-            "R-vine peeling left unused edges in tree $t"
-        ))
+        all(consumed[t]) || throw(ArgumentError("R-vine peeling left unused edges in tree $t"))
     end
 
     edges = [tuple(Eout[t]...) for t in 1:q]
@@ -406,21 +312,8 @@ function _standardize_fixed_rvine_structure(st::RVineStructure)
 end
 
 
-function _fit_fixed_rvine(
-    X::Matrix{Float64},
-    st::RVineStructure;
-    family_set,
-    pair_method,
-    selection_criterion,
-    allow_rotations,
-    preselect,
-    include_independence,
-    threshold,
-    tree_criterion,
-    pair_kwargs,
-    strict,
-    trace,
-)
+function _fit_fixed_rvine(X::Matrix{Float64}, st::RVineStructure; family_set, pair_method, selection_criterion, allow_rotations, preselect,
+                          include_independence, threshold, tree_criterion, pair_kwargs, strict, trace,)
     p, n = size(X)
     ord = collect(st.order)
     q = truncation(st)
@@ -441,12 +334,8 @@ function _fit_fixed_rvine(
             D = Int[S[r][e] for r in 1:(t - 1)]
             ka = _state_key(a, D)
             kb = _state_key(b, D)
-            haskey(states, ka) || throw(ArgumentError(
-                "invalid standard R-vine structure: missing conditional state $ka"
-            ))
-            haskey(states, kb) || throw(ArgumentError(
-                "invalid standard R-vine structure/proximity condition: missing conditional state $kb"
-            ))
+            haskey(states, ka) || throw(ArgumentError("invalid standard R-vine structure: missing conditional state $ka"))
+            haskey(states, kb) || throw(ArgumentError("invalid standard R-vine structure/proximity condition: missing conditional state $kb"))
             ua = states[ka]
             ub = states[kb]
             dep = _tree_dependence(ua, ub, a, b, D, tree_criterion)
@@ -454,19 +343,8 @@ function _fit_fixed_rvine(
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= ua
             pdata[2, :] .= ub
-            fit = _select_pair(
-                pdata;
-                family_set=family_set,
-                pair_method=pair_method,
-                selection_criterion=selection_criterion,
-                allow_rotations=allow_rotations,
-                preselect=preselect,
-                include_independence=include_independence,
-                pair_kwargs=pair_kwargs,
-                strict=strict,
-                trace=trace,
-                force_independence=dep < threshold,
-            )
+            fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations, preselect=preselect,
+                               include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
             level[e] = fit
             if t < q
                 oa = _state_key(a, vcat(D, b))
@@ -495,97 +373,43 @@ end
 # R-vine fitting entry point
 # -----------------------------------------------------------------------------
 
-function _fit_rvine_sequential(
-    U0;
-    structure=nothing,
-    trunc=nothing,
-    family_set=:default,
-    pair_method::Symbol=:default,
-    selection_criterion::Symbol=:bic,
-    tree_criterion=:tau,
-    tree_algorithm::Symbol=:mst,
-    groups=nothing,
-    allow_rotations::Bool=true,
-    preselect::Bool=true,
-    include_independence::Bool=true,
-    threshold::Real=0.0,
-    pair_kwargs::NamedTuple=NamedTuple(),
-    strict::Bool=false,
-    trace::Bool=false,
-    sampling_tail=Int[],
-)
+function _fit_rvine_sequential(U0; structure=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
+                               tree_criterion=:tau, tree_algorithm::Symbol=:mst, groups=nothing, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
+                               threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false, sampling_tail=Int[],)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
     threshold = _check_threshold(threshold, tree_criterion)
-    tree_algorithm in (:mst, :kruskal) || throw(ArgumentError(
-        "tree_algorithm currently supports :mst or :kruskal (same deterministic Kruskal engine)"
-    ))
+    tree_algorithm in (:mst, :kruskal) || throw(ArgumentError("tree_algorithm currently supports :mst or :kruskal (same deterministic Kruskal engine)"))
     tail = collect(Int, sampling_tail)
-    allunique(tail) && all(j -> 1 <= j <= p, tail) || throw(ArgumentError(
-        "sampling_tail must hold distinct labels in 1:$p; got $tail"
-    ))
+    allunique(tail) && all(j -> 1 <= j <= p, tail) || throw(ArgumentError("sampling_tail must hold distinct labels in 1:$p; got $tail"))
     groups = _check_groups(groups, p)
 
     if structure !== nothing
-        structure isa RVineStructure || throw(ArgumentError(
-            "structure must be an RVineStructure or nothing"
-        ))
-        isempty(tail) || throw(ArgumentError(
-            "sampling_tail cannot be combined with a fixed structure: the structure already fixes the order"
-        ))
-        groups === nothing || throw(ArgumentError(
-            "groups constrains structure selection; it cannot be combined with a fixed structure"
-        ))
+        structure isa RVineStructure || throw(ArgumentError("structure must be an RVineStructure or nothing"))
+        isempty(tail) || throw(ArgumentError("sampling_tail cannot be combined with a fixed structure: the structure already fixes the order"))
+        groups === nothing || throw(ArgumentError("groups constrains structure selection; it cannot be combined with a fixed structure"))
         q = truncation(structure)
-        trunc !== nothing && Int(trunc) != q && throw(ArgumentError(
-            "when structure is supplied, trunc must match truncation(structure)"
-        ))
+        trunc !== nothing && Int(trunc) != q && throw(ArgumentError("when structure is supplied, trunc must match truncation(structure)"))
         st_fit, _ = _standardize_fixed_rvine_structure(structure)
-        vc = _fit_fixed_rvine(
-            X, st_fit;
-            family_set=family_set,
-            pair_method=pair_method,
-            selection_criterion=selection_criterion,
-            allow_rotations=allow_rotations,
-            preselect=preselect,
-            include_independence=include_independence,
-            threshold=threshold,
-            tree_criterion=tree_criterion,
-            pair_kwargs=pair_kwargs,
-            strict=strict,
-            trace=trace,
-        )
+        vc = _fit_fixed_rvine(X, st_fit; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
+                              preselect=preselect, include_independence=include_independence, threshold=threshold, tree_criterion=tree_criterion,
+                              pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
     else
         q = isnothing(trunc) ? p - 1 : Int(trunc)
         1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
 
-        trees = _select_rvine_trees(
-            X, q;
-            family_set=family_set,
-            pair_method=pair_method,
-            selection_criterion=selection_criterion,
-            tree_criterion=tree_criterion,
-            groups=groups,
-            allow_rotations=allow_rotations,
-            preselect=preselect,
-            include_independence=include_independence,
-            threshold=threshold,
-            pair_kwargs=pair_kwargs,
-            strict=strict,
-            trace=trace,
-        )
+        trees = _select_rvine_trees(X, q; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, tree_criterion=tree_criterion,
+                                    groups=groups, allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence,
+                                    threshold=threshold, pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
         ord, S, edgelevels = _rvine_peel(trees, p, q; sampling_tail=tail)
         vc = RVineCopula(ord, S, edgelevels; trunc=q)
-
     end
-
     # Compile once here as a structural validation. Runtime methods below
     # compile the same lightweight plan on demand until it becomes worth
     # storing/caching plans in the core type.
     _compile_standard_rvine(vc)
-
     return vc
 end
 
@@ -624,9 +448,7 @@ struct _RVineExecPlan
 end
 
 function _new_slot!(states::Dict{Any,Int}, key, nextslot::Base.RefValue{Int})
-    haskey(states, key) && throw(ArgumentError(
-        "invalid standard R-vine: conditional state $key is generated more than once"
-    ))
+    haskey(states, key) && throw(ArgumentError("invalid standard R-vine: conditional state $key is generated more than once"))
     nextslot[] += 1
     states[key] = nextslot[]
     return nextslot[]
@@ -691,21 +513,13 @@ function _compile_standard_rvine(vc::RVineCopula{p}) where {p}
             ))
 
             D = Int[S[r][e] for r in 1:(t - 1)]
-            length(unique(D)) == length(D) || throw(ArgumentError(
-                "conditioning set has duplicate labels at tree $t edge $e"
-            ))
-            (a in D || b in D) && throw(ArgumentError(
-                "conditioned variable appears in its own conditioning set at tree $t edge $e"
-            ))
+            length(unique(D)) == length(D) || throw(ArgumentError("conditioning set has duplicate labels at tree $t edge $e"))
+            (a in D || b in D) && throw(ArgumentError("conditioned variable appears in its own conditioning set at tree $t edge $e"))
 
             ka = _state_key(a, D)
             kb = _state_key(b, D)
-            haskey(states, ka) || throw(ArgumentError(
-                "proximity condition failed: missing conditional state $ka at tree $t edge $e"
-            ))
-            haskey(states, kb) || throw(ArgumentError(
-                "proximity condition failed: missing conditional state $kb at tree $t edge $e"
-            ))
+            haskey(states, ka) || throw(ArgumentError("proximity condition failed: missing conditional state $ka at tree $t edge $e"))
+            haskey(states, kb) || throw(ArgumentError("proximity condition failed: missing conditional state $kb at tree $t edge $e"))
 
             oa = _state_key(a, vcat(D, b))
             ob = _state_key(b, vcat(D, a))
@@ -727,9 +541,7 @@ function _compile_standard_rvine(vc::RVineCopula{p}) where {p}
             a = ord[e]
             D = Int[S[r][e] for r in 1:tmax]
             key = _state_key(a, D)
-            haskey(states, key) || throw(ArgumentError(
-                "could not identify final Rosenblatt state for variable $a"
-            ))
+            haskey(states, key) || throw(ArgumentError("could not identify final Rosenblatt state for variable $a"))
             finalslots[a] = states[key]
         end
     end
@@ -759,22 +571,13 @@ function _compile_standard_rvine(vc::RVineCopula{p}) where {p}
     end
     ops = liveops
 
-    return _RVineExecPlan(
-        p, q, nextslot[], ord, rawslots, finalslots, ops, column_ops
-    )
+    return _RVineExecPlan(p, q, nextslot[], ord, rawslots, finalslots, ops, column_ops)
 end
 
 # Function barriers: `_RVineExecOp` stores heterogeneous pair-copulas behind
 # the abstract PairCopula type, but dispatch occurs once per edge. The inner
 # observation loop is then compiled for the concrete family type.
-function _rvine_forward_op!(
-    V::Matrix{Float64},
-    ll::Vector{Float64},
-    op::_RVineExecOp,
-    C::CT,
-    buf::Vector{Float64},
-    ::Val{LOGPDF},
-) where {CT<:PairCopula,LOGPDF}
+function _rvine_forward_op!(V::Matrix{Float64}, ll::Vector{Float64}, op::_RVineExecOp, C::CT, buf::Vector{Float64}, ::Val{LOGPDF},) where {CT<:PairCopula,LOGPDF}
     need_left = LOGPDF ? op.need_pair_left : op.need_out_left
     need_right = LOGPDF ? op.need_pair_right : op.need_out_right
 
@@ -833,27 +636,16 @@ function _rvine_forward_op!(
     return nothing
 end
 
-function _rvine_hinv1_column!(
-    current::Vector{Float64},
-    V::Matrix{Float64},
-    partner_slot::Int,
-    C::CT,
-) where {CT<:PairCopula}
+function _rvine_hinv1_column!(current::Vector{Float64}, V::Matrix{Float64}, partner_slot::Int, C::CT,) where {CT<:PairCopula}
     @inbounds for col in eachindex(current)
         partner = V[partner_slot, col]
-        isfinite(partner) || throw(ArgumentError(
-            "R-vine inverse plan encountered an unavailable partner state"
-        ))
+        isfinite(partner) || throw(ArgumentError("R-vine inverse plan encountered an unavailable partner state"))
         current[col] = hinv1(C, current[col], partner)
     end
     return nothing
 end
 
-function _rvine_propagate_op!(
-    V::Matrix{Float64},
-    op::_RVineExecOp,
-    C::CT,
-) where {CT<:PairCopula}
+function _rvine_propagate_op!(V::Matrix{Float64}, op::_RVineExecOp, C::CT,) where {CT<:PairCopula}
     need_left = op.need_out_left
     need_right = op.need_out_right
     !(need_left || need_right) && return nothing
@@ -862,9 +654,7 @@ function _rvine_propagate_op!(
         @inbounds for col in axes(V, 2)
             u = V[op.left, col]
             v = V[op.right, col]
-            (isfinite(u) && isfinite(v)) || throw(ArgumentError(
-                "R-vine inverse plan encountered an unavailable conditional state"
-            ))
+            (isfinite(u) && isfinite(v)) || throw(ArgumentError("R-vine inverse plan encountered an unavailable conditional state"))
             h1, h2 = _pair_hfuncs(C, u, v)
             V[op.out_left, col] = h1
             V[op.out_right, col] = h2
@@ -873,30 +663,21 @@ function _rvine_propagate_op!(
         @inbounds for col in axes(V, 2)
             u = V[op.left, col]
             v = V[op.right, col]
-            (isfinite(u) && isfinite(v)) || throw(ArgumentError(
-                "R-vine inverse plan encountered an unavailable conditional state"
-            ))
+            (isfinite(u) && isfinite(v)) || throw(ArgumentError("R-vine inverse plan encountered an unavailable conditional state"))
             V[op.out_left, col] = hfunc1(C, u, v)
         end
     else
         @inbounds for col in axes(V, 2)
             u = V[op.left, col]
             v = V[op.right, col]
-            (isfinite(u) && isfinite(v)) || throw(ArgumentError(
-                "R-vine inverse plan encountered an unavailable conditional state"
-            ))
+            (isfinite(u) && isfinite(v)) || throw(ArgumentError("R-vine inverse plan encountered an unavailable conditional state"))
             V[op.out_right, col] = hfunc2(C, u, v)
         end
     end
     return nothing
 end
 
-function _rvine_forward_workspace(
-    vc::RVineCopula{p},
-    U::AbstractMatrix{<:Real},
-    plan::_RVineExecPlan;
-    need_logpdf::Bool,
-) where {p}
+function _rvine_forward_workspace(vc::RVineCopula{p}, U::AbstractMatrix{<:Real}, plan::_RVineExecPlan; need_logpdf::Bool,) where {p}
     X = _as_pxn(p, U)
     n = size(X, 2)
     V = Matrix{Float64}(undef, plan.nslots, n)
@@ -940,11 +721,7 @@ function rosenblatt(vc::RVineCopula{p}, u::AbstractVector{<:Real}) where {p}
     return vec(rosenblatt(vc, reshape(u, p, 1)))
 end
 
-function rosenblatt!(
-    out::AbstractMatrix{<:Real},
-    vc::RVineCopula{p},
-    U::AbstractMatrix{<:Real},
-) where {p}
+function rosenblatt!(out::AbstractMatrix{<:Real}, vc::RVineCopula{p}, U::AbstractMatrix{<:Real},) where {p}
     X = _as_pxn(p, U)
     size(out) == size(X) || throw(DimensionMismatch("out must have size $(size(X))"))
 
@@ -969,12 +746,7 @@ function inverse_rosenblatt(vc::RVineCopula{p}, z::AbstractVector{<:Real}; fixed
     return vec(inverse_rosenblatt(vc, reshape(z, p, 1); fixed=fixed))
 end
 
-function inverse_rosenblatt!(
-    out::AbstractMatrix{<:Real},
-    vc::RVineCopula{p},
-    Z::AbstractMatrix{<:Real};
-    fixed=nothing,
-) where {p}
+function inverse_rosenblatt!(out::AbstractMatrix{<:Real}, vc::RVineCopula{p}, Z::AbstractMatrix{<:Real}; fixed=nothing,) where {p}
     Zx0 = _as_pxn(p, Z)
     size(out) == size(Zx0) || throw(DimensionMismatch("out must have size $(size(Zx0))"))
     _looks_like_dvine(vc) && return inverse_rosenblatt!(out, _as_dvine(vc), Zx0; fixed=fixed)
@@ -1002,12 +774,7 @@ end
 # `block === nothing` is the unconditional transform. Otherwise `block` is the
 # `(js, Ujs)` pair `_conditioning_block` returns and the raw slots of `js` are
 # seeded with `Ujs` instead of being generated from `Z`.
-function _rvine_plan_inverse_rosenblatt!(
-    out::AbstractMatrix{<:Real},
-    vc::RVineCopula{p},
-    Zx::AbstractMatrix{<:Real},
-    block,
-) where {p}
+function _rvine_plan_inverse_rosenblatt!(out::AbstractMatrix{<:Real}, vc::RVineCopula{p}, Zx::AbstractMatrix{<:Real}, block,) where {p}
     plan = _compile_standard_rvine(vc)
 
     n = size(Zx, 2)
