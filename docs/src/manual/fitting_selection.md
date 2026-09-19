@@ -47,8 +47,7 @@ using Random
 C = ClaytonCopula(2, 1.8)
 U2 = rand(MersenneTwister(9), C, 250)
 
-pair = fit(
-    PairCopula,
+pair = select_paircopula(
     U2;
     family_set=:default,
     selection_criterion=:bic,

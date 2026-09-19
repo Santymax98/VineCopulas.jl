@@ -1,6 +1,28 @@
 # Vine fitting and model-selection tests.
 # Small family sets keep CI cost bounded; the production default is broader.
 
+@testitem "Fit API – public pair estimator fallback" tags=[:Fit, :PairCopula, :Regression] setup=[M] begin
+    using Test, Distributions, Copulas, VineCopulas, StableRNGs
+
+    U = rand(StableRNG(3101), Copulas.FGMCopula(2, 0.5), 200)
+    for requested in (:default, :itau)
+        model = fit(Copulas.CopulaModel, Copulas.FGMCopula, U; method=requested)
+        selected = VineCopulas._fit_one_pair_family(Copulas.FGMCopula, U, ();
+            pair_method=requested, selection_criterion=:bic, pair_kwargs=(;),)
+        @test selected.method == Copulas.fitting_method(model)
+        @test selected.theta == params(Copulas.fitted_distribution(model))
+        @test selected.loglik == Distributions.loglikelihood(Copulas.fitted_distribution(model), U)
+        @test selected.family == "FGM"
+    end
+    C, meta = VineCopulas._fit_vine_scalar_bounded(
+        theta -> Copulas.ClaytonCopula(2, theta), U,
+        VineCopulas._VINE_CLAYTON_LO, VineCopulas._VINE_CLAYTON_HI,
+    )
+    @test C isa Copulas.ClaytonCopula{2}
+    @test VineCopulas._short_family_name(C) == "Clayton"
+    @test params(C).θ == meta.θ̂.theta
+end
+
 @testitem "Fit API – PairCopula selection" tags=[:Fit, :PairCopula] setup=[M] begin
     using Test
     using Distributions
@@ -14,29 +36,17 @@
 
     fams = (GaussianCopula, ClaytonCopula, FrankCopula)
 
-    C = fit(
-        PairCopula,
-        U;
-        family_set=fams,
-        selection_criterion=:bic,
-        allow_rotations=false,
-    )
+    @test PairCopula === Copulas.Copula{2}
+    C = select_paircopula(U; family_set=fams, selection_criterion=:bic, allow_rotations=false,)
     @test C isa Copulas.Copula{2}
     @test VineCopulas._short_family_name(C) == "Clayton"
 
-    F = fit(
-        CopulaModel,
-        PairCopula,
-        U;
-        family_set=fams,
-        selection_criterion=:bic,
-        allow_rotations=false,
-    )
-    @test Copulas.fitted_distribution(F) isa Copulas.Copula{2}
-    @test Copulas.fitting_method(F) == :select
-    @test isfinite(Distributions.loglikelihood(F))
-    @test isfinite(Copulas.StatsBase.aic(F))
-    @test isfinite(Copulas.StatsBase.bic(F))
+    S = VineCopulas._select_pair(U; family_set=fams, selection_criterion=:bic, allow_rotations=false,)
+    @test S.copula isa Copulas.Copula{2}
+    @test S.family == "Clayton"
+    @test S.method == :mle
+    @test isfinite(S.loglik)
+    @test isfinite(S.score)
 end
 
 @testitem "Fit API – rotated pair selection" tags=[:Fit, :PairCopula, :Rotation] setup=[M] begin
@@ -50,19 +60,11 @@ end
     C0 = SurvivalCopula(ClaytonCopula(2, 3.0), (1,))
     U = rand(rng, C0, 1600)
 
-    F = fit(
-        CopulaModel,
-        PairCopula,
-        U;
-        family_set=(ClaytonCopula,),
-        selection_criterion=:bic,
-        allow_rotations=true,
-        preselect=true,
-        include_independence=true,
-    )
-    @test Copulas.fitted_distribution(F) isa Copulas.SurvivalCopula
-    @test VineCopulas._rotation_of(Copulas.fitted_distribution(F)) in (90, 270)
-    @test Distributions.loglikelihood(F) > 0
+    S = VineCopulas._select_pair(U; family_set=(ClaytonCopula,), selection_criterion=:bic, allow_rotations=true,
+                                 preselect=true, include_independence=true,)
+    @test S.copula isa Copulas.SurvivalCopula
+    @test S.rotation in (90, 270)
+    @test S.loglik > 0
 end
 
 @testitem "Fit API – Clayton vine-selection domain is finite and positive" tags=[:Fit, :PairCopula, :Rotation, :Regression] setup=[M] begin
@@ -79,24 +81,14 @@ end
     # `preselect=false` forces all four rotations to be fitted.  This is the
     # configuration used by the cross-package correctness gate and previously
     # exposed a negative-theta Clayton MLE with -Inf likelihood.
-    F = fit(
-        CopulaModel,
-        PairCopula,
-        U;
-        family_set=(ClaytonCopula,),
-        pair_method=:mle,
-        selection_criterion=:aic,
-        allow_rotations=true,
-        preselect=false,
-        include_independence=false,
-        strict=true,
-    )
+    S = VineCopulas._select_pair(U; family_set=(ClaytonCopula,), pair_method=:mle, selection_criterion=:aic, allow_rotations=true,
+                                 preselect=false, include_independence=false, strict=true,)
 
-    base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
+    base = S.copula isa SurvivalCopula ? S.copula.C : S.copula
     θ = Distributions.params(base).θ
     @test 1.0e-10 < θ < 28.0
-    @test isfinite(Distributions.loglikelihood(F))
-    @test VineCopulas._rotation_of(Copulas.fitted_distribution(F)) in (0, 90, 180, 270)
+    @test isfinite(S.loglik)
+    @test S.rotation in (0, 90, 180, 270)
 
     # The broader Copulas.jl family remains available outside vine selection.
     @test ClaytonCopula(2, -0.25) isa Copulas.Copula{2}
@@ -116,23 +108,13 @@ end
     # vine selector itself still remains in the aligned 2 < nu < 50 range.
     U = rand(rng, TCopula(1.25, Sigma), 600)
 
-    F = fit(
-        CopulaModel,
-        PairCopula,
-        U;
-        family_set=(TCopula,),
-        pair_method=:mle,
-        selection_criterion=:aic,
-        allow_rotations=false,
-        preselect=false,
-        include_independence=false,
-        strict=true,
-    )
+    S = VineCopulas._select_pair(U; family_set=(TCopula,), pair_method=:mle, selection_criterion=:aic, allow_rotations=false,
+                                 preselect=false, include_independence=false, strict=true,)
 
-    p = Distributions.params(Copulas.fitted_distribution(F))
+    p = Distributions.params(S.copula)
     @test abs(p.Σ[1, 2]) < 1.0
     @test 2.0 < p.ν < 50.0
-    @test isfinite(Distributions.loglikelihood(F))
+    @test isfinite(S.loglik)
 
     # Direct Copulas.jl construction keeps the broader nu > 0 domain.
     @test TCopula(1.25, Sigma) isa Copulas.Copula{2}
@@ -153,24 +135,13 @@ end
     # Archimedean constrained MLE can probe theta < 1 during trial steps for
     # Gumbel/Joe; vine selection uses a bounded transformed parameter instead.
     for (FT, hi) in ((GumbelCopula, 50.0), (JoeCopula, 30.0))
-        F = fit(
-            CopulaModel,
-            PairCopula,
-            U;
-            family_set=(FT,),
-            pair_method=:mle,
-            selection_criterion=:aic,
-            allow_rotations=true,
-            preselect=false,
-            include_independence=false,
-            strict=true,
-        )
-
-        base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
+        S = VineCopulas._select_pair(U; family_set=(FT,), pair_method=:mle, selection_criterion=:aic, allow_rotations=true,
+                                     preselect=false, include_independence=false, strict=true,)
+        base = S.copula isa SurvivalCopula ? S.copula.C : S.copula
         theta = Distributions.params(base).θ
         @test 1.0 < theta < hi
-        @test isfinite(Distributions.loglikelihood(F))
-        @test VineCopulas._rotation_of(Copulas.fitted_distribution(F)) in (0, 90, 180, 270)
+        @test isfinite(S.loglik)
+        @test S.rotation in (0, 90, 180, 270)
     end
 end
 
@@ -202,29 +173,31 @@ end
     U[1, :] .= cdf.(N01, z1)
     U[2, :] .= cdf.(N01, z2)
 
-    F = fit(
-        CopulaModel,
-        PairCopula,
-        U;
-        family_set=(GaussianCopula,),
-        pair_method=:mle,
-        selection_criterion=:aic,
-        allow_rotations=false,
-        preselect=false,
-        include_independence=false,
-        strict=true,
-    )
-
-    @test Copulas.fitted_distribution(F) isa GaussianCopula
-    rho = Distributions.params(Copulas.fitted_distribution(F)).Σ[1, 2]
+    S = VineCopulas._select_pair(U; family_set=(GaussianCopula,), pair_method=:mle, selection_criterion=:aic, allow_rotations=false,
+                                 preselect=false, include_independence=false, strict=true,)
+    @test S.copula isa GaussianCopula
+    rho = Distributions.params(S.copula).Σ[1, 2]
     @test rho ≈ 0.5561662333 atol=5.0e-5
-    @test Distributions.loglikelihood(F) ≈ 5.140188517 atol=2.0e-6
+    @test S.loglik ≈ 5.140188517 atol=2.0e-6
+
+    public_fit = fit(GaussianCopula, U; method=:mle)
+    public_rho = Distributions.params(public_fit).Σ[1, 2]
+    public_loglik = Distributions.loglikelihood(public_fit, U)
+    @test rho ≈ public_rho atol=1.0e-8
+    @test S.loglik ≈ public_loglik atol=1.0e-12
+
+    selected = VineCopulas._fit_one_pair_family(GaussianCopula, U, (); pair_method=:mle, selection_criterion=:aic, pair_kwargs=(;),)
+    @test selected.family == "Gaussian"
+    @test selected.method == :mle
+    @test selected.loglik ≈ public_loglik atol=1.0e-12
+    @test selected.score ≈ -2public_loglik + 2 atol=1.0e-12
+    @test selected.theta == Distributions.params(public_fit)
 
     # Check local optimality directly in copula likelihood, not merely against
     # a particular external optimizer implementation.
     for delta in (-0.02, -0.005, 0.005, 0.02)
         Cδ = GaussianCopula(2, rho + delta)
-        @test Distributions.loglikelihood(F) >= Distributions.loglikelihood(Cδ, U) - 1.0e-8
+        @test S.loglik >= Distributions.loglikelihood(Cδ, U) - 1.0e-8
     end
 end
 
@@ -243,23 +216,12 @@ end
 
     for (truth, FT, guard) in cases
         U = rand(rng, truth, 1200)
-        F = fit(
-            CopulaModel,
-            PairCopula,
-            U;
-            family_set=(FT,),
-            pair_method=:mle,
-            selection_criterion=:aic,
-            allow_rotations=false,
-            preselect=false,
-            include_independence=false,
-            strict=true,
-        )
-
-        base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
+        S = VineCopulas._select_pair(U; family_set=(FT,), pair_method=:mle, selection_criterion=:aic, allow_rotations=false,
+                                     preselect=false, include_independence=false, strict=true,)
+        base = S.copula isa SurvivalCopula ? S.copula.C : S.copula
         theta = Distributions.params(base).θ
         @test theta > guard
-        @test isfinite(Distributions.loglikelihood(F))
+        @test isfinite(S.loglik)
     end
 end
 
@@ -300,25 +262,15 @@ end
 
     for (truth, FT, lo, hi) in cases
         U = rand(rng, truth, 300)
-        F = fit(
-            CopulaModel,
-            PairCopula,
-            U;
-            family_set=(FT,),
-            pair_method=:mle,
-            selection_criterion=:bic,
-            allow_rotations=false,
-            preselect=false,
-            include_independence=false,
-            strict=true,
-        )
-        base = Copulas.fitted_distribution(F) isa SurvivalCopula ? Copulas.fitted_distribution(F).C : Copulas.fitted_distribution(F)
+        S = VineCopulas._select_pair(U; family_set=(FT,), pair_method=:mle, selection_criterion=:bic, allow_rotations=false,
+                                     preselect=false, include_independence=false, strict=true,)
+        base = S.copula isa SurvivalCopula ? S.copula.C : S.copula
         vals = collect(values(Distributions.params(base)))
         @test length(vals) == 2
         @test all(isfinite, vals)
         @test lo[1] < vals[1] < hi[1]
         @test lo[2] < vals[2] < hi[2]
-        @test isfinite(Distributions.loglikelihood(F))
+        @test isfinite(S.loglik)
     end
 end
 
@@ -334,26 +286,13 @@ end
     U = rand(rng, C0, 900)
     fams = (GaussianCopula, ClaytonCopula, FrankCopula)
 
-    C = fit(
-        CVineCopula,
-        U;
-        order=[1,2,3],
-        family_set=fams,
-        allow_rotations=false,
-    )
+    C = fit(CVineCopula, U; order=[1,2,3], family_set=fams, allow_rotations=false,)
     @test C isa CVineCopula
     @test order(C) == (1,2,3)
     @test truncation(C) == 2
     @test all(isfinite, logpdf(C, U[:, 1:20]))
 
-    F = fit(
-        CopulaModel,
-        CVineCopula,
-        U;
-        order=[1,2,3],
-        family_set=fams,
-        allow_rotations=false,
-    )
+    F = fit(CopulaModel, CVineCopula, U; order=[1,2,3], family_set=fams, allow_rotations=false,)
     @test Copulas.fitted_distribution(F) isa CVineCopula
     @test Copulas.fitting_method(F) == :sequential
     @test length(Copulas.StatsBase.coef(F)) == Copulas.StatsBase.dof(F)
@@ -361,12 +300,7 @@ end
     @test isfinite(Copulas.StatsBase.aic(F))
     @test isfinite(Copulas.StatsBase.bic(F))
 
-    Cauto = fit(
-        CVineCopula,
-        U;
-        family_set=(GaussianCopula, ClaytonCopula),
-        allow_rotations=false,
-    )
+    Cauto = fit(CVineCopula, U; family_set=(GaussianCopula, ClaytonCopula), allow_rotations=false,)
     @test sort(collect(order(Cauto))) == [1,2,3]
 end
 
@@ -381,27 +315,13 @@ end
     C0 = M.dvine4()
     U = rand(rng, C0, 900)
 
-    C = fit(
-        DVineCopula,
-        U;
-        order_method=:exact,
-        exact_order_max=8,
-        family_set=(GaussianCopula, ClaytonCopula, FrankCopula),
-        allow_rotations=false,
-    )
+    C = fit(DVineCopula, U; order_method=:exact, exact_order_max=8, family_set=(GaussianCopula, ClaytonCopula, FrankCopula), allow_rotations=false,)
     @test C isa DVineCopula
     @test sort(collect(order(C))) == collect(1:4)
     @test truncation(C) == 3
     @test all(isfinite, logpdf(C, U[:, 1:20]))
 
-    F = fit(
-        CopulaModel,
-        DVineCopula,
-        U;
-        order=collect(order(C)),
-        family_set=(GaussianCopula, ClaytonCopula),
-        allow_rotations=false,
-    )
+    F = fit(CopulaModel, DVineCopula, U; order=collect(order(C)), family_set=(GaussianCopula, ClaytonCopula), allow_rotations=false,)
     @test Copulas.fitted_distribution(F) isa DVineCopula
     @test Copulas.fitting_method(F) == :sequential
     @test order(Copulas.fitted_distribution(F)) == order(C)
@@ -747,39 +667,10 @@ end
 
     U = rand(3, 100)
 
-    @test_throws ArgumentError fit(
-        DVineCopula, U;
-        trunc=0,
-        family_set=(GaussianCopula,),
-    )
-
-    @test_throws ArgumentError fit(
-        RVineCopula, U;
-        tree_criterion=:unknown,
-        family_set=(GaussianCopula,),
-    )
-
-    @test_throws ArgumentError fit(
-        PairCopula, rand(2, 100);
-        selection_criterion=:unknown,
-        family_set=(GaussianCopula,),
-    )
-
-    @test_throws ArgumentError fit(
-        CVineCopula, U;
-        threshold=-0.1,
-        family_set=(GaussianCopula,),
-    )
-
-    @test_throws ArgumentError fit(
-        DVineCopula, U;
-        threshold=1.1,
-        family_set=(GaussianCopula,),
-    )
-
-    @test_throws ArgumentError fit(
-        DVineCopula, U;
-        exact_order_max=1,
-        family_set=(GaussianCopula,),
-    )
+    @test_throws ArgumentError fit(DVineCopula, U; trunc=0, family_set=(GaussianCopula,),)
+    @test_throws ArgumentError fit(RVineCopula, U; tree_criterion=:unknown, family_set=(GaussianCopula,),)
+    @test_throws ArgumentError select_paircopula(rand(2, 100); selection_criterion=:unknown, family_set=(GaussianCopula,),)
+    @test_throws ArgumentError fit(CVineCopula, U; threshold=-0.1, family_set=(GaussianCopula,),)
+    @test_throws ArgumentError fit(DVineCopula, U; threshold=1.1, family_set=(GaussianCopula,),)
+    @test_throws ArgumentError fit(DVineCopula, U; exact_order_max=1, family_set=(GaussianCopula,),)
 end

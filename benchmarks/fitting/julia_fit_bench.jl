@@ -28,7 +28,7 @@ function timed(f)
 end
 
 function pair_fit(U)
-    fit(PairCopula, U;
+    select_paircopula(U;
         family_set=families,
         pair_method=:mle,
         selection_criterion=criterion,
