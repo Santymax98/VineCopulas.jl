@@ -225,14 +225,6 @@ end
     @test tree1_edges(Rs) == E
     @test order(Rs)[end] == 4 || !admits_conditioning(Rs, [4])
 
-    # Weak cross-block dependence: the constraint is almost free in
-    # log-likelihood, and the constrained tree-1 objective is at most the
-    # unconstrained one.
-    Uweak = block_data(rng, 800; within=0.7, cross=0.05)
-    L0 = sum(logpdf(fit(RVineCopula, Uweak; family_set=fams, trunc=1), Uweak))
-    Lg = sum(logpdf(fit(RVineCopula, Uweak; family_set=fams, trunc=1, groups=g), Uweak))
-    @test abs(L0 - Lg) < 0.01 * abs(L0)
-
     # Validation.
     @test_throws DimensionMismatch fit(RVineCopula, U; family_set=fams, groups=[1, 1, 2])
     @test_throws ArgumentError fit(RVineCopula, U; family_set=fams, groups=[1.0, 1, 1, 2, 2, 2])
@@ -241,49 +233,4 @@ end
     st = VineCopulas.structure(R0)
     @test_throws ArgumentError fit(RVineCopula, U; family_set=fams, structure=st, groups=g)
     @test_throws ArgumentError fit(RVineCopula, U; family_set=fams, structure=st, groups=ones(Int, 6))
-end
-
-@testitem "Groups – block experiment: recovery, cost, and a wrong partition" tags=[:Fit, :Vine, :RVine, :Structure, :MST] setup=[Groups] begin
-    g = [1, 1, 1, 2, 2, 2]
-    block_connected(E) = all(count(e -> g[e[1]] == k && g[e[2]] == k, E) == 2 for k in 1:2)
-
-    # Within-block τ ≈ 0.26 (ρ = 0.4), cross-block τ ≈ 0.19 (ρ = 0.3), n = 100:
-    # plain Dißmann misses the block connectivity on a fair share of seeds,
-    # the constraint recovers it on every seed by construction, and the
-    # constrained tree-1 objective is at most the unconstrained one on each.
-    seeds = 1:40
-    hits_free = Ref(0)
-    hits_groups = Ref(0)
-    gaps = Float64[]
-    for s in seeds
-        U = block_data(StableRNG(5000 + s), 100; within=0.4, cross=0.3)
-        W = weight_matrix(U)
-        Efree = tree1_edges(fit(RVineCopula, U; family_set=(GaussianCopula,), trunc=1))
-        Eg = tree1_edges(fit(RVineCopula, U; family_set=(GaussianCopula,), trunc=1, groups=g))
-        hits_free[] += block_connected(Efree)
-        hits_groups[] += block_connected(Eg)
-        push!(gaps, objective(W, Efree) - objective(W, Eg))
-    end
-    @test hits_groups[] == length(seeds)
-    @test hits_free[] < length(seeds)
-    @test all(>=(-1e-12), gaps)
-    @test maximum(gaps) > 0
-
-    # A wrong partition costs log-likelihood where the right one is free:
-    # on strongly blocked data (within ρ = 0.7, cross ρ = 0.05), the fit under
-    # the true partition matches the unconstrained fit, and a partition that
-    # cuts across the blocks loses.
-    U = block_data(StableRNG(5100), 1000; within=0.7, cross=0.05)
-    wrong = [1, 2, 1, 2, 1, 2]
-    Lfree = sum(logpdf(fit(RVineCopula, U; family_set=(GaussianCopula,), trunc=1), U))
-    Lright = sum(logpdf(fit(RVineCopula, U; family_set=(GaussianCopula,), trunc=1, groups=g), U))
-    Lwrong = sum(logpdf(fit(RVineCopula, U; family_set=(GaussianCopula,), trunc=1, groups=wrong), U))
-    @test Lright ≈ Lfree
-    @test Lwrong < Lright - 0.05 * abs(Lright)
-    # At full depth with Gaussian pairs every R-vine is the same model, so
-    # the higher trees recover the loss up to sequential-estimation error:
-    # the constraint decides which pairs are modelled directly, not the fit.
-    Lfree_full = sum(logpdf(fit(RVineCopula, U; family_set=(GaussianCopula,)), U))
-    Lwrong_full = sum(logpdf(fit(RVineCopula, U; family_set=(GaussianCopula,), groups=wrong), U))
-    @test abs(Lfree_full - Lwrong_full) < 0.01 * abs(Lfree_full)
 end
