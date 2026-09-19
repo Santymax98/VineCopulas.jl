@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Pair-copula fitting and selection (private engine, public API remains fit)
+# Pair-copula fitting and selection (Vine-owned engine; public API: select_paircopula)
 # -----------------------------------------------------------------------------
 
 # Families that natively admit both signs of monotone association and therefore

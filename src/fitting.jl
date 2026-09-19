@@ -11,11 +11,8 @@
 #
 #       select_paircopula(U)                     # quick selected pair copula
 #       fit(CVineCopula, U)                      # quick C-vine
-#       fit(CopulaModel, CVineCopula, U)         # full model
 #       fit(DVineCopula, U)
-#       fit(CopulaModel, DVineCopula, U)
 #       fit(RVineCopula, U)
-#       fit(CopulaModel, RVineCopula, U)
 #
 # 2. Reuse Copulas.jl family definitions and native fitting methods where their
 #    parameter domains match the vine-selection problem. Selection-only bounded
@@ -359,6 +356,28 @@ _spearman_rho(x, y) = _pearson(_average_ranks(x), _average_ranks(y))
     return abs(_spearman_rho(x, y))
 end
 
+@inline function _check_vine_fit_method(method::Symbol)
+    method in (:default, :sequential) || throw(ArgumentError("vine fitting supports method=:default or :sequential; got $method"))
+    return :sequential
+end
+
+function Distributions.fit(::Type{VT}, U, method; kwargs...) where {VT<:AbstractVineCopula}
+    return Distributions.fit(VT, U; method=method, kwargs...)
+end
+
+function Distributions.fit(::Type{Copulas.CopulaModel}, ::Type{<:AbstractVineCopula}, U; kwargs...,)
+    throw(ArgumentError(
+        "CopulaModel integration for VineCopulas sequential fitting is not currently available; " *
+        "use fit(VineType, U) for the fitted vine copula"
+    ))
+end
+
+function Distributions.fit(::Type{Copulas.CopulaModel}, ::Type{<:AbstractVineCopula}, U, method; kwargs...,)
+    throw(ArgumentError(
+        "CopulaModel integration for VineCopulas sequential fitting is not currently available; " *
+        "use fit(VineType, U) for the fitted vine copula"
+    ))
+end
 
 # Implementation is split into three focused files to keep the fitting layer navigable.
 include("fitting/pairs.jl")

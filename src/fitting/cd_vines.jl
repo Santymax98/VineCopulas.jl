@@ -24,8 +24,6 @@ end
 # C-vine sequential fitting
 # -----------------------------------------------------------------------------
 
-Copulas._available_fitting_methods(::Type{<:CVineCopula}, d) = d >= 2 ? (:sequential,) : Tuple{}()
-
 function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, criterion::Symbol)
     length(labels) == 1 && return labels[1]
     # Every unordered pair contributes to the score of both endpoints. Compute
@@ -39,7 +37,7 @@ function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, 
     return labels[argmax(scores)]
 end
 
-function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default,
+function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default,
     selection_criterion::Symbol=:bic, tree_criterion::Symbol=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
     threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
@@ -104,11 +102,14 @@ function Copulas._fit(::Type{<:CVineCopula}, U0, ::Val{:sequential}; order=nothi
     return vc
 end
 
+function Distributions.fit(::Type{<:CVineCopula}, U; method::Symbol=:default, kwargs...)
+    _check_vine_fit_method(method)
+    return _fit_cvine_sequential(U; kwargs...)
+end
+
 # -----------------------------------------------------------------------------
 # D-vine order selection and sequential fitting
 # -----------------------------------------------------------------------------
-
-Copulas._available_fitting_methods(::Type{<:DVineCopula}, d) = d >= 2 ? (:sequential,) : Tuple{}()
 
 function _dependence_matrix(X::Matrix{Float64}, criterion::Symbol)
     p = size(X, 1)
@@ -233,7 +234,7 @@ function _select_dvine_order(X::Matrix{Float64}, criterion::Symbol; order_method
     throw(ArgumentError("order_method must be :auto, :exact, :greedy, or :natural"))
 end
 
-function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothing, trunc=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
+function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
     family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion::Symbol=:tau, allow_rotations::Bool=true,
     preselect::Bool=true, include_independence::Bool=true, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), 
     strict::Bool=false, trace::Bool=false,)
@@ -289,4 +290,9 @@ function Copulas._fit(::Type{<:DVineCopula}, U0, ::Val{:sequential}; order=nothi
     vc = DVineCopula(ord, edgelevels; trunc=q)
 
     return vc
+end
+
+function Distributions.fit(::Type{<:DVineCopula}, U; method::Symbol=:default, kwargs...)
+    _check_vine_fit_method(method)
+    return _fit_dvine_sequential(U; kwargs...)
 end

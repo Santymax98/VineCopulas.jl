@@ -4,11 +4,10 @@
 time, computes conditional pseudo-observations through h-functions, and then
 uses those transformed observations to fit the next tree.
 
-!!! note "Quick fit versus fitted result"
-    `fit(RVineCopula, U)` returns the fitted vine copula itself. Use
-    `fit(CopulaModel, RVineCopula, U)` when you need metadata such as
-    log-likelihood, convergence status, number of iterations, selected order, or
-    selection details.
+!!! note "Sequential vine fitting"
+    `fit(CVineCopula, U)`, `fit(DVineCopula, U)`, and `fit(RVineCopula, U)`
+    return the fitted vine copula itself. `method=:default` and
+    `method=:sequential` are equivalent; joint `:mle` fitting is not provided.
 
 ## Quick fit
 
@@ -203,13 +202,8 @@ full-vine maximum likelihood optimum.
 
 ## Metadata and diagnostics
 
-Use `CopulaModel` when the fit process itself matters:
-
-```julia
-M = fit(CopulaModel, RVineCopula, U; family_set=:default)
-M.result
-```
-
-Future diagnostics such as selected truncation, mBICV, selection traces, and
-edge-level convergence details belong in fitted-result metadata rather than in
-the vine distribution object.
+The fitted vine is deliberately a distribution, not a fitted-result container.
+Its order, truncation, selected edge families, and post-fit scores can be
+inspected directly. A richer fitted-result API for diagnostics such as selected
+truncation, mBICV, selection traces, and edge-level convergence is planned
+separately.

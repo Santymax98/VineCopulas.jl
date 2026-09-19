@@ -73,4 +73,4 @@ Work buffers are owned by each call. D-vine density updates disjoint active stat
 
 Fitting reuses the public vine types. Sequential estimation creates the same model objects that users can construct explicitly. Selection-specific parameter bounds live only in the fitting layer and do not modify the underlying `Copulas.jl` family definitions.
 
-Quick fitting, for example `fit(RVineCopula, U)`, returns the fitted vine copula itself. Rich fitting metadata belongs in `CopulaModel`, not in the vine distribution object. This keeps the probabilistic model distinct from diagnostics such as selection scores, fitting method, convergence status, selected truncation, and selection traces.
+Quick fitting, for example `fit(RVineCopula, U)`, returns the fitted vine copula itself. A future fitted-result API should keep richer metadata separate from the vine distribution object, including selection scores, fitting method, convergence status, selected truncation, and selection traces.
