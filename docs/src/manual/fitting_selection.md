@@ -155,16 +155,89 @@ model = fit(
 (order = order(model), truncation = truncation(model), edge_count = sum(length, edges(model)))
 ```
 
-`tree_criterion=:tau` uses absolute Kendall's tau weights, while
-`tree_criterion=:rho` uses absolute Spearman's rho weights. The deterministic
+At tree ``m`` the engine selects
+
+```math
+T_m \in \arg\max_{T \in \mathcal T(E_m)} \sum_{e \in T} w_e ,
+```
+
+where ``E_m`` is the set of proximity-admissible candidate edges, ``\mathcal T(E_m)``
+its spanning trees, and ``w_e`` the weight `tree_criterion` attaches to the candidate
+edge ``e = (a, b \mid D)`` from the two conditional pseudo-observation vectors
+``u_{a \mid D}``, ``u_{b \mid D}``. `tree_criterion` changes ``w_e`` only; the
+candidate set ``E_m`` is the same for every criterion. The deterministic
 `tree_algorithm=:kruskal` path is the one used in the external parity tests.
 
-`sampling_tail=js` asks the peeling step to place the variables `js` at the end
-of `order(model)`, so that `admits_conditioning(model, js)` holds and
-`rand(model, n; fixed=(js, Ujs))` draws exactly from the conditional copula.
-It changes only how the selected trees are read into an order, never the trees
-or the pair copulas, and it cannot be combined with `structure`. See
-[Conditional simulation](simulation_transforms.md#Conditional-simulation).
+### Built-in tree criteria
+
+Each built-in criterion is the absolute value of a documented dependence
+statistic, listed here with its estimator, its range and its reference (full
+citations on the [References](../references.md) page):
+
+| `tree_criterion` | ``w_e`` | range | reference |
+|:--|:--|:--|:--|
+| `:tau` | ``\lvert \hat\tau_b \rvert``, Kendall's tau-b (default) | ``[0, 1]`` | Kendall (1938); Dißmann et al. (2013) |
+| `:rho` | ``\lvert \hat\rho_S \rvert``, Spearman's rho on average ranks | ``[0, 1]`` | Spearman (1904) |
+| `:hoeffd` | ``\lvert \hat D \rvert``, Hoeffding's ``D`` in the Hollander & Wolfe form, scaled by 30 | ``[0, 1]`` | Hoeffding (1948); Hollander, Wolfe & Chicken (2014) |
+| `:mcor` | ``\hat\rho_{\max}``, the maximum correlation, estimated by ACE | ``[0, 1]`` | Gebelein (1941); Rényi (1959); Breiman & Friedman (1985) |
+| `:joe` | ``-\tfrac12 \log(1 - \hat r^2)``, ``\hat r`` the Pearson correlation of the normal scores ``\Phi^{-1}(u)`` | ``[0, \infty)`` | Joe (1989) |
+| `:cxi` | ``\lvert \max\{\hat\xi(u_a \to u_b), \hat\xi(u_b \to u_a)\} \rvert``, the symmetrised Chatterjee coefficient | ``[0, 1]`` | Chatterjee (2021) |
+
+Three notes on the less common ones.
+
+- `:hoeffd` is Hoeffding's ``D_n`` statistic; its population value is ``30 \int (F_{ab} - F_a F_b)^2 \, dF_{ab}``, which is 0 under independence and 1 under any monotone functional relation. A non-monotone functional relation scores below 1 (a symmetric parabola gives about ``1/4``). Ties are counted strictly. The estimator needs at least five observations.
+- `:mcor` is the maximum correlation coefficient ``\sup_{f, g} \operatorname{corr}(f(u_a), g(u_b))`` of Gebelein and Rényi, estimated by the alternating conditional expectations algorithm of Breiman & Friedman with a running-mean smoother of half-width ``\lceil n/5 \rceil``, at most 10 inner and 100 outer iterations, and stopping tolerances ``10^{-4}`` and ``2 \cdot 10^{-15}`` on the change of the mean squared difference between the two transforms. These are the constants of `vinecopulib`'s `mcor`, so the two agree on the same data. For a Gaussian pair ``\rho_{\max} = \lvert \rho \rvert``, and a functional relation, monotone or not, scores near 1.
+- `:joe` is the mutual information of a Gaussian copula with correlation ``\hat r``, Joe's relative-entropy dependence measure under the Gaussian assumption. It is not bounded, and it is strictly increasing in ``\lvert \hat r \rvert``: a maximum spanning tree depends only on the order of its weights, so `:joe` selects the same trees as ``\lvert \hat r \rvert`` on normal scores, and its scale is visible only through `threshold`. It is `Inf` on a pair whose normal scores are exactly linearly dependent.
+- `:cxi` is Chatterjee's ``\xi_n``, which measures how well one variable is a measurable function of the other and is therefore asymmetric; the criterion takes the larger of the two directions. The population value is in ``[0, 1]``; the estimate can be slightly negative, and the absolute value is taken.
+
+The rank correlations and `:joe` do not see a symmetric non-monotone relation (a
+parabola in ``u_a`` has ``\tau \approx 0``), while `:hoeffd`, `:mcor` and `:cxi`
+do; the last two rank a functional relation above a noisy monotone one.
+
+### A custom tree criterion
+
+`tree_criterion` also accepts a function. It is called once per candidate edge
+``(a, b \mid D)`` as `f(u_a, u_b, a, b, D)`, where `u_a` and `u_b` are the two
+conditional pseudo-observation vectors and `a`, `b`, `D` are variable labels,
+and its value is ``w_e``. The same function drives C-vine root choice and child
+edges (there `D` is the roots chosen so far), D-vine order selection, and the
+R-vine spanning trees. The built-in `:tau` is
+`(ua, ub, a, b, D) -> abs(VineCopulas._kendall_tau_b(ua, ub))`.
+
+The contract:
+
+- the value must be a finite `Real`; `NaN`, `±Inf`, `missing`, or anything that
+  is not a `Real` throws an `ArgumentError` naming the edge and the value;
+- the value is used as is: no absolute value is taken, and the tree maximises
+  it, so the sign is the caller's choice;
+- the function should be deterministic in its arguments. Each edge is scored
+  once per tree, so a random criterion is not refused, but the fit is then not
+  reproducible without control of its randomness.
+
+```julia
+# A precomputed weight matrix for the first tree, |tau| above it.
+W = my_tree1_weights(U)
+model = fit(RVineCopula, U;
+    tree_criterion=(ua, ub, a, b, D) -> isempty(D) ? W[a, b] : abs(VineCopulas._kendall_tau_b(ua, ub)))
+
+# The Pearson correlation of the normal scores, the monotone image of :joe.
+normal_r = (ua, ub, a, b, D) -> abs(cor(quantile.(Normal(), ua), quantile.(Normal(), ub)))
+model = fit(RVineCopula, U; tree_criterion=normal_r)
+```
+
+### `threshold` follows the criterion's scale
+
+`threshold` forces an independence pair-copula on every candidate edge with
+``w_e <`` `threshold`, on the criterion's own scale, and it does not remove the
+edge from the candidate set. Its admissible range therefore follows the
+criterion: ``[0, 1]`` for `:tau`, `:rho`, `:hoeffd`, `:mcor` and `:cxi`;
+``[0, \infty)`` for `:joe`; any finite value for a function.
+
+With a custom criterion `threshold` is a cut on that function's scale and no
+longer a dependence threshold in the usual sense. For example
+`(ua, ub, a, b, D) -> abs(VineCopulas._kendall_tau_b(ua, ub)) + 2` leaves
+``[0, 1]`` deliberately; with it, `threshold=2.3` is exactly `:tau` with
+`threshold=0.3`, and `threshold=0.3` forces nothing.
 
 ## Fixed-structure fitting
 

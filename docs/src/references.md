@@ -36,6 +36,32 @@ and stable.
 - Brechmann, E. C., Czado, C., and Aas, K. (2012). Truncated regular vines in
   high dimensions with application to financial data. *Canadian Journal of
   Statistics*.
+- Kruskal, J. B. (1956). On the shortest spanning subtree of a graph and the
+  traveling salesman problem. *Proceedings of the American Mathematical
+  Society*.
+
+## Dependence measures used as tree criteria
+
+- Kendall, M. G. (1938). A new measure of rank correlation. *Biometrika*.
+- Spearman, C. (1904). The proof and measurement of association between two
+  things. *The American Journal of Psychology*.
+- Hoeffding, W. (1948). A non-parametric test of independence. *The Annals of
+  Mathematical Statistics*.
+- Hollander, M., Wolfe, D. A., and Chicken, E. (2014). *Nonparametric
+  Statistical Methods*, 3rd ed. Wiley. (The computational form of Hoeffding's
+  ``D``.)
+- Gebelein, H. (1941). Das statistische Problem der Korrelation als
+  Variations- und Eigenwertproblem und sein Zusammenhang mit der
+  Ausgleichsrechnung. *Zeitschrift für Angewandte Mathematik und Mechanik*.
+- Rényi, A. (1959). On measures of dependence. *Acta Mathematica Academiae
+  Scientiarum Hungaricae*.
+- Breiman, L., and Friedman, J. H. (1985). Estimating optimal transformations
+  for multiple regression and correlation. *Journal of the American Statistical
+  Association*. (The ACE algorithm behind `tree_criterion=:mcor`.)
+- Joe, H. (1989). Relative entropy measures of multivariate dependence.
+  *Journal of the American Statistical Association*. (`tree_criterion=:joe`.)
+- Chatterjee, S. (2021). A new coefficient of correlation. *Journal of the
+  American Statistical Association*. (`tree_criterion=:cxi`.)
 
 ## Rosenblatt transforms and diagnostics
 
