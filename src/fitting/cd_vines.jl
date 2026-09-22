@@ -40,11 +40,14 @@ end
 
 function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default,
     selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
-    threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
+    independence_test::Symbol=:none, independence_level::Real=0.05, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(),
+    strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
+    _check_independence_test(independence_test)
+    _check_independence_level(independence_level)
     threshold = _check_threshold(threshold, tree_criterion)
     q = isnothing(trunc) ? p - 1 : Int(trunc)
     1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
@@ -76,7 +79,8 @@ function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, family_set=:def
             pdata[1, :] .= cond[root]
             pdata[2, :] .= cond[child]
             fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
-                preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
+                preselect=preselect, include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
+                pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
             level[child] = fit
         end
         # Update U_child | root only when another fitted tree will consume
@@ -238,12 +242,14 @@ end
 
 function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
     family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true,
-    preselect::Bool=true, include_independence::Bool=true, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), 
-    strict::Bool=false, trace::Bool=false,)
+    preselect::Bool=true, include_independence::Bool=true, independence_test::Symbol=:none, independence_level::Real=0.05,
+    threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
+    _check_independence_test(independence_test)
+    _check_independence_level(independence_level)
     threshold = _check_threshold(threshold, tree_criterion)
     q = isnothing(trunc) ? p - 1 : Int(trunc)
     1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
@@ -270,8 +276,8 @@ function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, order_method::S
             pdata[1, :] .= L[i]
             pdata[2, :] .= R[i + t]
             level[i] = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
-                allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence, pair_kwargs=pair_kwargs,
-                strict=strict, trace=trace, force_independence=dep < threshold,)
+                allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence, independence_test=independence_test,
+                independence_level=independence_level, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
         end
 
         levels[t] = level
