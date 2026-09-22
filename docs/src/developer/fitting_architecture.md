@@ -60,7 +60,7 @@ Fitting metadata belongs in `CopulaModel`:
 - convergence flag;
 - iterations;
 - log-likelihood;
-- AIC/BIC and future mBICV;
+- AIC/BIC/mBICV;
 - selected truncation;
 - edge-level diagnostics;
 - selection traces.
@@ -73,10 +73,13 @@ distribution objects into mutable analysis logs.
 The next fitting-related additions should be staged:
 
 1. document current behavior and edge metadata;
-2. add automatic truncation selection;
-3. add mBICV scoring;
-4. expose richer diagnostics through fitted-result metadata;
-5. only then consider public strategy objects.
+2. expose richer diagnostics through fitted-result metadata;
+3. only then consider public strategy objects.
+
+Automatic truncation selection and mBICV scoring are in: `trunc=:mbicv` runs
+the greedy tree-by-tree rule inside the three sequential engines and the
+fixed-structure R-vine path, and `mbicv` is the public read, on a vine with
+data and on a `VineModel`.
 
 The strategy architecture should follow real pressure from new algorithms rather
 than arriving as a speculative object model.

@@ -52,6 +52,9 @@ and stable.
   (2019). Hardness, approximability, and fixed-parameter tractability of the
   clustered shortest-path tree problem. *Journal of Combinatorial
   Optimization*, 38(1), 165–184.
+- Nagler, T., Bumann, C., and Czado, C. (2019). Model selection in sparse
+  high-dimensional vine copula models with an application to portfolio risk.
+  *Journal of Multivariate Analysis*.
 
 ## Dependence measures used as tree criteria
 

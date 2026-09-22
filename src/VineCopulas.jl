@@ -133,6 +133,7 @@ export PairCopula,
        aic,
        bic,
        edge_table,
-       vine_kind
+       vine_kind,
+       mbicv
 
 end
