@@ -79,4 +79,5 @@ loglikelihood
 npars
 aic
 bic
+mbicv
 ```

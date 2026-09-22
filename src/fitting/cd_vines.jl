@@ -38,8 +38,8 @@ function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, 
     return labels[argmax(scores)]
 end
 
-function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, weights=nothing, family_set=:default, pair_method::Symbol=:default,
-    selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
+function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, max_trunc=nothing, psi0::Real=0.9, family_set=:default, pair_method::Symbol=:default,
+    weights=nothing, selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
     independence_test::Symbol=:none, independence_level::Real=0.05, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(),
     strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
@@ -50,8 +50,8 @@ function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, weights=nothing
     _check_independence_test(independence_test)
     _check_independence_level(independence_level)
     threshold = _check_threshold(threshold, tree_criterion)
-    q = isnothing(trunc) ? p - 1 : Int(trunc)
-    1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
+    q, select, ψ0 = _resolve_truncation(trunc, max_trunc, psi0, p)
+    selector = select ? _TruncationSelector(p, size(X, 2), ψ0) : nothing
 
     explicit_order = order !== nothing
     ord = explicit_order ? collect(Int, order) : Int[]
@@ -84,6 +84,13 @@ function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, weights=nothing
                 pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold, weights=w,)
             level[child] = fit
         end
+        if selector !== nothing && !_accept_tree!(selector, values(level), trace)
+            # Drop tree `t` and its root, so the result is the vine
+            # `trunc = t - 1` would have returned.
+            resize!(levels, t - 1)
+            explicit_order || push!(remaining, pop!(ord))
+            break
+        end
         # Update U_child | root only when another fitted tree will consume
         # those pseudo-observations.
         if t < q
@@ -101,6 +108,7 @@ function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, weights=nothing
         # density. Keep it deterministic.
         append!(ord, sort(remaining))
     end
+    q = length(levels)
     edgelevels = [
         tuple((levels[t][ord[j]].copula for j in (t+1):p)...)
         for t in 1:q
@@ -241,8 +249,8 @@ function _select_dvine_order(X::Matrix{Float64}, criterion, weights=nothing; ord
     throw(ArgumentError("order_method must be :auto, :exact, :greedy, or :natural"))
 end
 
-function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, weights=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
-    family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true,
+function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, max_trunc=nothing, psi0::Real=0.9, order_method::Symbol=:auto, exact_order_max::Int=12,
+    weights=nothing, family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true,
     preselect::Bool=true, include_independence::Bool=true, independence_test::Symbol=:none, independence_level::Real=0.05,
     threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
@@ -253,8 +261,8 @@ function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, weights=nothing
     _check_independence_test(independence_test)
     _check_independence_level(independence_level)
     threshold = _check_threshold(threshold, tree_criterion)
-    q = isnothing(trunc) ? p - 1 : Int(trunc)
-    1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
+    q, select, ψ0 = _resolve_truncation(trunc, max_trunc, psi0, p)
+    selector = select ? _TruncationSelector(p, size(X, 2), ψ0) : nothing
 
     if order === nothing
         ord, _ = _select_dvine_order(X, tree_criterion, w; order_method=order_method, exact_order_max=exact_order_max,)
@@ -283,6 +291,10 @@ function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, weights=nothing
         end
 
         levels[t] = level
+        if selector !== nothing && !_accept_tree!(selector, level, trace)
+            resize!(levels, t - 1)
+            break
+        end
 
         if t < q
             # Within a D-vine tree these state vectors are disjoint across
@@ -294,6 +306,7 @@ function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, weights=nothing
         end
     end
 
+    q = length(levels)
     edgelevels = [
         tuple((levels[t][i].copula for i in eachindex(levels[t]))...)
         for t in 1:q
