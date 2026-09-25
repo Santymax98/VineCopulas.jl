@@ -45,7 +45,7 @@ fitted_distribution(M)
 fitting_method(M)       # :sequential
 order(M); structure(M); truncation(M)
 coef(M); coefnames(M)
-StatsBase.aic(M); StatsBase.bic(M)
+StatsBase.aic(M); StatsBase.bic(M); mbicv(M)
 edge_table(M)
 ```
 
@@ -62,7 +62,10 @@ interpretation is therefore not asserted here.
 `VineCopulas.aicc(M)` and `VineCopulas.hqc(M)` are currently internal
 convenience criteria computed from that same final likelihood and active
 numerical parameter count. They do not assert a special sequential-vine
-theory. A future sparse-vine criterion should consider mBICV instead.
+theory. `mbicv(M)` is the sparse-vine criterion (see *Model comparison*
+below); its `psi0` defaults to the one the fit was called with, so a model
+fitted with `trunc=:mbicv` reports the score its truncation level was
+selected on.
 
 Inference is a fixed-selection bootstrap:
 
@@ -349,6 +352,38 @@ smaller = truncate(vine, 2)
 Truncation returns a new model or structure and does not mutate the original.
 It cannot restore pair-copulas that are not present in the input.
 
+### Selecting the truncation level
+
+`trunc=:mbicv` selects the level tree by tree with the modified BIC for vines
+of Nagler, Bumann and Czado (2019):
+
+```julia
+fit(RVineCopula, U; trunc=:mbicv)                 # search up to p - 1 trees
+fit(RVineCopula, U; trunc=:mbicv, max_trunc=5)    # cap the search
+fit(RVineCopula, U; trunc=:mbicv, psi0=0.8)       # a sparser prior
+```
+
+After each tree `t` is fitted, the model truncated at `t` is scored with
+[`mbicv`](@ref). If the score does not improve on the score at `t - 1`, tree
+`t` is dropped and the fit stops; otherwise the search continues up to the
+ceiling, which is `max_trunc` or `p - 1`. The rule is greedy, so it costs at
+most one extra tree. `psi0 ∈ (0, 1)` is the prior probability that a tree-1
+pair copula is not independence; the prior decays geometrically with the tree
+level, so deeper trees must earn their parameters. The published default is
+`0.9`; a smaller value favours sparser models.
+
+The selected level is `truncation(fitted)`, and the returned vine is the one
+`trunc=truncation(fitted)` returns. `trace=true` prints the score of every
+level tried. The same keywords apply to `CVineCopula`, `DVineCopula`, and to an
+R-vine fitted on a fixed `structure`, where the ceiling is the structure's own
+truncation level. Through `VineModel` the selected level and its score are
+read off the model:
+
+```julia
+M = fit(VineModel, RVineCopula, U; trunc=:mbicv, psi0=0.8)
+(truncation(M), mbicv(M))     # mbicv(M) reads psi0 = 0.8 from the recipe
+```
+
 !!! warning "Level zero"
     The mathematical case `truncate(vine, 0)` corresponds to multivariate
     independence. The current public truncation API starts at level `1` because
@@ -373,17 +408,30 @@ U = rand(MersenneTwister(14), vine, 200)
 (loglikelihood = loglikelihood(vine, U),
  npars = npars(vine),
  AIC = aic(vine, U),
- BIC = bic(vine, U))
+ BIC = bic(vine, U),
+ mBICV = mbicv(vine, U))
 ```
 
-`AIC` and `BIC` are post-fit scores for the supplied model and data. They do not
-by themselves prove that the sequential fitting procedure found a global
-full-vine maximum likelihood optimum.
+`AIC`, `BIC`, and `mBICV` are post-fit scores for the supplied model and data.
+They do not by themselves prove that the sequential fitting procedure found a
+global full-vine maximum likelihood optimum. `mbicv` adds to BIC a prior on the
+sparsity pattern: with `p` variables, `qₜ` non-independence pair copulas in
+tree `t`, and `ψₜ = psi0^t`,
+
+```math
+\mathrm{mBICV} = -2\ell + \nu \log n
+  - 2 \sum_{t=1}^{p-1} \left[ q_t \log \psi_t + (p - t - q_t) \log(1 - \psi_t) \right].
+```
+
+Trees beyond the truncation level are independence, so they contribute
+`(p - t) log(1 - ψₜ)` each.
 
 ## Metadata and diagnostics
 
 The fitted vine is deliberately a distribution, not a fitted-result container.
 Its order, truncation, selected edge families, and post-fit scores can be
-inspected directly. A richer fitted-result API for diagnostics such as selected
-truncation, mBICV, selection traces, and edge-level convergence is planned
-separately.
+inspected directly, and `VineModel` carries the fitting recipe and the data
+beside it. The selected truncation level is `truncation` of the fitted vine
+or model, and `mbicv` scores it after the fact. Richer diagnostics such as
+selection traces and edge-level convergence details belong in `VineModel`
+rather than in the vine distribution object, and are planned separately.
