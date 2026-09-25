@@ -10,7 +10,7 @@
         selected = VineCopulas._fit_one_pair_family(Copulas.FGMCopula, U, ();
             pair_method=requested, selection_criterion=:bic, pair_kwargs=(;),)
         @test selected.method == Copulas.fitting_method(model)
-        @test Tuple(values(selected.theta)) == Tuple(params(Copulas.fitted_distribution(model)))
+        @test Tuple(values(selected.theta)) == Tuple(values(VineCopulas._vine_params(Copulas.fitted_distribution(model))))
         @test selected.loglik == Distributions.loglikelihood(Copulas.fitted_distribution(model), U)
         @test selected.family == "FGM"
     end

@@ -29,6 +29,41 @@
     end
 end
 
+@testitem "Vine parameter metadata is contract-independent" tags=[:Vine, :VineModel, :Stats] setup=[M] begin
+    using Copulas
+    using Distributions
+    using StatsBase
+    using Random
+
+    pairs = (
+        ("Gaussian", GaussianCopula(2, 0.2), 1),
+        ("Student", TCopula(5.0, [1.0 0.2; 0.2 1.0]), 2),
+        ("FGM", FGMCopula(2, 0.2), 1),
+        ("BB1", BB1Copula(2, 1.5, 2.0), 2),
+        ("MOTail", ExtremeValueCopula(2, Copulas.MOTail(0.3, 0.4, 0.5)), 3),
+        ("BC2Tail", ExtremeValueCopula(2, Copulas.BC2Tail(0.3, 0.4)), 2),
+        ("AsymLogTail", ExtremeValueCopula(2, Copulas.AsymLogTail(1.5, 0.3, 0.7)), 3),
+        ("AsymGalambosTail", ExtremeValueCopula(2, Copulas.AsymGalambosTail(1.5, 0.3, 0.7)), 3),
+        ("AsymMixedTail", ExtremeValueCopula(2, Copulas.AsymMixedTail(0.3, 0.1)), 2),
+    )
+
+    for (_, C, expected) in pairs
+        @test npars(C) == expected
+        @test length(VineCopulas._flatten_fit_params(VineCopulas._vine_params(C))[2]) == expected
+    end
+
+    U = rand(MersenneTwister(2026), 2, 24)
+    model = fit(VineModel, CVineCopula, U;
+                family_set=(FGMCopula,), include_independence=false,
+                allow_rotations=false)
+    @test coefnames(model) == ["T1:E1:FGM:θ"]
+    @test coef(model) == [only(VineCopulas._vine_params(fitted_distribution(model)).θ)]
+    @test dof(model) == npars(fitted_distribution(model)) == 1
+    rows = edge_table(model)
+    @test length(rows) == 1
+    @test rows[1].parameters == VineCopulas._vine_params(fitted_distribution(model))
+end
+
 @testitem "Vine topology classification is mathematical" tags=[:Vine, :Structure, :VineModel] setup=[M] begin
     c2 = CVineCopula([1, 2], [[GaussianCopula(2, 0.2)]])
     c3 = CVineCopula([1, 2, 3], [[GaussianCopula(2, 0.2), GaussianCopula(2, 0.3)], [GaussianCopula(2, 0.1)]])
