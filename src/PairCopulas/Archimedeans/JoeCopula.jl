@@ -2,12 +2,12 @@
 # Joe pair-copula fast paths
 #
 # These kernels depend only on the public JoeCopula contract and
-# Distributions.params(C). They do not inspect the stored generator or
+# _vine_params(C). They do not inspect the stored generator or
 # call generator-level Copulas.jl internals.
 # ---------------------------------------------------------------------
 
 @inline function _joe_terms(C::Copulas.JoeCopula{2}, u::Real, v::Real,)
-    θ, uu, vv = promote(float(Distributions.params(C).θ), float(u), float(v),)
+    θ, uu, vv = promote(float(_vine_params(C).θ), float(u), float(v),)
 
     θ >= one(θ) || throw(DomainError(θ, "A Joe copula requires θ ≥ 1.",))
 
@@ -91,7 +91,7 @@ end
 # ---------------------------------------------------------------------
 
 @inline function _joe_logh_x(C::Copulas.JoeCopula{2}, x::Real, base::Real,)
-    θ, xx, bb = promote(float(Distributions.params(C).θ), float(x), float(base),)
+    θ, xx, bb = promote(float(_vine_params(C).θ), float(x), float(base),)
 
     θ >= one(θ) || throw(DomainError(θ, "A Joe copula requires θ ≥ 1.",))
 
@@ -114,7 +114,7 @@ end
 end
 
 @inline function _joe_hfunc(C::Copulas.JoeCopula{2}, target::Real, base::Real,)
-    θ, tt, bb = promote(float(Distributions.params(C).θ), float(target), float(base),)
+    θ, tt, bb = promote(float(_vine_params(C).θ), float(target), float(base),)
 
     θ >= one(θ) || throw(DomainError(θ, "A Joe copula requires θ ≥ 1.",))
 
@@ -255,7 +255,7 @@ end
 end
 
 @inline function _joe_hinv(C::Copulas.JoeCopula{2}, q::Real, base::Real,)
-    θ, qq, bb = promote(float(Distributions.params(C).θ), float(q), float(base),)
+    θ, qq, bb = promote(float(_vine_params(C).θ), float(q), float(base),)
 
     θ >= one(θ) || throw(DomainError(θ, "A Joe copula requires θ ≥ 1.",))
 

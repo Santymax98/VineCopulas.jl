@@ -13,12 +13,12 @@
 # In this coordinate, log|ϕ′| is smooth and strictly decreasing.
 
 @inline function _bb9_logc(C::Copulas.BB9Copula{2})
-    θ, δ = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ))
+    θ, δ = promote(float(_vine_params(C).θ), float(_vine_params(C).δ))
     return -θ * log(δ)
 end
 
 @inline function _arch_coordinate(C::Copulas.BB9Copula{2}, u::Real)
-    θ, δ, uu = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(u))
+    θ, δ, uu = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(u))
 
     zero(uu) < uu <= one(uu) || throw(DomainError(u, "The BB9 probability must belong to (0, 1].",))
 
@@ -29,7 +29,7 @@ end
 end
 
 @inline function _arch_probability(C::Copulas.BB9Copula{2}, x::Real,)
-    θ, δ, xx = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(x))
+    θ, δ, xx = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(x))
     T = typeof(xx)
 
     logc = -θ * log(δ)
@@ -46,7 +46,7 @@ end
 end
 
 @inline function _arch_logderivative(C::Copulas.BB9Copula{2}, x::Real,)
-    θ, δ, xx = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(x))
+    θ, δ, xx = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(x))
     T = typeof(xx)
 
     logc = -θ * log(δ)
@@ -66,7 +66,7 @@ function _arch_inverse_logderivative(C::Copulas.BB9Copula{2}, logm::Real,)
 
     isnan(lm) && throw(DomainError(logm, "log|ϕ'| cannot be NaN."))
 
-    θ, δ = T(Distributions.params(C).θ), T(Distributions.params(C).δ)
+    θ, δ = T(_vine_params(C).θ), T(_vine_params(C).δ)
     θ >= one(T) || throw(DomainError(θ, "The BB9 generator requires θ ≥ 1.",))
 
     δ > zero(T) || throw(DomainError(δ, "The BB9 generator requires δ > 0.",))
@@ -166,7 +166,7 @@ function _inv_ϕ¹(C::Copulas.BB9Copula{2}, y::Real)
 
     isinf(x) && return x
 
-    θ, δ, xx = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), x)
+    θ, δ, xx = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), x)
     logc = -θ * log(δ)
 
     # Stable reconstruction: s = exp(x) - exp(logc) = exp(logc) * expm1(x-logc).
@@ -176,7 +176,7 @@ end
 
 # x = log(s+c): log(ϕ''(s)) = M(x) + log(-M'(x)) - x.
 @inline function _arch_pair_logpdf(C::Copulas.BB9Copula{2}, u::Real, v::Real)
-    p = inv(float(Distributions.params(C).θ))
+    p = inv(float(_vine_params(C).θ))
     xu, xv = _arch_coordinate(C, u), _arch_coordinate(C, v)
     x = _arch_combine(C, xu, xv)
     logslope = LogExpFunctions.logaddexp(log1p(-p), log(p) + p * x)

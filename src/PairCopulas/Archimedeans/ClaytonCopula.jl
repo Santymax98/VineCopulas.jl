@@ -2,12 +2,12 @@
 # Clayton pair-copula fast paths
 #
 # These kernels deliberately depend only on the public ClaytonCopula
-# contract and Distributions.params(C).  They do not inspect the stored
+# contract and _vine_params(C).  They do not inspect the stored
 # Archimedean generator or call generator-level Copulas.jl internals.
 # ---------------------------------------------------------------------
 
 @inline function _clayton_terms(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,)
-    θ, uu, vv = promote(float(Distributions.params(C).θ), float(u), float(v),)
+    θ, uu, vv = promote(float(_vine_params(C).θ), float(u), float(v),)
     θ < -one(θ) && throw(DomainError(θ, "A bivariate Clayton copula requires θ ≥ -1."))
     uu, vv = _clp(uu), _clp(vv)
     lu = log(uu)
@@ -163,7 +163,7 @@ end
 end
 
 @inline function _clayton_hinv(C::Copulas.ClaytonCopula{2}, q::Real, base::Real,)
-    θ, qq, bb = promote(float(Distributions.params(C).θ), float(q), float(base),)
+    θ, qq, bb = promote(float(_vine_params(C).θ), float(q), float(base),)
     qq = clamp(qq, zero(qq), one(qq))
     bb = _clp(bb)
     # Continuous independence limit.

@@ -3,8 +3,8 @@ struct _GaussianPairKernel{R<:Real} <: Copulas.Copula{2}
     rho::R
 end
 const _GaussianPair = Union{Copulas.GaussianCopula{2},_GaussianPairKernel}
-@inline _prepare_pair(C::Copulas.GaussianCopula{2}) = _GaussianPairKernel(Distributions.params(C).Σ[1, 2])
-@inline _gaussian_rho(C::Copulas.GaussianCopula{2}) = Distributions.params(C).Σ[1, 2]
+@inline _prepare_pair(C::Copulas.GaussianCopula{2}) = _GaussianPairKernel(_vine_params(C).Σ[1, 2])
+@inline _gaussian_rho(C::Copulas.GaussianCopula{2}) = _vine_params(C).Σ[1, 2]
 @inline _gaussian_rho(C::_GaussianPairKernel) = C.rho
 
 # ---------------------------------------------------------------------

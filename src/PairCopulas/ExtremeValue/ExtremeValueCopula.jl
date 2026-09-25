@@ -68,7 +68,7 @@ end
     A::Real,
     dA::Real,
 )
-    θ = Distributions.params(C).θ + zero(t)
+    θ = _vine_params(C).θ + zero(t)
 
     iszero(θ) && return one(t), one(t)
 
@@ -85,7 +85,7 @@ end
     A::Real,
     dA::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ = p.θ + zero(t)
 
     iszero(θ) && return one(t), one(t)
@@ -107,7 +107,7 @@ end
     A::Real,
     dA::Real,
 )
-    θ = Distributions.params(C).θ + zero(t)
+    θ = _vine_params(C).θ + zero(t)
     omt = one(t) - t
     B1 = one(t) - θ*t*t
     B2 = one(t) - θ*omt*omt
@@ -120,7 +120,7 @@ end
     A::Real,
     dA::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ1 = p.θ₁ + zero(t)
     θ2 = p.θ₂ + zero(t)
     omt = one(t) - t
@@ -139,7 +139,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
     t::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
 
     ν = p.ν + zero(t)
     ρ = (hasproperty(p, :ρ) ? p.ρ : p.R[1, 2]) + zero(t)
@@ -151,7 +151,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.GalambosTail},
     t::Real,
 )
-    θ = Distributions.params(C).θ + zero(t)
+    θ = _vine_params(C).θ + zero(t)
 
     if iszero(θ)
         A = one(t)
@@ -184,7 +184,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.HuslerReissTail},
     t::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ = p.θ + zero(t)
 
     if iszero(θ)
@@ -215,7 +215,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.MixedTail},
     t::Real,
 )
-    θ = Distributions.params(C).θ + zero(t)
+    θ = _vine_params(C).θ + zero(t)
 
     A = one(t) - θ*t + θ*t*t
     dA = θ*(2t - one(t))
@@ -228,7 +228,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymLogTail},
     t::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
 
     α = p.α + zero(t)
     θ1 = p.θ₁ + zero(t)
@@ -255,7 +255,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymGalambosTail},
     t::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
 
     α = p.α + zero(t)
     θ1 = p.θ₁ + zero(t)
@@ -331,7 +331,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
     t::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ1 = p.θ₁ + zero(t)
     θ2 = p.θ₂ + zero(t)
 
@@ -351,7 +351,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.GalambosTail},
     t::Real,
 )
-    θ = Distributions.params(C).θ + zero(t)
+    θ = _vine_params(C).θ + zero(t)
 
     if iszero(θ)
         return one(t), zero(t), zero(t)
@@ -388,7 +388,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.HuslerReissTail},
     t::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ = p.θ + zero(t)
 
     if iszero(θ)
@@ -420,7 +420,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.MixedTail},
     t::Real,
 )
-    θ = Distributions.params(C).θ + zero(t)
+    θ = _vine_params(C).θ + zero(t)
 
     A = one(t) - θ*t + θ*t*t
     dA = θ*(2t - one(t))
@@ -433,7 +433,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymLogTail},
     t::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
 
     α = p.α + zero(t)
     θ1 = p.θ₁ + zero(t)
@@ -472,7 +472,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymGalambosTail},
     t::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
 
     α = p.α + zero(t)
     θ1 = p.θ₁ + zero(t)
@@ -568,7 +568,7 @@ end
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymMixedTail},
     t::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ1 = p.θ₁ + zero(t)
     θ2 = p.θ₂ + zero(t)
 
@@ -586,14 +586,14 @@ end
 @inline function _ev_fast_eligible(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.GalambosTail},
 )
-    θ = Distributions.params(C).θ
+    θ = _vine_params(C).θ
     return isfinite(θ) && θ > zero(θ)
 end
 
 @inline function _ev_fast_eligible(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.HuslerReissTail},
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
     hasproperty(p, :θ) || return false
     θ = p.θ
     return isfinite(θ) && θ > zero(θ)
@@ -606,7 +606,7 @@ end
 @inline function _ev_fast_eligible(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymGalambosTail},
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
 
     α = p.α
     θ1 = p.θ₁
@@ -623,7 +623,7 @@ end
 @inline function _ev_fast_eligible(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.AsymLogTail},
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
 
     α = p.α
     θ1 = p.θ₁
@@ -640,7 +640,7 @@ end
 @inline function _ev_fast_eligible(
     C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail},
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
 
     ν = p.ν
     ρ = hasproperty(p, :ρ) ? p.ρ : p.R[1, 2]
@@ -743,7 +743,7 @@ function hfunc2(C::Copulas.ExtremeValueCopula{2}, uv::Tuple{<:Real,<:Real})
 end
 
 @inline function _ev_promote_inputs(C::Copulas.ExtremeValueCopula{2}, q::Real, base::Real)
-    vals = promote(float(q), float(base), values(Distributions.params(C))...)
+    vals = promote(float(q), float(base), values(_vine_params(C))...)
     return vals[1], vals[2]
 end
 
@@ -752,7 +752,7 @@ end
     q::Real,
     base::Real,
 )
-    p = Distributions.params(C)
+    p = _vine_params(C)
     ρ = hasproperty(p, :ρ) ? p.ρ : p.R[1, 2]
 
     vals = promote(float(q), float(base), float(p.ν), float(ρ))
@@ -922,7 +922,7 @@ end
     q::Real,
     base::Real,
 )
-    return _gumbel_hinv_from_theta(Distributions.params(C).θ, q, base)
+    return _gumbel_hinv_from_theta(_vine_params(C).θ, q, base)
 end
 
 @inline function _ev_hinv1(
@@ -930,7 +930,7 @@ end
     q::Real,
     v::Real,
 )
-    θ = Distributions.params(C).θ
+    θ = _vine_params(C).θ
 
     if isfinite(θ)
         return _ev_log_hinv(C, q, v)
@@ -947,7 +947,7 @@ end
     q::Real,
     u::Real,
 )
-    θ = Distributions.params(C).θ
+    θ = _vine_params(C).θ
 
     if isfinite(θ)
         return _ev_log_hinv(C, q, u)

@@ -14,7 +14,7 @@
 # The boundary δ = 0 is independence and δ = 1 is singular.
 
 @inline function _arch_coordinate(C::Copulas.BB10Copula{2}, u::Real,)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ, δ, uu = promote(float(p.θ), float(p.δ), float(u),)
     T = typeof(uu)
 
@@ -35,7 +35,7 @@
 end
 
 @inline function _arch_probability(C::Copulas.BB10Copula{2}, s::Real,)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ, δ, ss = promote(float(p.θ), float(p.δ), float(s),)
     T = typeof(ss)
 
@@ -57,7 +57,7 @@ end
 end
 
 @inline function _arch_logderivative(C::Copulas.BB10Copula{2}, s::Real,)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ, δ, ss = promote(float(p.θ), float(p.δ), float(s),)
     T = typeof(ss)
 
@@ -85,7 +85,7 @@ function _arch_inverse_logderivative(C::Copulas.BB10Copula{2}, logm::Real,)
 
     isnan(lm) && throw(DomainError(logm, "log|ϕ'| cannot be NaN.",))
 
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ, δ = T(p.θ), T(p.δ)
 
     θ > zero(T) || throw(DomainError(θ, "A BB10 copula requires θ > 0.",))

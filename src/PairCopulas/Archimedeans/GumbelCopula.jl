@@ -2,12 +2,12 @@
 # Gumbel pair-copula fast paths
 #
 # These kernels depend only on the public GumbelCopula contract and
-# Distributions.params(C). They do not inspect the stored generator or
+# _vine_params(C). They do not inspect the stored generator or
 # call generator-level Copulas.jl internals.
 # ---------------------------------------------------------------------
 
 @inline function _gumbel_terms(C::Copulas.GumbelCopula{2}, u::Real, v::Real,)
-    θ, uu, vv = promote(float(Distributions.params(C).θ), float(u), float(v),)
+    θ, uu, vv = promote(float(_vine_params(C).θ), float(u), float(v),)
     θ >= one(θ) || throw(DomainError(θ, "A Gumbel copula requires θ ≥ 1.",))
     uu, vv = _clp(uu), _clp(vv)
 
@@ -162,7 +162,7 @@ end
 end
 
 @inline function _gumbel_hinv(C::Copulas.GumbelCopula{2}, q::Real, base::Real,)
-    return _gumbel_hinv_from_theta(Distributions.params(C).θ, q, base)
+    return _gumbel_hinv_from_theta(_vine_params(C).θ, q, base)
 end
 
 @inline function hinv1(C::Copulas.GumbelCopula{2}, q::Real, v::Real,)

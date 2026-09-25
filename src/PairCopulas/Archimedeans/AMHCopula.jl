@@ -11,7 +11,7 @@
 # generator representation used internally by Copulas.jl.
 
 @inline function _amh_terms(C::Copulas.AMHCopula{2}, u::Real, v::Real,)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ, uu, vv = promote(float(p.θ), float(u), float(v),)
     T = typeof(uu)
 
@@ -103,7 +103,7 @@ end
 # This gives a quadratic with exactly one non-negative root.  The
 # q-form of the quadratic formula avoids cancellation.
 @inline function _amh_hinv(C::Copulas.AMHCopula{2}, q::Real, base::Real,)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ, qq, vv = promote(float(p.θ), float(q), float(base),)
     T = typeof(qq)
 

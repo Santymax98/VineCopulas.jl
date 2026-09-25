@@ -11,7 +11,7 @@
 # reduced to Joe by the Copulas.jl constructor.
 
 @inline function _arch_coordinate(C::Copulas.BB8Copula{2}, u::Real)
-    ϑ, δ, uu = promote(float(Distributions.params(C).ϑ), float(Distributions.params(C).δ), float(u))
+    ϑ, δ, uu = promote(float(_vine_params(C).ϑ), float(_vine_params(C).δ), float(u))
 
     zero(uu) < uu <= one(uu) ||
         throw(DomainError(u, "The BB8 probability must belong to (0, 1].",))
@@ -29,7 +29,7 @@
 end
 
 @inline function _arch_probability(C::Copulas.BB8Copula{2}, s::Real)
-    ϑ, δ, ss = promote(float(Distributions.params(C).ϑ), float(Distributions.params(C).δ), float(s))
+    ϑ, δ, ss = promote(float(_vine_params(C).ϑ), float(_vine_params(C).δ), float(s))
 
     ss >= zero(ss) || throw(DomainError(s, "The BB8 generator coordinate must be non-negative.",))
 
@@ -44,7 +44,7 @@ end
 end
 
 @inline function _arch_logderivative(C::Copulas.BB8Copula{2}, s::Real,)
-    ϑ, δ, ss = promote(float(Distributions.params(C).ϑ), float(Distributions.params(C).δ), float(s))
+    ϑ, δ, ss = promote(float(_vine_params(C).ϑ), float(_vine_params(C).δ), float(s))
     T = typeof(ss)
 
     ss >= zero(ss) || throw(DomainError(s, "The BB8 generator coordinate must be non-negative.",))
@@ -67,7 +67,7 @@ function _arch_inverse_logderivative(C::Copulas.BB8Copula{2}, logm::Real,)
 
     isnan(lm) && throw(DomainError(logm, "log|ϕ'| cannot be NaN."))
 
-    ϑ, δ = T(Distributions.params(C).ϑ), T(Distributions.params(C).δ)
+    ϑ, δ = T(_vine_params(C).ϑ), T(_vine_params(C).δ)
 
     ϑ >= one(T) || throw(DomainError(ϑ, "The BB8 copula requires ϑ ≥ 1.",))
 
@@ -153,7 +153,7 @@ end
 
 # Direct bivariate density avoids cancellation when reconstructing derivatives.
 @inline function _bb8_pair_logpdf(C::Copulas.BB8Copula{2}, u::Real, v::Real)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     ϑ, δ, uu, vv = promote(float(p.ϑ), float(p.δ), float(u), float(v))
     ϑ >= one(ϑ) || throw(DomainError(ϑ, "A BB8 copula requires ϑ ≥ 1."))
     zero(δ) < δ <= one(δ) || throw(DomainError(δ, "A BB8 copula requires 0 < δ ≤ 1."))

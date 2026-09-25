@@ -10,7 +10,7 @@
 # by the Copulas.jl constructor.
 
 @inline function _arch_coordinate(C::Copulas.BB7Copula{2}, u::Real)
-    θ, δ, uu = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(u))
+    θ, δ, uu = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(u))
 
     zero(uu) < uu <= one(uu) || throw(DomainError(u, "The BB7 probability must belong to (0, 1].",))
     isone(uu) && return zero(uu)
@@ -20,7 +20,7 @@
 end
 
 @inline function _arch_probability(C::Copulas.BB7Copula{2}, L::Real)
-    θ, δ, LL = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(L))
+    θ, δ, LL = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(L))
 
     LL >= zero(LL) || throw(DomainError(L, "The BB7 log1p coordinate must be non-negative.",))
 
@@ -35,7 +35,7 @@ end
 end
 
 @inline function _arch_logderivative(C::Copulas.BB7Copula{2},L::Real,)
-    θ, δ, LL = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(L))
+    θ, δ, LL = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(L))
     T = typeof(LL)
 
     LL >= zero(LL) || throw(DomainError(L, "The BB7 log1p coordinate must be non-negative.",))
@@ -60,7 +60,7 @@ function _arch_inverse_logderivative(C::Copulas.BB7Copula{2}, logm::Real,)
     lm == -T(Inf) && return T(Inf)
     lm == T(Inf) && return zero(T)
 
-    θ, δ = T(Distributions.params(C).θ), T(Distributions.params(C).δ)
+    θ, δ = T(_vine_params(C).θ), T(_vine_params(C).δ)
 
     θ > one(T) || throw(DomainError(θ, "A genuine BB7 copula requires θ > 1; θ = 1 reduces to Clayton.",))
 
@@ -114,7 +114,7 @@ end
 
 # L = log(1+s): log(ϕ''(s)) = log|ϕ'(s)| + log(-dM/dL) - L.
 @inline function _arch_pair_logpdf(C::Copulas.BB7Copula{2}, u::Real, v::Real)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ, δ = float(p.θ), float(p.δ)
     Lu, Lv = _arch_coordinate(C, u), _arch_coordinate(C, v)
     L = _arch_combine(C, Lu, Lv)

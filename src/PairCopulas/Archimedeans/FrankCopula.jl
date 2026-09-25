@@ -2,11 +2,11 @@
 # Frank pair-copula fast paths
 #
 # These kernels depend only on the public FrankCopula contract and
-# Distributions.params(C). They do not inspect the stored generator.
+# _vine_params(C). They do not inspect the stored generator.
 # ---------------------------------------------------------------------
 
 @inline function _frank_terms(C::Copulas.FrankCopula{2}, u::Real, v::Real,)
-    θ, uu, vv = promote(float(Distributions.params(C).θ), float(u), float(v),)
+    θ, uu, vv = promote(float(_vine_params(C).θ), float(u), float(v),)
 
     uu, vv = _clp(uu), _clp(vv)
 
@@ -133,7 +133,7 @@ end
 #   Bu = qA / (exp(-θv) + qBv).
 #
 @inline function _frank_hinv(C::Copulas.FrankCopula{2}, q::Real, base::Real,)
-    θ, qq, bb = promote(float(Distributions.params(C).θ), float(q), float(base),)
+    θ, qq, bb = promote(float(_vine_params(C).θ), float(q), float(base),)
 
     qq = clamp(qq, zero(qq), one(qq))
     bb = _clp(bb)

@@ -27,7 +27,7 @@
 # internally by Copulas.jl.
 
 @inline function _ig_terms(C::Copulas.InvGaussianCopula{2}, u::Real, v::Real,)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ, uu, vv = promote(float(p.θ), float(u), float(v),)
     T = typeof(uu)
 
@@ -151,7 +151,7 @@ end
 # constructing the exponentially large Lambert-W argument.
 # ---------------------------------------------------------------------
 @inline function _ig_hinv(C::Copulas.InvGaussianCopula{2}, q::Real, base::Real,)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ, qq, vv = promote(float(p.θ), float(q), float(base),)
     T = typeof(qq)
 
