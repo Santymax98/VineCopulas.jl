@@ -127,8 +127,8 @@ function _params_namedtuple(C::PairCopula, meta::NamedTuple)
     if haskey(meta, :θ̂) && meta.θ̂ isa NamedTuple
         return meta.θ̂
     end
-    p = Distributions.params(C)
-    return p isa NamedTuple ? p : (; parameters=collect(p))
+    p = _vine_params(C)
+    return _vine_named_params(p)
 end
 
 struct _PairSelection
@@ -239,7 +239,7 @@ function _fit_vine_joe(U; weights=nothing)
     gradient!(g, alpha) = ForwardDiff.gradient!(g, objective, alpha)
     res = Optim.optimize(objective, gradient!, alpha0, Optim.LBFGS())
     C = candidate(Optim.minimizer(res))
-    return C, (; θ̂=(; θ=Distributions.params(C).θ))
+    return C, (; θ̂=(; θ=_vine_params(C).θ))
 end
 
 # BB1/BB6/BB7/BB8 use the finite parameter boxes from vinecopulib during
@@ -341,12 +341,12 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method:
         meta = (; meta..., θ̂=Distributions.params(C0))
     elseif FT <: Copulas.ClaytonCopula && method === :mle
         C0, meta = _fit_vine_scalar_bounded(theta -> Copulas.ClaytonCopula(2, theta), Uf, _VINE_CLAYTON_LO, _VINE_CLAYTON_HI; pair_kwargs...,)
-        meta = (; meta..., θ̂=(; θ=Distributions.params(C0).θ))
+        meta = (; meta..., θ̂=(; θ=_vine_params(C0).θ))
     elseif FT <: Copulas.FrankCopula && method === :mle
         C0, meta = _fit_vine_frank(Uf; pair_kwargs...)
     elseif FT <: Copulas.GumbelCopula && method === :mle
         C0, meta = _fit_vine_scalar_bounded(theta -> Copulas.GumbelCopula(2, theta), Uf, _VINE_GUMBEL_LO, _VINE_GUMBEL_HI; pair_kwargs...,)
-        meta = (; meta..., θ̂=(; θ=Distributions.params(C0).θ))
+        meta = (; meta..., θ̂=(; θ=_vine_params(C0).θ))
     elseif FT <: Copulas.JoeCopula && method === :mle
         C0, meta = _fit_vine_joe(Uf; pair_kwargs...)
     elseif method === :mle && (

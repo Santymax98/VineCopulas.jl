@@ -8,8 +8,8 @@ function _vine_parameter_metadata(vc::AbstractVineCopula)
 
     for ve in vine_edges(vc)
         C = ve.copula
-        p = Distributions.params(C)
-        nt = p isa NamedTuple ? p : (; parameters=collect(p))
+        p = _vine_params(C)
+        nt = _vine_named_params(p)
         pnames, pvals = _flatten_fit_params(nt)
         fam = _short_family_name(C)
         for (nm, val) in zip(pnames, pvals)
