@@ -144,7 +144,7 @@ struct _PairSelection
     theta::NamedTuple
 end
 
-@inline function _criterion_score(ll::Real, k::Integer, n::Integer, criterion::Symbol)
+@inline function _criterion_score(ll::Real, k::Integer, n::Real, criterion::Symbol)
     _check_selection_criterion(criterion)
     criterion === :loglik && return -Float64(ll)
     criterion === :aic && return -2.0 * ll + 2.0 * k
@@ -169,14 +169,14 @@ const _VINE_CLAYTON_HI = 28.0
 # for the families where this behaviour has been observed.  This is
 # derivative-free, deterministic, and keeps the optimization in exactly the
 # same parameter domain used by vinecopulib.
-function _fit_vine_scalar_bounded(constructor, U, lo::Real, hi::Real; xtol::Real=1.0e-10,)
+function _fit_vine_scalar_bounded(constructor, U, lo::Real, hi::Real; weights=nothing, xtol::Real=1.0e-10,)
     a = nextfloat(Float64(lo))
     b = prevfloat(Float64(hi))
     a < b || throw(ArgumentError("invalid scalar vine-fitting interval ($lo, $hi)"))
 
     objective(theta) = begin
         C = constructor(theta)
-        ll = Float64(Distributions.loglikelihood(C, U))
+        ll = Float64(_weighted_loglikelihood(C, U, weights))
         isfinite(ll) ? -ll : Inf
     end
 
@@ -189,8 +189,8 @@ end
 const _VINE_FRANK_LO = -35.0
 const _VINE_FRANK_HI = 35.0
 
-function _fit_vine_frank(U; xtol::Real=1.0e-10)
-    C, meta = _fit_vine_scalar_bounded(theta -> Copulas.FrankCopula(2, theta), U, _VINE_FRANK_LO, _VINE_FRANK_HI; xtol=xtol)
+function _fit_vine_frank(U; weights=nothing, xtol::Real=1.0e-10)
+    C, meta = _fit_vine_scalar_bounded(theta -> Copulas.FrankCopula(2, theta), U, _VINE_FRANK_LO, _VINE_FRANK_HI; weights=weights, xtol=xtol)
     theta = Float64(meta.θ̂.theta)
     if iszero(theta) || C isa Copulas.IndependentCopula
         theta = sqrt(eps(Float64))
@@ -215,6 +215,8 @@ const _VINE_JOE_LO = 1.0
 const _VINE_JOE_HI = 30.0
 
 # Preserve Joe's transformed-space L-BFGS estimator without a wrapper copula.
+# `weights` are validated and scaled by the caller (`_fit_weights`), as for
+# every local fitter.
 function _fit_vine_joe(U; weights=nothing)
     if weights !== nothing
         weights isa AbstractVector{<:Real} || throw(ArgumentError("weights must be a vector of non-negative reals"))
@@ -228,12 +230,7 @@ function _fit_vine_joe(U; weights=nothing)
     x = clamp((1.5 - lo) / (hi - lo), eps(Float64), 1.0 - eps(Float64))
     alpha0 = [log(x) - log1p(-x)]
     candidate(alpha) = Copulas.JoeCopula(2, _vine_box_parameter(alpha[1], lo, hi))
-    function objective(alpha)
-        C = candidate(alpha)
-        weights === nothing && return -Distributions.loglikelihood(C, U)
-        length(weights) == size(U, 2) || throw(DimensionMismatch("observation weights must match the data"))
-        return -sum(weights[i] * Distributions.logpdf(C, view(U, :, i)) for i in axes(U, 2))
-    end
+    objective(alpha) = -_weighted_loglikelihood(candidate(alpha), U, weights)
     gradient!(g, alpha) = ForwardDiff.gradient!(g, objective, alpha)
     res = Optim.optimize(objective, gradient!, alpha0, Optim.LBFGS())
     C = candidate(Optim.minimizer(res))
@@ -265,7 +262,7 @@ end
     return Float64(lo) + (Float64(hi) - Float64(lo)) * s
 end
 
-function _fit_vine_two_parameter_bounded(constructor, U, lo::NTuple{2,<:Real}, hi::NTuple{2,<:Real};
+function _fit_vine_two_parameter_bounded(constructor, U, lo::NTuple{2,<:Real}, hi::NTuple{2,<:Real}; weights=nothing,
     starts=((0.1, 0.1), (0.25, 0.5), (0.5, 0.25), (0.5, 0.5), (0.75, 0.75)), xtol::Real=1.0e-8,)
     all(lo[i] < hi[i] for i in 1:2) || throw(ArgumentError("invalid two-parameter vine-fitting box: $lo -- $hi"))
     function candidate(alpha)
@@ -274,7 +271,7 @@ function _fit_vine_two_parameter_bounded(constructor, U, lo::NTuple{2,<:Real}, h
         return constructor(p1, p2)
     end
     function objective(alpha)
-        ll = Float64(Distributions.loglikelihood(candidate(alpha), U))
+        ll = Float64(_weighted_loglikelihood(candidate(alpha), U, weights))
         return isfinite(ll) ? -ll : Inf
     end
     best_res = nothing
@@ -294,25 +291,25 @@ function _fit_vine_two_parameter_bounded(constructor, U, lo::NTuple{2,<:Real}, h
     best_res === nothing && throw(ErrorException("no finite likelihood found for $constructor inside the vine-selection parameter box"))
     C = candidate(Optim.minimizer(best_res))
     theta = Distributions.params(C)
-    ll = Float64(Distributions.loglikelihood(C, U))
+    ll = Float64(_weighted_loglikelihood(C, U, weights))
     isfinite(ll) || throw(ErrorException("non-finite optimized likelihood for $constructor"))
     return C, (;θ̂=theta, optimizer=Optim.summary(best_res), converged=Optim.converged(best_res), iterations=Optim.iterations(best_res),)
 end
 
-function _fit_vine_bb(FT, U; xtol::Real=1.0e-8)
+function _fit_vine_bb(FT, U; weights=nothing, xtol::Real=1.0e-8)
     constructor(theta, delta) = FT(2, theta, delta)
     if FT <: Copulas.BB1Copula
         starts = ((0.02, 0.02), (0.1, 0.1), (0.25, 0.5), (0.5, 0.25), (0.5, 0.5))
-        return _fit_vine_two_parameter_bounded(constructor, U, _VINE_BB1_LO, _VINE_BB1_HI; starts, xtol)
+        return _fit_vine_two_parameter_bounded(constructor, U, _VINE_BB1_LO, _VINE_BB1_HI; weights, starts, xtol)
     elseif FT <: Copulas.BB6Copula
         starts = ((0.02, 0.02), (0.1, 0.1), (0.25, 0.5), (0.5, 0.25), (0.5, 0.5))
-        return _fit_vine_two_parameter_bounded(constructor, U, _VINE_BB6_LO, _VINE_BB6_HI; starts, xtol)
+        return _fit_vine_two_parameter_bounded(constructor, U, _VINE_BB6_LO, _VINE_BB6_HI; weights, starts, xtol)
     elseif FT <: Copulas.BB7Copula
         starts = ((0.02, 0.04), (0.1, 0.1), (0.25, 0.5), (0.5, 0.25), (0.5, 0.5))
-        return _fit_vine_two_parameter_bounded(constructor, U, _VINE_BB7_LO, _VINE_BB7_HI; starts, xtol)
+        return _fit_vine_two_parameter_bounded(constructor, U, _VINE_BB7_LO, _VINE_BB7_HI; weights, starts, xtol)
     elseif FT <: Copulas.BB8Copula
         starts = ((0.02, 0.98), (0.1, 0.9), (0.25, 0.5), (0.5, 0.75), (0.5, 0.5))
-        return _fit_vine_two_parameter_bounded(constructor, U, _VINE_BB8_LO, _VINE_BB8_HI; starts, xtol)
+        return _fit_vine_two_parameter_bounded(constructor, U, _VINE_BB8_LO, _VINE_BB8_HI; weights, starts, xtol)
     end
     throw(ArgumentError("$FT is not a bounded default BB family"))
 end
@@ -342,7 +339,7 @@ end
 # estimate on the boundary of the family, not an optimizer failure.
 @inline _fitted_parameter_ok(C0, name::AbstractString, v::Real) = isfinite(v) || (C0 isa Copulas.TCopula && name == "ν" && v > 0)
 
-function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method::Symbol, selection_criterion::Symbol, pair_kwargs::NamedTuple,)
+function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; weights=nothing, pair_method::Symbol, selection_criterion::Symbol, pair_kwargs::NamedTuple,)
     Uf = _flip_pair_data(U, flips)
     method = _resolve_pair_method(FT, pair_method)
 
@@ -350,38 +347,38 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method:
     # an exact bivariate copula likelihood or a vinecopulib-aligned finite
     # parameter domain is required.
     if FT <: Copulas.GaussianCopula && method === :mle
-        C0 = Distributions.fit(FT, Uf; method=:mle, pair_kwargs...)
+        C0 = Distributions.fit(FT, Uf; method=:mle, weights=weights, pair_kwargs...)
         meta = (; θ̂=Distributions.params(C0))
     elseif FT <: Copulas.TCopula && method === :mle
         C0, meta = _fit_vine_two_parameter_bounded(
             (rho, nu) -> Copulas.TCopula(nu, [1.0 rho; rho 1.0]), Uf,
             (_VINE_STUDENT_RHO_LO, _VINE_STUDENT_NU_LO),
             (_VINE_STUDENT_RHO_HI, _VINE_STUDENT_NU_HI);
-            pair_kwargs...,
+            weights=weights, pair_kwargs...,
         )
         meta = (; meta..., θ̂=Distributions.params(C0))
     elseif FT <: Copulas.ClaytonCopula && method === :mle
-        C0, meta = _fit_vine_scalar_bounded(theta -> Copulas.ClaytonCopula(2, theta), Uf, _VINE_CLAYTON_LO, _VINE_CLAYTON_HI; pair_kwargs...,)
+        C0, meta = _fit_vine_scalar_bounded(theta -> Copulas.ClaytonCopula(2, theta), Uf, _VINE_CLAYTON_LO, _VINE_CLAYTON_HI; weights=weights, pair_kwargs...,)
         meta = (; meta..., θ̂=(; θ=_vine_params(C0).θ))
     elseif FT <: Copulas.FrankCopula && method === :mle
-        C0, meta = _fit_vine_frank(Uf; pair_kwargs...)
+        C0, meta = _fit_vine_frank(Uf; weights=weights, pair_kwargs...)
     elseif FT <: Copulas.GumbelCopula && method === :mle
-        C0, meta = _fit_vine_scalar_bounded(theta -> Copulas.GumbelCopula(2, theta), Uf, _VINE_GUMBEL_LO, _VINE_GUMBEL_HI; pair_kwargs...,)
+        C0, meta = _fit_vine_scalar_bounded(theta -> Copulas.GumbelCopula(2, theta), Uf, _VINE_GUMBEL_LO, _VINE_GUMBEL_HI; weights=weights, pair_kwargs...,)
         meta = (; meta..., θ̂=(; θ=_vine_params(C0).θ))
     elseif FT <: Copulas.JoeCopula && method === :mle
-        C0, meta = _fit_vine_joe(Uf; pair_kwargs...)
+        C0, meta = _fit_vine_joe(Uf; weights=weights, pair_kwargs...)
     elseif method === :mle && (
         FT <: Copulas.BB1Copula || FT <: Copulas.BB6Copula ||
         FT <: Copulas.BB7Copula || FT <: Copulas.BB8Copula
     )
-        C0, meta = _fit_vine_bb(FT, Uf; pair_kwargs...)
+        C0, meta = _fit_vine_bb(FT, Uf; weights=weights, pair_kwargs...)
     else
         if pair_method === :default
-            M = Distributions.fit(Copulas.CopulaModel, FT, Uf; method=:default, pair_kwargs...)
+            M = Distributions.fit(Copulas.CopulaModel, FT, Uf; method=:default, weights=weights, pair_kwargs...)
             C0 = Copulas.fitted_distribution(M)
             method = Copulas.fitting_method(M)
         else
-            C0 = Distributions.fit(FT, Uf; method=method, pair_kwargs...)
+            C0 = Distributions.fit(FT, Uf; method=method, weights=weights, pair_kwargs...)
         end
         meta = (;)
     end
@@ -395,7 +392,7 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method:
     # score in that numerically safer representation instead of re-evaluating
     # a SurvivalCopula wrapper on the original sample. This matters for BB
     # families near their selection boundaries.
-    ll = Float64(Distributions.loglikelihood(C0, Uf))
+    ll = Float64(_weighted_loglikelihood(C0, Uf, weights))
     # `-Inf` is an estimate whose support excludes part of the sample (a
     # Clayton with `θ < 0`, which `:itau` returns on a negative tau when the
     # unrotated candidate is allowed to run); it scores `Inf` and loses.  `NaN`
@@ -408,44 +405,49 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method:
         throw(ErrorException("non-finite fitted parameters for $FT"))
 
     k = length(vals)
-    score = _criterion_score(ll, k, size(U, 2), selection_criterion)
+    score = _criterion_score(ll, k, _weighted_nobs(U, weights), selection_criterion)
     isnan(score) && throw(ErrorException("non-finite selection score for $FT"))
     return _PairSelection(C, _short_family_name(C), _rotation_from_flips(flips), method, ll, k, score,
         get(meta, :converged, true), Int(get(meta, :iterations, 0)), θ,)
 end
 
-function _independence_selection(U::Matrix{Float64}, criterion::Symbol)
+function _independence_selection(U::Matrix{Float64}, criterion::Symbol, weights=nothing)
     C = Copulas.IndependentCopula(2)
     ll = 0.0
-    return _PairSelection(C, "Independence", 0, :none, ll, 0, _criterion_score(ll, 0, size(U, 2), criterion), true, 0, (;),)
+    return _PairSelection(C, "Independence", 0, :none, ll, 0, _criterion_score(ll, 0, _weighted_nobs(U, weights), criterion), true, 0, (;),)
 end
 
-function _select_pair(U0::AbstractMatrix{<:Real}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
+function _select_pair(U0::AbstractMatrix{<:Real}; weights=nothing, family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
     allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, independence_test::Symbol=:none,
     independence_level::Real=0.05, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,
     force_independence::Bool=false,)
 
     U = _fit_data(U0, 2)
+    U, w = _weighted_sample(U, _fit_weights(weights, size(U, 2)))
     _check_selection_criterion(selection_criterion)
     _check_independence_test(independence_test)
     independence_level = _check_independence_level(independence_level)
-    force_independence && return _independence_selection(U, selection_criterion)
+    force_independence && return _independence_selection(U, selection_criterion, w)
 
     families = _resolve_family_set(family_set)
-    τhat = _kendall_tau_b(view(U, 1, :), view(U, 2, :))
+    τhat = _pair_tau(U, w)
 
     # The independence test is a gate on the edge, like `threshold`: an edge
     # the test does not reject is independent whatever the criterion says.
     if independence_test === :kendall
-        pvalue = _kendall_independence_pvalue(τhat, size(U, 2))
-        if pvalue > independence_level
-            trace && println("pair independence test: tau=$τhat, p=$pvalue > $independence_level, independence selected")
-            return _independence_selection(U, selection_criterion)
+        if w !== nothing && !all(==(first(w)), w)
+            throw(ArgumentError("independence_test=:kendall does not support positive non-uniform observation weights"))
         end
-        trace && println("pair independence test: tau=$τhat, p=$pvalue <= $independence_level, dependence")
+        τtest = _kendall_tau_b(view(U, 1, :), view(U, 2, :))
+        pvalue = _kendall_independence_pvalue(τtest, size(U, 2))
+        if pvalue > independence_level
+            trace && println("pair independence test: tau=$τtest, p=$pvalue > $independence_level, independence selected")
+            return _independence_selection(U, selection_criterion, w)
+        end
+        trace && println("pair independence test: tau=$τtest, p=$pvalue <= $independence_level, dependence")
     end
 
-    best = include_independence ? _independence_selection(U, selection_criterion) : nothing
+    best = include_independence ? _independence_selection(U, selection_criterion, w) : nothing
     nsuccessful = 0
 
     for FT in families
@@ -456,7 +458,7 @@ function _select_pair(U0::AbstractMatrix{<:Real}; family_set=:default, pair_meth
 
         for flips in _rotation_candidates(FT, τhat, allow_rotations, preselect)
             try
-                fit = _fit_one_pair_family(FT, U, flips; pair_method=pair_method, selection_criterion=selection_criterion, pair_kwargs=pair_kwargs,)
+                fit = _fit_one_pair_family(FT, U, flips; weights=w, pair_method=pair_method, selection_criterion=selection_criterion, pair_kwargs=pair_kwargs,)
                 nsuccessful += 1
                 if !isfinite(fit.score)
                     # The estimate gives the sample zero density: a loser, not
@@ -493,7 +495,7 @@ function _select_pair(U0::AbstractMatrix{<:Real}; family_set=:default, pair_meth
 end
 
 """
-    select_paircopula(U; family_set=:default, pair_method=:default,
+    select_paircopula(U; weights=nothing, family_set=:default, pair_method=:default,
                       selection_criterion=:bic, allow_rotations=true,
                       preselect=true, include_independence=true,
                       independence_test=:none, independence_level=0.05,
@@ -516,11 +518,11 @@ asymptotic Kendall test does not reject independence at size
 `independence_level`, before any family is fitted and whatever
 `include_independence` says.
 """
-function select_paircopula(U::AbstractMatrix{<:Real}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
+function select_paircopula(U::AbstractMatrix{<:Real}; weights=nothing, family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
                            allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
                            independence_test::Symbol=:none, independence_level::Real=0.05,
                            pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
-                           return _select_pair(U; family_set, pair_method, selection_criterion, allow_rotations,
+                           return _select_pair(U; weights, family_set, pair_method, selection_criterion, allow_rotations,
                                                preselect, include_independence, independence_test, independence_level,
                                                pair_kwargs, strict, trace,).copula
 end

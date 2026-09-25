@@ -325,6 +325,66 @@ Gaussian copula; remaining differences are then due to finite-sample
 sequential estimation rather than to the group constraint itself.
 
 
+## Observation weights
+
+Every `fit` method, `select_paircopula` and `fit(VineModel, ...)` take `weights`,
+a vector with one non-negative, finite entry per column of `U` (not all zero),
+or `nothing` for the unweighted fit:
+
+```@example fit-weights
+using VineCopulas
+using Distributions: fit
+using Random
+
+truth = DVineCopula(
+    [1, 2, 3],
+    [[GaussianCopula(2, 0.55), ClaytonCopula(2, 1.4)],
+     [FrankCopula(2, 2.0)]],
+)
+U = rand(MersenneTwister(21), truth, 300)
+
+# Exponentially decaying weights: recent columns count for more.
+w = exp.(-(size(U, 2) .- (1:size(U, 2))) ./ 100)
+weighted = fit(RVineCopula, U; weights=w)
+
+(order(weighted), truncation(weighted))
+```
+
+A weight is "how many observations this column counts for". The weights enter
+the fit in three places:
+
+- the tree criterion is the weighted statistic: Kendall's tau (`:tau`) and
+  Spearman's rho (`:rho`) with every pair `(i, j)` weighted by `w[i] * w[j]`,
+  and the Gaussian mutual information (`:joe`) of the weighted correlation of
+  the normal scores;
+- each pair-copula maximises the weighted pseudo-likelihood
+  `∑ᵢ w[i] log c(U[:, i])`;
+- the selection criterion uses the weighted sample size `∑ᵢ w[i]`.
+
+The weights are scaled internally so that they sum to the number of
+observations, so `weights=fill(c, n)` reproduces the unweighted fit for any
+`c > 0`, and the `:bic` penalty is unchanged. With integer weights the fit
+equals the unweighted fit of the sample in which column `i` is repeated `w[i]`
+times, up to optimiser tolerance. A zero weight removes the column. This is
+the contract of `fit(::Type{<:Copula}, U; weights)` in Copulas.jl, and the
+pair families that Copulas.jl fits (every family outside the default set, and
+every `pair_method` other than `:mle`) take the same vector through it.
+
+The weights do not change the pseudo-observations: `U` is taken as given, and
+weighted ranks are the caller's responsibility.
+
+`fit(VineModel, VT, U; weights=w)` stores the scaled weights in the recipe, and
+its `loglikelihood`, `aic`, `bic` and `deviance` are the weighted ones; `nobs`
+stays the number of columns. `infer(M)` resamples (observation, weight) pairs,
+so each bootstrap replicate is a weighted refit.
+
+!!! warning "Criteria without a weighted form"
+    `:hoeffd`, `:mcor` and `:cxi` have no weighted form here, so `fit` refuses
+    them with weights instead of silently ignoring the weights. A custom
+    `tree_criterion` function receives the full columns, aligned with the
+    weights, and no weight argument: a weighted custom criterion closes over
+    the weight vector.
+
 ## Fixed-structure fitting
 
 If the R-vine structure is part of the statistical design, pass it explicitly:

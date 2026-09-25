@@ -49,7 +49,7 @@
 # ----------------------
 # - nonparametric TLL pair copulas
 # - discrete margins
-# - observation weights / missing-value pairwise logic
+# - missing-value pairwise logic
 # - automatic sparse truncation/threshold (mBICV)
 # - multithreaded edge fitting
 # - joint vine MLE / sequential-estimator covariance
@@ -215,6 +215,73 @@ function _fit_data(U::AbstractMatrix{<:Real}, p::Int)
     return X
 end
 
+
+# -----------------------------------------------------------------------------
+# Observation weights
+# -----------------------------------------------------------------------------
+#
+# `weights=nothing` is the unweighted path and is left untouched. A vector is
+# validated once at the vine entry point and handed down, aligned with the
+# columns of the fit data, as a `Vector{Float64}` scaled so that `sum(w) == n`.
+# A weight then reads as "how many observations this column counts for", the
+# fit is invariant to the scale of the weights, and the selection sample size
+# stays at n. This is the contract of `fit(::Type{<:Copula}, U; weights)` in
+# Copulas.jl, so the pair fits that Copulas.jl owns take the same vector.
+
+_fit_weights(::Nothing, n::Int) = nothing
+
+function _fit_weights(weights::AbstractVector{<:Real}, n::Int)
+    length(weights) == n || throw(DimensionMismatch(
+        "weights must have one entry per observation; got $(length(weights)) weights for $n observations"
+    ))
+    w = Vector{Float64}(undef, n)
+    total = 0.0
+    @inbounds for i in 1:n
+        wi = Float64(weights[i])
+        isfinite(wi) || throw(ArgumentError("weights must be finite"))
+        wi >= 0.0 || throw(ArgumentError("weights must be non-negative"))
+        w[i] = wi
+        total += wi
+    end
+    total > 0.0 || throw(ArgumentError("weights must not all be zero"))
+    # `ones(n)` is returned as is, and `c .* ones(n)` maps to exactly `ones(n)`
+    # when `c` is a power of two, so those weighted fits reproduce the
+    # unweighted fit bit for bit.
+    scale = n / total
+    isone(scale) || (w .*= scale)
+    return w
+end
+
+_fit_weights(weights, ::Int) = throw(ArgumentError(
+    "weights must be nothing or a vector of non-negative reals; got $(typeof(weights))"
+))
+
+# The columns of `X` that carry weight, with their weights. A zero weight removes
+# its column before any likelihood is evaluated, so that a column on the boundary
+# of the unit square, where the density is not defined, cannot poison the
+# objective through `0 * -Inf`. Without a zero weight the inputs are returned
+# untouched.
+_weighted_sample(X::AbstractMatrix, ::Nothing) = (X, nothing)
+function _weighted_sample(X::AbstractMatrix, w::AbstractVector{<:Real})
+    any(iszero, w) || return (X, w)
+    kept = findall(!iszero, w)
+    return (X[:, kept], w[kept])
+end
+
+# Weighted pseudo-likelihood Σ_j w_j log c(X[:, j]). The unweighted path is
+# `Distributions.loglikelihood` itself, and the weighted sum runs over the same
+# column views in the same reduction order, so `w ≡ 1` reproduces it exactly.
+@inline _weighted_loglikelihood(D, X::AbstractMatrix, ::Nothing) = Distributions.loglikelihood(D, X)
+function _weighted_loglikelihood(D, X::AbstractMatrix, w::AbstractVector{<:Real})
+    X, w = _weighted_sample(X, w)
+    return sum(j -> w[j] * Distributions.logpdf(D, view(X, :, j)), axes(X, 2))
+end
+
+# Effective sample size for the selection criterion: n on the unweighted path
+# and `sum(w)` on the weighted one, which is n after `_fit_weights`.
+@inline _weighted_nobs(X::AbstractMatrix, ::Nothing) = size(X, 2)
+@inline _weighted_nobs(::AbstractMatrix, w::AbstractVector{<:Real}) = sum(w)
+
 @inline _state_key(v::Int, D) = (v, Tuple(sort!(collect(Int, D))))
 
 @inline function _set_intersection_sorted(a::Vector{Int}, b::Vector{Int})
@@ -262,12 +329,14 @@ end
 # Fast dependence measures without adding a new direct dependency
 # -----------------------------------------------------------------------------
 
-mutable struct _Fenwick
-    bit::Vector{Int}
+# Prefix sums over `Int` counts for the unweighted statistics, and over the
+# weights' own element type for the weighted ones.
+mutable struct _Fenwick{T<:Real}
+    bit::Vector{T}
 end
 _Fenwick(n::Int) = _Fenwick(zeros(Int, n))
 
-@inline function _fenwick_add!(F::_Fenwick, i::Int, delta::Int=1)
+@inline function _fenwick_add!(F::_Fenwick{T}, i::Int, delta::T=one(T)) where {T<:Real}
     n = length(F.bit)
     @inbounds while i <= n
         F.bit[i] += delta
@@ -276,8 +345,8 @@ _Fenwick(n::Int) = _Fenwick(zeros(Int, n))
     return nothing
 end
 
-@inline function _fenwick_sum(F::_Fenwick, i::Int)
-    s = 0
+@inline function _fenwick_sum(F::_Fenwick{T}, i::Int) where {T<:Real}
+    s = zero(T)
     @inbounds while i > 0
         s += F.bit[i]
         i -= i & -i
@@ -408,6 +477,159 @@ function _pearson(x::AbstractVector{<:Real}, y::AbstractVector{<:Real})
 end
 
 _spearman_rho(x, y) = _pearson(_average_ranks(x), _average_ranks(y))
+
+@inline _pair_tau(U::AbstractMatrix, ::Nothing) = _kendall_tau_b(view(U, 1, :), view(U, 2, :))
+@inline _pair_tau(U::AbstractMatrix, w::AbstractVector{<:Real}) = _kendall_tau_w(view(U, 1, :), view(U, 2, :), w)
+
+# -----------------------------------------------------------------------------
+# Weighted dependence measures
+# -----------------------------------------------------------------------------
+#
+# With w ≡ 1 every function below reduces to its unweighted counterpart, and
+# with integer weights it equals the unweighted statistic of the sample in
+# which observation i is repeated w[i] times.
+
+# Σ_{i<j, x_i == x_j} w_i w_j, the weighted count of tied pairs. Every
+# accumulator takes its type from the weights.
+function _tie_pairs_w(x::AbstractVector{<:Real}, w::AbstractVector{<:Real})
+    n = length(x)
+    T = eltype(w)
+    ties = zero(T) / 2
+    n <= 1 && return ties
+    p = sortperm(x)
+    i = 1
+    @inbounds while i <= n
+        j = i + 1
+        s = w[p[i]]
+        s2 = abs2(w[p[i]])
+        while j <= n && x[p[j]] == x[p[i]]
+            s += w[p[j]]
+            s2 += abs2(w[p[j]])
+            j += 1
+        end
+        ties += (abs2(s) - s2) / 2
+        i = j
+    end
+    return ties
+end
+
+"""
+    _kendall_tau_w(x, y, w)
+
+Weighted Kendall tau-b,
+
+    τ_w = Σ_{i<j} w_i w_j sgn(x_i − x_j) sgn(y_i − y_j) / √((W0 − W1)(W0 − W2)),
+
+with `W0 = Σ_{i<j} w_i w_j` and `W1`, `W2` the weighted counts of pairs tied in
+`x` and in `y`. It is the same O(n log n) sweep as [`_kendall_tau_b`](@ref)
+with weight sums in place of counts, and it equals tau-b when `w ≡ 1`.
+"""
+function _kendall_tau_w(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}, w::AbstractVector{<:Real})
+    n = length(x)
+    length(y) == n || throw(DimensionMismatch("x and y must have equal length"))
+    length(w) == n || throw(DimensionMismatch("x and w must have equal length"))
+    n <= 1 && return zero(eltype(w)) / 2
+
+    ys = sort(unique(collect(y)))
+    yrank = Dict{eltype(ys), Int}(v => i for (i, v) in enumerate(ys))
+    perm = sortperm(1:n; by=i -> (x[i], y[i]))
+
+    T = eltype(w)
+    F = _Fenwick(zeros(T, length(ys)))
+    seen = zero(T)
+    S = zero(T)
+    start = 1
+
+    @inbounds while start <= n
+        stop = start
+        xv = x[perm[start]]
+        while stop < n && x[perm[stop + 1]] == xv
+            stop += 1
+        end
+
+        # Query against strictly earlier x-blocks only.
+        for k in start:stop
+            r = yrank[y[perm[k]]]
+            less = _fenwick_sum(F, r - 1)
+            leq = _fenwick_sum(F, r)
+            greater = seen - leq
+            S += w[perm[k]] * (less - greater)
+        end
+
+        # Only now insert this x-tie block.
+        for k in start:stop
+            wk = w[perm[k]]
+            _fenwick_add!(F, yrank[y[perm[k]]], wk)
+            seen += wk
+        end
+        start = stop + 1
+    end
+
+    W0 = (abs2(sum(w)) - sum(abs2, w)) / 2
+    W1 = _tie_pairs_w(x, w)
+    W2 = _tie_pairs_w(y, w)
+    denom = sqrt((W0 - W1) * (W0 - W2))
+    return iszero(denom) ? zero(S / denom) : S / denom
+end
+
+# Weighted average ranks: a tie block of total weight W_tie preceded by weight
+# W_less takes the rank W_less + (W_tie + 1) / 2, the mean rank of the block in
+# the sample where each observation is repeated w[i] times.
+function _average_ranks_w(x::AbstractVector{<:Real}, w::AbstractVector{<:Real})
+    n = length(x)
+    p = sortperm(x)
+    T = eltype(w)
+    r = Vector{typeof((zero(T) + 1) / 2)}(undef, n)
+    less = zero(T)
+    i = 1
+    @inbounds while i <= n
+        j = i
+        xi = x[p[i]]
+        wtie = w[p[i]]
+        while j < n && x[p[j + 1]] == xi
+            j += 1
+            wtie += w[p[j]]
+        end
+        ravg = less + (wtie + 1) / 2
+        for k in i:j
+            r[p[k]] = ravg
+        end
+        less += wtie
+        i = j + 1
+    end
+    return r
+end
+
+function _pearson_w(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}, w::AbstractVector{<:Real})
+    n = length(x)
+    n == length(y) || throw(DimensionMismatch("x and y must have equal length"))
+    n == length(w) || throw(DimensionMismatch("x and w must have equal length"))
+    sw = zero(eltype(w))
+    mx = zero(eltype(w)) * zero(eltype(x))
+    my = zero(eltype(w)) * zero(eltype(y))
+    n <= 1 && return zero(mx / sw)
+    @inbounds for i in 1:n
+        sw += w[i]
+        mx += w[i] * x[i]
+        my += w[i] * y[i]
+    end
+    mx /= sw
+    my /= sw
+    sxx = zero(mx * mx)
+    syy = zero(my * my)
+    sxy = zero(mx * my)
+    @inbounds for i in 1:n
+        dx = x[i] - mx
+        dy = y[i] - my
+        sxx += w[i] * dx * dx
+        syy += w[i] * dy * dy
+        sxy += w[i] * dx * dy
+    end
+    den = sqrt(sxx * syy)
+    return iszero(den) ? zero(sxy / den) : sxy / den
+end
+
+_spearman_rho_w(x, y, w) = _pearson_w(_average_ranks_w(x, w), _average_ranks_w(y, w), w)
 
 # Number of observations `k` with `x[k] < x[i]` for every `i`: the "min" rank, zero-based.
 function _strict_ranks(x::AbstractVector{<:Real})
@@ -613,6 +835,12 @@ function _gaussian_mutual_information(x::AbstractVector{<:Real}, y::AbstractVect
     return -0.5 * log1p(-r * r)
 end
 
+# The weighted form: the weighted Pearson correlation of the normal scores.
+function _gaussian_mutual_information_w(x::AbstractVector{<:Real}, y::AbstractVector{<:Real}, w::AbstractVector{<:Real})
+    r = _pearson_w(StatsFuns.norminvcdf.(x), StatsFuns.norminvcdf.(y), w)
+    return -0.5 * log1p(-r * r)
+end
+
 """
     _chatterjee_xi(x, y)
 
@@ -671,8 +899,16 @@ and `y`. The built-in criteria are the absolute value of a documented statistic:
 A function is called as `criterion(x, y, a, b, D)` and its value, used as is (no absolute
 value), is the weight. It must be a finite `Real`; anything else is an `ArgumentError`
 naming the edge and the value.
+
+With observation weights `w` (the last argument; `nothing` is the unweighted path)
+`:tau`, `:rho` and `:joe` take their weighted form, `_kendall_tau_w`, `_spearman_rho_w`
+and `_gaussian_mutual_information_w`, the statistic of the sample in which observation
+`i` is repeated `w[i]` times. `:hoeffd`, `:mcor` and `:cxi` have no weighted form here,
+so [`_check_weighted_tree_criterion`](@ref) refuses them with weights before any fit. A
+function receives the full columns, aligned with `w`, and no weight: a weighted custom
+criterion closes over the weight vector.
 """
-@inline function _tree_dependence(x, y, a, b, D, criterion::Symbol)
+@inline function _tree_dependence(x, y, a, b, D, criterion::Symbol, ::Nothing=nothing)
     criterion === :tau && return abs(_kendall_tau_b(x, y))
     criterion === :rho && return abs(_spearman_rho(x, y))
     criterion === :hoeffd && return abs(_hoeffding_d(x, y))
@@ -682,10 +918,34 @@ naming the edge and the value.
     _check_tree_criterion(criterion)
     return 0.0
 end
-function _tree_dependence(x, y, a, b, D, criterion::Function)
+@inline function _tree_dependence(x, y, a, b, D, criterion::Symbol, w::AbstractVector{<:Real})
+    criterion === :tau && return abs(_kendall_tau_w(x, y, w))
+    criterion === :rho && return abs(_spearman_rho_w(x, y, w))
+    criterion === :joe && return _gaussian_mutual_information_w(x, y, w)
+    _check_weighted_tree_criterion(criterion, w)
+    return 0.0
+end
+function _tree_dependence(x, y, a, b, D, criterion::Function, weights=nothing)
     w = criterion(x, y, a, b, D)
     (w isa Real && isfinite(w)) || throw(ArgumentError("tree_criterion returned $(repr(w)) on the edge ($a, $b | $(join(D, ", "))); it must return a finite Real"))
     return Float64(w)
+end
+
+"""
+    _check_weighted_tree_criterion(criterion, weights)
+
+Refuse, before any fit, a built-in tree criterion that has no weighted form when
+observation weights are given. `:tau`, `:rho`, `:joe` and a function pass; `:hoeffd`,
+`:mcor` and `:cxi` throw an `ArgumentError`.
+"""
+_check_weighted_tree_criterion(criterion, ::Nothing) = nothing
+_check_weighted_tree_criterion(::Function, ::AbstractVector{<:Real}) = nothing
+function _check_weighted_tree_criterion(criterion::Symbol, ::AbstractVector{<:Real})
+    criterion in (:tau, :rho, :joe) && return nothing
+    throw(ArgumentError(
+        "observation weights reach tree_criterion = :tau, :rho and :joe, whose weighted forms are implemented; " *
+        ":$criterion has none, so it cannot be combined with weights"
+    ))
 end
 
 @inline function _check_vine_fit_method(method::Symbol)

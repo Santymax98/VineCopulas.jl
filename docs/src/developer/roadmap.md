@@ -22,6 +22,6 @@ Performance work is a particularly useful contribution area. Profiling results, 
 
 ## Later
 
-- Observation weights and deliberate missing-data handling.
+- Deliberate missing-data handling.
 - Additional nonparametric pair-copula fitting routes.
 - Carefully scoped support for non-simplified vine models.

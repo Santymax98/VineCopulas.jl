@@ -106,19 +106,19 @@ function _maximum_spanning_tree(candidates::Vector{_RVCandidate}, nvertices::Int
     return selected
 end
 
-function _rvine_tree1_candidates(X::Matrix{Float64}, criterion)
+function _rvine_tree1_candidates(X::Matrix{Float64}, criterion, weights=nothing)
     p, _ = size(X)
     out = _RVCandidate[]
     sizehint!(out, _choose2(p))
     @inbounds for j in 2:p, i in 1:j-1
         ui = @view X[i, :]
         uj = @view X[j, :]
-        push!(out, _RVCandidate(i, j, i, j, Int[], ui, uj, _tree_dependence(ui, uj, i, j, Int[], criterion)))
+        push!(out, _RVCandidate(i, j, i, j, Int[], ui, uj, _tree_dependence(ui, uj, i, j, Int[], criterion, weights)))
     end
     return out
 end
 
-function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion)
+function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion, weights=nothing)
     m = length(prev)
     level = isempty(prev) ? 0 : length(prev[1].D) + 2
     out = _RVCandidate[]
@@ -137,12 +137,12 @@ function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion)
 
         ua = _edge_conditional(e1, a)
         ub = _edge_conditional(e2, b)
-        push!(out, _RVCandidate(i, j, a, b, D, ua, ub, _tree_dependence(ua, ub, a, b, D, criterion)))
+        push!(out, _RVCandidate(i, j, a, b, D, ua, ub, _tree_dependence(ua, ub, a, b, D, criterion, weights)))
     end
     return out
 end
 
-function _fit_rvine_candidates(selected::Vector{_RVCandidate}, nobs::Int; family_set, pair_method, selection_criterion, allow_rotations,
+function _fit_rvine_candidates(selected::Vector{_RVCandidate}, nobs::Int; weights=nothing, family_set, pair_method, selection_criterion, allow_rotations,
                                preselect, include_independence, independence_test, independence_level, threshold, pair_kwargs, strict, trace, need_h::Bool,)
     out = Vector{_RVFitEdge}(undef, length(selected))
 
@@ -155,7 +155,7 @@ function _fit_rvine_candidates(selected::Vector{_RVCandidate}, nobs::Int; family
         fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
                            allow_rotations=allow_rotations, preselect=preselect,
                            include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
-                           pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=c.weight < threshold,)
+                           pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=c.weight < threshold, weights=weights,)
         C = fit.copula
         if need_h
             h_a = Vector{Float64}(undef, nobs)
@@ -171,7 +171,7 @@ function _fit_rvine_candidates(selected::Vector{_RVCandidate}, nobs::Int; family
     return out
 end
 
-function _select_rvine_trees(X::Matrix{Float64}, q::Int; family_set, pair_method, selection_criterion, tree_criterion, groups,
+function _select_rvine_trees(X::Matrix{Float64}, q::Int; weights=nothing, family_set, pair_method, selection_criterion, tree_criterion, groups,
                              allow_rotations, preselect, include_independence, independence_test, independence_level, threshold, pair_kwargs, strict, trace,)
     p, n = size(X)
     trees = Vector{Vector{_RVFitEdge}}(undef, q)
@@ -180,17 +180,17 @@ function _select_rvine_trees(X::Matrix{Float64}, q::Int; family_set, pair_method
     # candidate graph is complete. From tree 2 the vertices are edges and the
     # proximity condition fixes the candidate set, so the constraint would not
     # decompose there.
-    candidates = _rvine_tree1_candidates(X, tree_criterion)
+    candidates = _rvine_tree1_candidates(X, tree_criterion, weights)
     selected = _maximum_spanning_tree(candidates, p; groups=groups)
-    trees[1] = _fit_rvine_candidates(selected, n; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
+    trees[1] = _fit_rvine_candidates(selected, n; weights=weights, family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
                                      allow_rotations=allow_rotations, preselect=preselect,
                                      include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
                                      threshold=threshold, pair_kwargs=pair_kwargs, strict=strict, trace=trace, need_h=(q > 1),)
 
     for t in 2:q
-        candidates = _rvine_next_candidates(trees[t - 1], tree_criterion)
+        candidates = _rvine_next_candidates(trees[t - 1], tree_criterion, weights)
         selected = _maximum_spanning_tree(candidates, length(trees[t - 1]))
-        trees[t] = _fit_rvine_candidates(selected, n; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
+        trees[t] = _fit_rvine_candidates(selected, n; weights=weights, family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
                                          allow_rotations=allow_rotations, preselect=preselect,
                                          include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
                                          threshold=threshold, pair_kwargs=pair_kwargs, strict=strict, trace=trace, need_h=(t < q),)
@@ -311,7 +311,7 @@ function _standardize_fixed_rvine_structure(st::RVineStructure)
 end
 
 
-function _fit_fixed_rvine(X::Matrix{Float64}, st::RVineStructure; family_set, pair_method, selection_criterion, allow_rotations, preselect,
+function _fit_fixed_rvine(X::Matrix{Float64}, st::RVineStructure; weights=nothing, family_set, pair_method, selection_criterion, allow_rotations, preselect,
                           include_independence, independence_test, independence_level, threshold, tree_criterion, pair_kwargs, strict, trace,)
     p, n = size(X)
     ord = collect(st.order)
@@ -337,12 +337,12 @@ function _fit_fixed_rvine(X::Matrix{Float64}, st::RVineStructure; family_set, pa
             haskey(states, kb) || throw(ArgumentError("invalid standard R-vine structure/proximity condition: missing conditional state $kb"))
             ua = states[ka]
             ub = states[kb]
-            dep = _tree_dependence(ua, ub, a, b, D, tree_criterion)
+            dep = _tree_dependence(ua, ub, a, b, D, tree_criterion, weights)
 
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= ua
             pdata[2, :] .= ub
-            fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
+            fit = _select_pair(pdata; weights=weights, family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
                                preselect=preselect, include_independence=include_independence, independence_test=independence_test,
                                independence_level=independence_level, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
             level[e] = fit
@@ -373,12 +373,13 @@ end
 # R-vine fitting entry point
 # -----------------------------------------------------------------------------
 
-function _fit_rvine_sequential(U0; structure=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
+function _fit_rvine_sequential(U0; structure=nothing, trunc=nothing, weights=nothing, family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
                                tree_criterion=:tau, tree_algorithm::Symbol=:mst, groups=nothing, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
                                independence_test::Symbol=:none, independence_level::Real=0.05, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(),
                                strict::Bool=false, trace::Bool=false, sampling_tail=Int[],)
     p = size(U0, 1)
     X = _fit_data(U0, p)
+    w = _fit_weights(weights, size(X, 2))
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
     _check_independence_test(independence_test)
@@ -396,14 +397,14 @@ function _fit_rvine_sequential(U0; structure=nothing, trunc=nothing, family_set=
         q = truncation(structure)
         trunc !== nothing && Int(trunc) != q && throw(ArgumentError("when structure is supplied, trunc must match truncation(structure)"))
         st_fit, _ = _standardize_fixed_rvine_structure(structure)
-        vc = _fit_fixed_rvine(X, st_fit; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
+        vc = _fit_fixed_rvine(X, st_fit; weights=w, family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
                               preselect=preselect, include_independence=include_independence, independence_test=independence_test,
                               independence_level=independence_level, threshold=threshold, tree_criterion=tree_criterion, pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
     else
         q = isnothing(trunc) ? p - 1 : Int(trunc)
         1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
 
-        trees = _select_rvine_trees(X, q; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, tree_criterion=tree_criterion,
+        trees = _select_rvine_trees(X, q; weights=w, family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, tree_criterion=tree_criterion,
                                     groups=groups, allow_rotations=allow_rotations, preselect=preselect,
                                     include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
                                     threshold=threshold, pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
