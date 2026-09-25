@@ -18,6 +18,13 @@ end
     return (; ν=_vine_param(p, 1, :ν), Σ=_vine_param(p, 2, :Σ))
 end
 
+@inline function _vine_params(C::Copulas.FGMCopula{2})
+    p = Distributions.params(C)
+    θ = _vine_param(p, 1, :θ)
+    θ = θ isa AbstractVector ? only(θ) : θ
+    return (; θ)
+end
+
 @inline function _vine_arch_params(C, names::Tuple)
     p = Distributions.params(C)
     return NamedTuple{names}(ntuple(i -> _vine_param(p, i, names[i]), length(names)))
@@ -38,6 +45,30 @@ end
 @inline _vine_params(C::Copulas.BB8Copula{2}) = _vine_arch_params(C, (:ϑ, :δ))
 @inline _vine_params(C::Copulas.BB9Copula{2}) = _vine_arch_params(C, (:θ, :δ))
 @inline _vine_params(C::Copulas.BB10Copula{2}) = _vine_arch_params(C, (:θ, :δ))
+
+@inline function _vine_params(C::Copulas.ExtremeValueCopula{2,<:Copulas.MOTail})
+    p = Distributions.params(C)
+    return (; λ₁=_vine_param(p, 1, :λ₁),
+            λ₂=_vine_param(p, 2, :λ₂),
+            λ₃=_vine_param(p, 3, :λ₃))
+end
+
+@inline function _vine_params(C::Copulas.ExtremeValueCopula{2,<:Copulas.BC2Tail})
+    p = Distributions.params(C)
+    return (; a=_vine_param(p, 1, :a), b=_vine_param(p, 2, :b))
+end
+
+@inline function _vine_params(C::Copulas.ExtremeValueCopula{2,<:Copulas.TawnTail})
+    p = Distributions.params(C)
+    # The public contracts expose either the historical (α, β) pair or the
+    # current positional subset representation. Preserve all values rather
+    # than collapsing an asymmetric Tawn model to one scalar.
+    if hasproperty(p, :α) && hasproperty(p, :β)
+        return (; α=p.α, β=p.β)
+    end
+    return (; dep=_vine_param(p, 1, :dep),
+            weights=Tuple(p[i] for i in 2:length(p)))
+end
 
 @inline function _vine_params(C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail})
     p = Distributions.params(C)

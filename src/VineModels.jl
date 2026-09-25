@@ -207,7 +207,7 @@ function edge_table(M::VineModel)
     [(
         tree=e.tree, edge=e.index, conditioned=e.conditioned, conditioning=e.conditioning,
         family=_short_family_name(e.copula), rotation=_rotation_of(e.copula),
-        parameters=Distributions.params(e.copula),
+        parameters=_vine_params(e.copula),
     ) for e in vine_edges(M)]
 end
 
