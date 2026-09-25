@@ -55,6 +55,9 @@ end
 
 @inline function _vine_params(C::Copulas.ExtremeValueCopula{2,<:Copulas.BC2Tail})
     p = Distributions.params(C)
+    if length(p) == 1 && p[1] isa AbstractVector
+        return (; a=p[1][1], b=p[1][2])
+    end
     return (; a=_vine_param(p, 1, :a), b=_vine_param(p, 2, :b))
 end
 

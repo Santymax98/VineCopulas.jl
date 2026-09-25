@@ -57,11 +57,12 @@ end
                 family_set=(FGMCopula,), include_independence=false,
                 allow_rotations=false)
     @test coefnames(model) == ["T1:E1:FGM:θ"]
-    @test coef(model) == [only(VineCopulas._vine_params(fitted_distribution(model)).θ)]
+    fitted_pair = first(VineCopulas.vine_edges(fitted_distribution(model))).copula
+    @test coef(model) == [only(VineCopulas._vine_params(fitted_pair).θ)]
     @test dof(model) == npars(fitted_distribution(model)) == 1
     rows = edge_table(model)
     @test length(rows) == 1
-    @test rows[1].parameters == VineCopulas._vine_params(fitted_distribution(model))
+    @test rows[1].parameters == VineCopulas._vine_params(fitted_pair)
 end
 
 @testitem "Vine topology classification is mathematical" tags=[:Vine, :Structure, :VineModel] setup=[M] begin
