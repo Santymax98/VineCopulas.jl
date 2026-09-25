@@ -28,7 +28,7 @@
         @test sel.loglik == Distributions.loglikelihood(R, U)
     end
     τc = Copulas.τ(itau(ClaytonCopula, U))
-    @test Distributions.params(itau(ClaytonCopula, U)).θ ≈ 2τc / (1 - τc) atol=1e-10
+    @test VineCopulas._vine_params(itau(ClaytonCopula, U)).θ ≈ 2τc / (1 - τc) atol=1e-10
 
     # A rotated candidate is the Copulas.jl estimate on the reflected sample.
     Ur = rand(StableRNG(4202), SurvivalCopula(ClaytonCopula(2, 3.0), (1,)), 1600)
@@ -46,7 +46,7 @@
     # the sample, so it scores `Inf` and loses; it is not an error under
     # `strict=true`, because nothing failed.
     Cneg = fit(ClaytonCopula, Ur; method=:itau)
-    @test Distributions.params(Cneg).θ < 0
+    @test VineCopulas._vine_params(Cneg).θ < 0
     selneg = VineCopulas._fit_one_pair_family(ClaytonCopula, Ur, (); pair_method=:itau, selection_criterion=:bic, pair_kwargs=NamedTuple())
     @test Distributions.params(selneg.copula) == Distributions.params(Cneg)
     @test selneg.loglik == -Inf
@@ -128,19 +128,19 @@ end
     # Copulas.jl profiles nu on (0, ∞] and returns the Gaussian endpoint on
     # this sample (a nearby seed returns a finite nu near 1e7 instead).
     R = fit(TCopula, U; method=:itau)
-    @test isinf(Distributions.params(R).ν)
+    @test isinf(VineCopulas._vine_params(R).ν)
 
     # The candidate is an estimate on the boundary, not a failure: it scores
     # with the Gaussian likelihood and two parameters.
     sel = VineCopulas._fit_one_pair_family(TCopula, U, (); pair_method=:itau, selection_criterion=:bic, pair_kwargs=NamedTuple())
     @test isinf(sel.theta.ν)
     @test sel.npars == 2
-    G = GaussianCopula(Distributions.params(R).Σ)
+    G = GaussianCopula(VineCopulas._vine_params(R).Σ)
     @test sel.loglik ≈ Distributions.loglikelihood(G, U) atol=1e-8
     # BIC prefers the one-parameter Gaussian with the same likelihood.
     @test select_paircopula(U; family_set=(GaussianCopula, TCopula), pair_method=:itau, strict=true) isa GaussianCopula
     Cinf = select_paircopula(U; family_set=(TCopula,), pair_method=:itau, include_independence=false, strict=true)
-    @test Cinf isa TCopula && isinf(Distributions.params(Cinf).ν)
+    @test Cinf isa TCopula && isinf(VineCopulas._vine_params(Cinf).ν)
 
     # The vine evaluates `TCopula(Inf, Σ)` as the Gaussian copula: kernels
     # and the vine density agree with the Gaussian pair (this also covers a
