@@ -153,8 +153,8 @@ end
         kw = (; family_set=(FT,), pair_method=method, allow_rotations=false, include_independence=false, strict=true)
         Fe = select_paircopula(U2e; kw...)
         Fw = select_paircopula(U2; weights=m, kw...)
-        pe = VineCopulas._flatten_fit_params(Distributions.params(Fe))[2]
-        pw = VineCopulas._flatten_fit_params(Distributions.params(Fw))[2]
+        pe = VineCopulas._flatten_fit_params(VineCopulas._vine_params(Fe))[2]
+        pw = VineCopulas._flatten_fit_params(VineCopulas._vine_params(Fw))[2]
         @test pe ≈ pw atol=1e-6
     end
 
@@ -167,7 +167,7 @@ end
     kw = (; family_set=(ClaytonCopula,), allow_rotations=false, include_independence=false, strict=true)
     Fdrop = select_paircopula(U3[:, [1:16; 18:200]]; kw...)
     Fzero = select_paircopula(U3; weights=w0, kw...)
-    @test Distributions.params(Fzero).θ ≈ Distributions.params(Fdrop).θ atol=1e-6
+    @test VineCopulas._vine_params(Fzero).θ ≈ VineCopulas._vine_params(Fdrop).θ atol=1e-6
 
     # The weighted pseudo-likelihood is the weighted sum of the column logpdfs.
     C = ClaytonCopula(2, 1.8)
