@@ -12,12 +12,13 @@ fit(RVineCopula, U)
 ```
 
 Additional keywords control candidate families, criteria, rotations, structure,
-truncation, and thresholds:
+truncation, thresholds, and observation weights:
 
 ```julia
 fit(
     RVineCopula,
     U;
+    weights=nothing,
     family_set=:default,
     selection_criterion=:bic,
     tree_criterion=:tau,

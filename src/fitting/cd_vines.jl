@@ -24,26 +24,27 @@ end
 # C-vine sequential fitting
 # -----------------------------------------------------------------------------
 
-function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, D, criterion)
+function _cvine_choose_root(labels::Vector{Int}, cond::Vector{Vector{Float64}}, D, criterion, weights=nothing)
     length(labels) == 1 && return labels[1]
     # Every unordered pair contributes to the score of both endpoints. Compute
     # it once rather than twice. `D` is the set of roots already chosen: every
     # candidate pair at this tree is conditioned on it.
     scores = zeros(Float64, length(labels))
     @inbounds for j in 2:length(labels), i in 1:j-1
-        w = _tree_dependence(cond[labels[i]], cond[labels[j]], labels[i], labels[j], D, criterion,)
+        w = _tree_dependence(cond[labels[i]], cond[labels[j]], labels[i], labels[j], D, criterion, weights,)
         scores[i] += w
         scores[j] += w
     end
     return labels[argmax(scores)]
 end
 
-function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default,
+function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, weights=nothing, family_set=:default, pair_method::Symbol=:default,
     selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
     independence_test::Symbol=:none, independence_level::Real=0.05, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(),
     strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
+    w = _fit_weights(weights, size(X, 2))
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
     _check_independence_test(independence_test)
@@ -63,7 +64,7 @@ function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, family_set=:def
     levels = Vector{Dict{Int,_PairSelection}}(undef, q)
     for t in 1:q
         D = ord[1:(t - 1)]
-        root = explicit_order ? ord[t] : _cvine_choose_root(remaining, cond, D, tree_criterion)
+        root = explicit_order ? ord[t] : _cvine_choose_root(remaining, cond, D, tree_criterion, w)
 
         if !explicit_order
             push!(ord, root)
@@ -74,13 +75,13 @@ function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, family_set=:def
         level = Dict{Int,_PairSelection}()
 
         @inbounds for child in children
-            dep = _tree_dependence(cond[root], cond[child], root, child, D, tree_criterion,)
+            dep = _tree_dependence(cond[root], cond[child], root, child, D, tree_criterion, w,)
             pdata = Matrix{Float64}(undef, 2, size(X, 2))
             pdata[1, :] .= cond[root]
             pdata[2, :] .= cond[child]
             fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
                 preselect=preselect, include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
-                pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
+                pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold, weights=w,)
             level[child] = fit
         end
         # Update U_child | root only when another fitted tree will consume
@@ -117,11 +118,11 @@ end
 # D-vine order selection and sequential fitting
 # -----------------------------------------------------------------------------
 
-function _dependence_matrix(X::Matrix{Float64}, criterion)
+function _dependence_matrix(X::Matrix{Float64}, criterion, weights=nothing)
     p = size(X, 1)
     W = zeros(Float64, p, p)
     @inbounds for j in 2:p, i in 1:j-1
-        w = _tree_dependence(view(X, i, :), view(X, j, :), i, j, Int[], criterion,)
+        w = _tree_dependence(view(X, i, :), view(X, j, :), i, j, Int[], criterion, weights,)
         W[i, j] = w
         W[j, i] = w
     end
@@ -225,10 +226,10 @@ function _greedy_path(W::AbstractMatrix{<:Real})
     return path
 end
 
-function _select_dvine_order(X::Matrix{Float64}, criterion; order_method::Symbol=:auto, exact_order_max::Int=12,)
+function _select_dvine_order(X::Matrix{Float64}, criterion, weights=nothing; order_method::Symbol=:auto, exact_order_max::Int=12,)
     p = size(X, 1)
     exact_order_max >= 2 || throw(ArgumentError("exact_order_max must be at least 2"))
-    W = _dependence_matrix(X, criterion)
+    W = _dependence_matrix(X, criterion, weights)
 
     method = order_method
     if method === :auto
@@ -240,12 +241,13 @@ function _select_dvine_order(X::Matrix{Float64}, criterion; order_method::Symbol
     throw(ArgumentError("order_method must be :auto, :exact, :greedy, or :natural"))
 end
 
-function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
+function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, weights=nothing, order_method::Symbol=:auto, exact_order_max::Int=12,
     family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true,
     preselect::Bool=true, include_independence::Bool=true, independence_test::Symbol=:none, independence_level::Real=0.05,
     threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
+    w = _fit_weights(weights, size(X, 2))
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
     _check_independence_test(independence_test)
@@ -255,7 +257,7 @@ function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, order_method::S
     1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
 
     if order === nothing
-        ord, _ = _select_dvine_order(X, tree_criterion; order_method=order_method, exact_order_max=exact_order_max,)
+        ord, _ = _select_dvine_order(X, tree_criterion, w; order_method=order_method, exact_order_max=exact_order_max,)
     else
         ord = collect(Int, order)
         _check_order(ord) == p || throw(ArgumentError("order dimension does not match data"))
@@ -271,13 +273,13 @@ function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, order_method::S
 
         @inbounds for i in 1:m
             # Edge (ord[i], ord[i+t] | ord[i+1], …, ord[i+t-1]).
-            dep = _tree_dependence(L[i], R[i + t], ord[i], ord[i + t], ord[(i + 1):(i + t - 1)], tree_criterion,)
+            dep = _tree_dependence(L[i], R[i + t], ord[i], ord[i + t], ord[(i + 1):(i + t - 1)], tree_criterion, w,)
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= L[i]
             pdata[2, :] .= R[i + t]
             level[i] = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
                 allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence, independence_test=independence_test,
-                independence_level=independence_level, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
+                independence_level=independence_level, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold, weights=w,)
         end
 
         levels[t] = level

@@ -21,7 +21,7 @@ struct VineInference{M<:VineModel,V<:AbstractMatrix}
     nresamples::Int
 end
 
-function _canonical_vine_fit_kwargs(kwargs)
+function _canonical_vine_fit_kwargs(kwargs, weights)
     raw = (; kwargs...)
     # The candidate family domain is part of the estimator. Store the resolved
     # immutable tuple, not a caller-owned vector or a symbolic alias whose
@@ -29,10 +29,16 @@ function _canonical_vine_fit_kwargs(kwargs)
     family_set = _resolve_family_set(get(raw, :family_set, :default))
     clean = merge(raw, (; family_set=Tuple(family_set)))
     haskey(clean, :trace) && (clean = Base.structdiff(clean, (; trace=nothing)))
+    # The observation weights are stored validated and scaled to sum to n, the
+    # vector every fit below the entry point saw, or left out when unweighted.
+    clean = weights === nothing ? Base.structdiff(clean, (; weights=nothing)) : merge(clean, (; weights=weights))
     # Other mutable controls (order, structure, pair kwargs, etc.) are copied
     # so later caller mutation cannot change the meaning of a fitted model.
     return deepcopy(clean)
 end
+
+# The scaled observation weights of a fitted model, or `nothing`.
+_model_weights(M::VineModel) = get(M.recipe.kwargs, :weights, nothing)
 
 Copulas.fitted_distribution(M::VineModel) = M.result
 Copulas.fitting_method(M::VineModel) = M.recipe.method
@@ -62,12 +68,15 @@ truncation(M::VineModel) = truncation(Copulas.fitted_distribution(M))
 edges(M::VineModel) = edges(Copulas.fitted_distribution(M))
 vine_edges(M::VineModel) = vine_edges(Copulas.fitted_distribution(M))
 
-function Distributions.fit(::Type{VineModel}, ::Type{VT}, U; method::Symbol=:default, kwargs...) where {VT<:AbstractVineCopula}
+function Distributions.fit(::Type{VineModel}, ::Type{VT}, U; method::Symbol=:default, weights=nothing, kwargs...) where {VT<:AbstractVineCopula}
     effective = _check_vine_fit_method(method)
-    C = Distributions.fit(VT, U; method=effective, kwargs...)
+    C = Distributions.fit(VT, U; method=effective, weights=weights, kwargs...)
     X = _fit_data(U, length(C))
-    spec = _VineFitSpec(VT, effective, _canonical_vine_fit_kwargs(kwargs))
-    return VineModel(C, X, Float64(Distributions.loglikelihood(C, X)), spec)
+    # The stored `loglikelihood`, and hence `aic`, `bic` and `deviance`, are
+    # the weighted ones; `nobs` stays n, the weight total.
+    w = _fit_weights(weights, size(X, 2))
+    spec = _VineFitSpec(VT, effective, _canonical_vine_fit_kwargs(kwargs, w))
+    return VineModel(C, X, Float64(_weighted_loglikelihood(C, X, w)), spec)
 end
 
 Distributions.fit(::Type{VineModel}, ::Type{VT}, U, method; kwargs...) where {VT<:AbstractVineCopula} =
@@ -84,17 +93,18 @@ function _selected_pair_family(C::PairCopula, family_set::Tuple)
 end
 
 function _refit_selected_pair(template::PairCopula, U::AbstractMatrix{<:Real};
-    family_set::Tuple, pair_method::Symbol, pair_kwargs::NamedTuple)
+    family_set::Tuple, pair_method::Symbol, pair_kwargs::NamedTuple, weights=nothing)
     template isa Copulas.IndependentCopula && return template
     B = _pair_template_base(template)
     B isa Copulas.IndependentCopula && return template
     flips = template isa _ReflectedPairCopula ? Copulas.flips(template) : ()
-    fit = _fit_one_pair_family(_selected_pair_family(template, family_set), _fit_data(U, 2), flips;
-        pair_method=pair_method, selection_criterion=:loglik, pair_kwargs=pair_kwargs)
+    X, w = _weighted_sample(_fit_data(U, 2), weights)
+    fit = _fit_one_pair_family(_selected_pair_family(template, family_set), X, flips;
+        weights=w, pair_method=pair_method, selection_criterion=:loglik, pair_kwargs=pair_kwargs)
     return fit.copula
 end
 
-function _refit_cvine(template::CVineCopula, X; family_set, pair_method, pair_kwargs)
+function _refit_cvine(template::CVineCopula, X; family_set, pair_method, pair_kwargs, weights)
     p, n = size(X)
     ord, q = collect(order(template)), truncation(template)
     cond = [copy(@view X[j, :]) for j in 1:p]
@@ -103,7 +113,7 @@ function _refit_cvine(template::CVineCopula, X; family_set, pair_method, pair_kw
         root = ord[t]
         level = Vector{PairCopula}(undef, p - t)
         for (i, child) in enumerate(ord[(t + 1):p])
-            C = _refit_selected_pair(template.edges[t][i], vcat(cond[root]', cond[child]'); family_set, pair_method, pair_kwargs)
+            C = _refit_selected_pair(template.edges[t][i], vcat(cond[root]', cond[child]'); family_set, pair_method, pair_kwargs, weights)
             level[i] = C
             t < q && _pair_hfunc2!(cond[child], C, cond[root], cond[child])
         end
@@ -112,7 +122,7 @@ function _refit_cvine(template::CVineCopula, X; family_set, pair_method, pair_kw
     return CVineCopula(ord, [tuple(level...) for level in levels]; trunc=q)
 end
 
-function _refit_dvine(template::DVineCopula, X; family_set, pair_method, pair_kwargs)
+function _refit_dvine(template::DVineCopula, X; family_set, pair_method, pair_kwargs, weights)
     p, n = size(X)
     ord, q = collect(order(template)), truncation(template)
     L = [copy(@view X[ord[j], :]) for j in 1:p]
@@ -121,7 +131,7 @@ function _refit_dvine(template::DVineCopula, X; family_set, pair_method, pair_kw
     for t in 1:q
         level = Vector{PairCopula}(undef, p - t)
         for i in 1:(p - t)
-            C = _refit_selected_pair(template.edges[t][i], vcat(L[i]', R[i + t]'); family_set, pair_method, pair_kwargs)
+            C = _refit_selected_pair(template.edges[t][i], vcat(L[i]', R[i + t]'); family_set, pair_method, pair_kwargs, weights)
             level[i] = C
             t < q && _pair_hfuncs!(L[i], R[i + t], C, L[i], R[i + t])
         end
@@ -130,10 +140,10 @@ function _refit_dvine(template::DVineCopula, X; family_set, pair_method, pair_kw
     return DVineCopula(ord, [tuple(level...) for level in levels]; trunc=q)
 end
 
-function _refit_rvine(template::RVineCopula, X; family_set, pair_method, pair_kwargs)
+function _refit_rvine(template::RVineCopula, X; family_set, pair_method, pair_kwargs, weights)
     st, legacy = _standardize_fixed_rvine_structure(structure(template))
     if legacy
-        fitted = _refit_dvine(_as_dvine(template), X; family_set, pair_method, pair_kwargs)
+        fitted = _refit_dvine(_as_dvine(template), X; family_set, pair_method, pair_kwargs, weights)
         # Preserve the original public RVine representation even when the
         # optimized D-vine executor was used for the temporary refit.
         return RVineCopula(structure(template), edges(fitted))
@@ -149,7 +159,7 @@ function _refit_rvine(template::RVineCopula, X; family_set, pair_method, pair_kw
             a, b = ord[e], S[t][e]
             D = Int[S[r][e] for r in 1:(t - 1)]
             ua, ub = states[_state_key(a, D)], states[_state_key(b, D)]
-            C = _refit_selected_pair(template.edges[t][e], vcat(ua', ub'); family_set, pair_method, pair_kwargs)
+            C = _refit_selected_pair(template.edges[t][e], vcat(ua', ub'); family_set, pair_method, pair_kwargs, weights)
             level[e] = C
             if t < q
                 ha, hb = Vector{Float64}(undef, n), Vector{Float64}(undef, n)
@@ -163,15 +173,20 @@ function _refit_rvine(template::RVineCopula, X; family_set, pair_method, pair_kw
     return RVineCopula(ord, S, [tuple(level...) for level in levels]; trunc=q)
 end
 
-function _refit(M::VineModel, U)
+# Refit the model's structure, families and rotations on `U`, whose columns
+# carry the observation weights `weights` (`nothing` when the model is
+# unweighted). A bootstrap resample of a weighted fit is a resample of the
+# (observation, weight) pairs, so each drawn column keeps its own weight.
+function _refit(M::VineModel, U, weights=nothing)
     X = _fit_data(U, length(M.result))
     kw = M.recipe.kwargs
     common = (; family_set=kw.family_set, pair_method=get(kw, :pair_method, :default),
-              pair_kwargs=get(kw, :pair_kwargs, NamedTuple()))
+              pair_kwargs=get(kw, :pair_kwargs, NamedTuple()), weights=weights)
     C = M.result isa CVineCopula ? _refit_cvine(M.result, X; common...) :
         M.result isa DVineCopula ? _refit_dvine(M.result, X; common...) :
         _refit_rvine(M.result, X; common...)
-    return VineModel(C, X, Float64(Distributions.loglikelihood(C, X)), M.recipe)
+    spec = _VineFitSpec(M.recipe.target, M.recipe.method, _canonical_vine_fit_kwargs(kw, weights))
+    return VineModel(C, X, Float64(_weighted_loglikelihood(C, X, weights)), spec)
 end
 
 function Copulas.infer(M::VineModel; method::Symbol=:default, nresamples::Integer=200, rng=Random.default_rng())
@@ -180,10 +195,12 @@ function Copulas.infer(M::VineModel; method::Symbol=:default, nresamples::Intege
     nresamples > 1 || throw(ArgumentError("nresamples must be greater than one"))
     p, n, B = StatsBase.dof(M), StatsBase.nobs(M), Int(nresamples)
     p == 0 && return VineInference(M, :bootstrap, LinearAlgebra.Symmetric(zeros(Float64, 0, 0)), B)
+    w = _model_weights(M)
     estimates = Matrix{Float64}(undef, B, p)
     for b in 1:B
-        sample = @view M.data[:, rand(rng, 1:n, n)]
-        estimates[b, :] .= StatsBase.coef(_refit(M, sample))
+        idx = rand(rng, 1:n, n)
+        sample = @view M.data[:, idx]
+        estimates[b, :] .= StatsBase.coef(_refit(M, sample, w === nothing ? nothing : w[idx]))
     end
     V = Statistics.cov(estimates; corrected=true)
     all(isfinite, V) || throw(ArgumentError("bootstrap inference produced a non-finite covariance matrix"))
@@ -283,6 +300,8 @@ function Base.show(io::IO, M::VineModel)
     println(io, "VineModel: ", nameof(typeof(C)))
     println(io, "  dimension:       ", length(C))
     println(io, "  observations:    ", StatsBase.nobs(M))
+    _model_weights(M) === nothing ||
+        println(io, "  weights:         yes, scaled to sum to the number of observations")
     println(io, "  method:          ", Copulas.fitting_method(M))
     println(io, "  topology class:  ", vine_kind(C))
     println(io, "  truncation:      ", truncation(C))
