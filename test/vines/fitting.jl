@@ -10,7 +10,7 @@
         selected = VineCopulas._fit_one_pair_family(Copulas.FGMCopula, U, ();
             pair_method=requested, selection_criterion=:bic, pair_kwargs=(;),)
         @test selected.method == Copulas.fitting_method(model)
-        @test selected.theta == params(Copulas.fitted_distribution(model))
+        @test Tuple(values(selected.theta)) == Tuple(values(VineCopulas._vine_params(Copulas.fitted_distribution(model))))
         @test selected.loglik == Distributions.loglikelihood(Copulas.fitted_distribution(model), U)
         @test selected.family == "FGM"
     end
@@ -20,7 +20,7 @@
     )
     @test C isa Copulas.ClaytonCopula{2}
     @test VineCopulas._short_family_name(C) == "Clayton"
-    @test params(C).θ == meta.θ̂.theta
+    @test params(C)[1] == meta.θ̂.theta
 end
 
 @testitem "Fit API – PairCopula selection" tags=[:Fit, :PairCopula] setup=[M] begin
@@ -85,7 +85,7 @@ end
                                  preselect=false, include_independence=false, strict=true,)
 
     base = S.copula isa SurvivalCopula ? S.copula.C : S.copula
-    θ = Distributions.params(base).θ
+    θ = Distributions.params(base)[1]
     @test 1.0e-10 < θ < 28.0
     @test isfinite(S.loglik)
     @test S.rotation in (0, 90, 180, 270)
@@ -112,8 +112,8 @@ end
                                  preselect=false, include_independence=false, strict=true,)
 
     p = Distributions.params(S.copula)
-    @test abs(p.Σ[1, 2]) < 1.0
-    @test 2.0 < p.ν < 50.0
+    @test abs(p[2][1, 2]) < 1.0
+    @test 2.0 < p[1] < 50.0
     @test isfinite(S.loglik)
 
     # Direct Copulas.jl construction keeps the broader nu > 0 domain.
@@ -138,7 +138,7 @@ end
         S = VineCopulas._select_pair(U; family_set=(FT,), pair_method=:mle, selection_criterion=:aic, allow_rotations=true,
                                      preselect=false, include_independence=false, strict=true,)
         base = S.copula isa SurvivalCopula ? S.copula.C : S.copula
-        theta = Distributions.params(base).θ
+        theta = Distributions.params(base)[1]
         @test 1.0 < theta < hi
         @test isfinite(S.loglik)
         @test S.rotation in (0, 90, 180, 270)
@@ -176,12 +176,12 @@ end
     S = VineCopulas._select_pair(U; family_set=(GaussianCopula,), pair_method=:mle, selection_criterion=:aic, allow_rotations=false,
                                  preselect=false, include_independence=false, strict=true,)
     @test S.copula isa GaussianCopula
-    rho = Distributions.params(S.copula).Σ[1, 2]
+    rho = Distributions.params(S.copula)[1][1, 2]
     @test rho ≈ 0.5561662333 atol=5.0e-5
     @test S.loglik ≈ 5.140188517 atol=2.0e-6
 
     public_fit = fit(GaussianCopula, U; method=:mle)
-    public_rho = Distributions.params(public_fit).Σ[1, 2]
+    public_rho = Distributions.params(public_fit)[1][1, 2]
     public_loglik = Distributions.loglikelihood(public_fit, U)
     @test rho ≈ public_rho atol=1.0e-8
     @test S.loglik ≈ public_loglik atol=1.0e-12
@@ -191,7 +191,7 @@ end
     @test selected.method == :mle
     @test selected.loglik ≈ public_loglik atol=1.0e-12
     @test selected.score ≈ -2public_loglik + 2 atol=1.0e-12
-    @test selected.theta == Distributions.params(public_fit)
+    @test Tuple(values(selected.theta)) == Tuple(Distributions.params(public_fit))
 
     # Check local optimality directly in copula likelihood, not merely against
     # a particular external optimizer implementation.
@@ -219,7 +219,7 @@ end
         S = VineCopulas._select_pair(U; family_set=(FT,), pair_method=:mle, selection_criterion=:aic, allow_rotations=false,
                                      preselect=false, include_independence=false, strict=true,)
         base = S.copula isa SurvivalCopula ? S.copula.C : S.copula
-        theta = Distributions.params(base).θ
+        theta = Distributions.params(base)[1]
         @test theta > guard
         @test isfinite(S.loglik)
     end

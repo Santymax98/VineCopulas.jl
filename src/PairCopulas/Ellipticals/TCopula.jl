@@ -4,10 +4,10 @@ struct _StudentPairKernel{R<:Real,D} <: Copulas.Copula{2}
 end
 const _StudentPair = Union{Copulas.TCopula{2},_StudentPairKernel}
 function _prepare_pair(C::Copulas.TCopula{2})
-    p = Distributions.params(C)
+    p = _vine_params(C)
     return _StudentPairKernel(p.Σ[1, 2], p.ν)
 end
-@inline _student_rho(C::Copulas.TCopula{2}) = Distributions.params(C).Σ[1, 2]
+@inline _student_rho(C::Copulas.TCopula{2}) = _vine_params(C).Σ[1, 2]
 @inline _student_rho(C::_StudentPairKernel) = C.rho
 @inline _tcopula_df(C::_StudentPairKernel) = C.nu
 
@@ -51,9 +51,7 @@ end
 @inline _t_float(::Val{ν}) where {ν} = Float64(ν)
 @inline _t_plus_one(ν::Real) = ν + 1
 @inline _t_plus_one(::Val{ν}) where {ν} = Val(ν + 1)
-@inline _tcopula_df(C::CT) where {ν,S,CT<:Copulas.TCopula{2,ν,S}} = _tcopula_df(C, Val(:df in fieldnames(CT)), Val(ν))
-@inline _tcopula_df(C, ::Val{true}, ::Val) = Distributions.params(C).ν
-@inline _tcopula_df(C, ::Val{false}, ::Val{ν}) where {ν} = Val(ν)
+@inline _tcopula_df(C::Copulas.TCopula{2}) = _vine_params(C).ν
 
 @inline function _t_pair_inputs(C::_StudentPair, u::Real, v::Real,)
     ρ = _student_rho(C)

@@ -7,17 +7,17 @@
 # z = log(s), where log|ϕ'| is smooth and strictly decreasing. The same stable
 # coordinate protocol is shared with BB2 and future BB implementations.
 @inline function _arch_coordinate(C::Copulas.BB1Copula{2}, u::Real)
-    θ, δ, uu = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(u))
+    θ, δ, uu = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(u))
     return δ * LogExpFunctions.logexpm1(-θ * log(uu))
 end
 
 @inline function _arch_probability(C::Copulas.BB1Copula{2}, z::Real)
-    θ, δ, zz = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(z))
+    θ, δ, zz = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(z))
     return exp(-LogExpFunctions.log1pexp(zz / δ) / θ)
 end
 
 @inline function _arch_logderivative(C::Copulas.BB1Copula{2}, z::Real)
-    θ, δ, zz = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(z))
+    θ, δ, zz = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(z))
     a, b = inv(δ), inv(θ)
     return log(a) + log(b) + (a - one(zz)) * zz - (b + one(zz)) * LogExpFunctions.log1pexp(a * zz)
 end
@@ -29,7 +29,7 @@ function _arch_inverse_logderivative(C::Copulas.BB1Copula{2}, logm::Real)
     lm == -T(Inf) && return T(Inf)
     lm == T(Inf) && return -T(Inf)
 
-    θ, δ = T(Distributions.params(C).θ), T(Distributions.params(C).δ)
+    θ, δ = T(_vine_params(C).θ), T(_vine_params(C).δ)
     θ > zero(T) || throw(DomainError(θ, "The BB1 copula requires θ > 0."))
     δ > one(T) || throw(DomainError(δ, "A genuine BB1 copula requires δ > 1; δ = 1 reduces to Clayton."))
 
@@ -59,7 +59,7 @@ end
 
 # If L(z) = log|ϕ'(exp(z))|, then log(ϕ''(s)) = L(z) + log(-L'(z)) - z.
 @inline function _arch_pair_logpdf(C::Copulas.BB1Copula{2}, u::Real, v::Real)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     a, b = inv(float(p.δ)), inv(float(p.θ))
     zu, zv = _arch_coordinate(C, u), _arch_coordinate(C, v)
     z = _arch_combine(C, zu, zv)
@@ -68,16 +68,11 @@ end
            _arch_logderivative(C, zu) - _arch_logderivative(C, zv)
 end
 
-@inline _pair_logpdf(C::Copulas.BB1Copula{2}, u::Real, v::Real, ::Vector{Float64}) =
-    _arch_pair_logpdf(C, _clp(u), _clp(v))
-@inline hfunc1(C::Copulas.BB1Copula{2}, u::Real, v::Real) =
-    _clp(_arch_hfunc(C, _clp(u), _clp(v)))
-@inline hfunc2(C::Copulas.BB1Copula{2}, u::Real, v::Real) =
-    _clp(_arch_hfunc(C, _clp(v), _clp(u)))
-@inline hinv1(C::Copulas.BB1Copula{2}, q::Real, v::Real) =
-    _clp(_arch_hinv(C, _clp(q), _clp(v)))
-@inline hinv2(C::Copulas.BB1Copula{2}, q::Real, u::Real) =
-    _clp(_arch_hinv(C, _clp(q), _clp(u)))
+@inline _pair_logpdf(C::Copulas.BB1Copula{2}, u::Real, v::Real, ::Vector{Float64}) = _arch_pair_logpdf(C, _clp(u), _clp(v))
+@inline hfunc1(C::Copulas.BB1Copula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C, _clp(u), _clp(v)))
+@inline hfunc2(C::Copulas.BB1Copula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C, _clp(v), _clp(u)))
+@inline hinv1(C::Copulas.BB1Copula{2}, q::Real, v::Real) = _clp(_arch_hinv(C, _clp(q), _clp(v)))
+@inline hinv2(C::Copulas.BB1Copula{2}, q::Real, u::Real) = _clp(_arch_hinv(C, _clp(q), _clp(u)))
 
 @inline function _pair_hfuncs(C::Copulas.BB1Copula{2}, u::Real, v::Real)
     h1, h2 = _arch_hfuncs(C, _clp(u), _clp(v))

@@ -2,21 +2,18 @@
 # Clayton pair-copula fast paths
 #
 # These kernels deliberately depend only on the public ClaytonCopula
-# contract and Distributions.params(C).  They do not inspect the stored
+# contract and _vine_params(C).  They do not inspect the stored
 # Archimedean generator or call generator-level Copulas.jl internals.
 # ---------------------------------------------------------------------
 
 @inline function _clayton_terms(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,)
-    θ, uu, vv = promote(float(Distributions.params(C).θ), float(u), float(v),)
+    θ, uu, vv = promote(float(_vine_params(C).θ), float(u), float(v),)
     θ < -one(θ) && throw(DomainError(θ, "A bivariate Clayton copula requires θ ≥ -1."))
     uu, vv = _clp(uu), _clp(vv)
     lu = log(uu)
     lv = log(vv)
     # For θ > 0, avoid forming u^(-θ) and v^(-θ) separately:
-    #
-    # log(u^(-θ) + v^(-θ) - 1)
-    #   = logsubexp(logaddexp(-θ log u, -θ log v), 0).
-    #
+    # log(u^(-θ) + v^(-θ) - 1) = logsubexp(logaddexp(-θ log u, -θ log v), 0).
     # This stays finite much deeper in the tails.
     if θ > zero(θ)
         logs = LogExpFunctions.logsubexp(LogExpFunctions.logaddexp(-θ * lu, -θ * lv), zero(θ),)
@@ -80,14 +77,8 @@ end
     return (_clayton_h_from_terms(θ, lv, logs), _clayton_h_from_terms(θ, lu, logs),)
 end
 
-@inline function hfunc1(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,)
-    return _clp(_clayton_hfunc(C, _clp(u), _clp(v)))
-end
-
-@inline function hfunc2(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,)
-    return _clp(_clayton_hfunc(C, _clp(v), _clp(u)))
-end
-
+@inline hfunc1(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,) = _clp(_clayton_hfunc(C, _clp(u), _clp(v)))
+@inline hfunc2(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,) = _clp(_clayton_hfunc(C, _clp(v), _clp(u)))
 
 @inline function _pair_hfuncs(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,)
     uu, vv = _clp(u), _clp(v)
@@ -163,7 +154,7 @@ end
 end
 
 @inline function _clayton_hinv(C::Copulas.ClaytonCopula{2}, q::Real, base::Real,)
-    θ, qq, bb = promote(float(Distributions.params(C).θ), float(q), float(base),)
+    θ, qq, bb = promote(float(_vine_params(C).θ), float(q), float(base),)
     qq = clamp(qq, zero(qq), one(qq))
     bb = _clp(bb)
     # Continuous independence limit.
@@ -183,10 +174,5 @@ end
     return clamp(exp((-inv(θ)) * log(z)), zero(θ),one(θ),)
 end
 
-@inline function hinv1(C::Copulas.ClaytonCopula{2}, q::Real, v::Real,)
-    return _clp(_clayton_hinv(C, _clp(q), _clp(v),),)
-end
-
-@inline function hinv2(C::Copulas.ClaytonCopula{2}, q::Real, u::Real,)
-    return _clp(_clayton_hinv(C, _clp(q), _clp(u),),)
-end
+@inline hinv1(C::Copulas.ClaytonCopula{2}, q::Real, v::Real,) = _clp(_clayton_hinv(C, _clp(q), _clp(v),),)
+@inline hinv2(C::Copulas.ClaytonCopula{2}, q::Real, u::Real,) = _clp(_clayton_hinv(C, _clp(q), _clp(u),),)

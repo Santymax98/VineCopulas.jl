@@ -8,17 +8,17 @@
 # family-named helper APIs.
 
 @inline function _arch_coordinate(C::Copulas.BB2Copula{2}, u::Real)
-    θ, δ, uu = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(u))
+    θ, δ, uu = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(u))
     return δ * expm1(-θ * log(uu))
 end
 
 @inline function _arch_probability(C::Copulas.BB2Copula{2}, L::Real)
-    θ, δ, LL = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(L))
+    θ, δ, LL = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(L))
     return exp(-log1p(LL / δ) / θ)
 end
 
 @inline function _arch_logderivative(C::Copulas.BB2Copula{2}, L::Real)
-    θ, δ, LL = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(L))
+    θ, δ, LL = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(L))
     return -log(θ) - log(δ) - LL - (one(LL) + inv(θ)) * log1p(LL / δ)
 end
 
@@ -29,7 +29,7 @@ function _arch_inverse_logderivative(C::Copulas.BB2Copula{2}, logm::Real)
     lm == -T(Inf) && return T(Inf)
     lm == T(Inf) && return zero(T)
 
-    θ, δ = T(Distributions.params(C).θ), T(Distributions.params(C).δ)
+    θ, δ = T(_vine_params(C).θ), T(_vine_params(C).δ)
     a = one(T) + inv(θ)
     logv = -log(a) + (δ + (a - one(T)) * log(δ) - log(θ) - lm) / a
     return max(a * exp(_log_lambertw_exp(logv)) - δ, zero(T))
@@ -50,7 +50,7 @@ end
 
 # L = log(1+s): the density stays in log coordinates, even when s overflows.
 @inline function _arch_pair_logpdf(C::Copulas.BB2Copula{2}, u::Real, v::Real)
-    p = Distributions.params(C)
+    p = _vine_params(C)
     θ, δ = float(p.θ), float(p.δ)
     Lu, Lv = _arch_coordinate(C, u), _arch_coordinate(C, v)
     L = _arch_combine(C, Lu, Lv)
@@ -59,16 +59,11 @@ end
            _arch_logderivative(C, Lu) - _arch_logderivative(C, Lv)
 end
 
-@inline _pair_logpdf(C::Copulas.BB2Copula{2}, u::Real, v::Real, ::Vector{Float64}) =
-    _arch_pair_logpdf(C, _clp(u), _clp(v))
-@inline hfunc1(C::Copulas.BB2Copula{2}, u::Real, v::Real) =
-    _clp(_arch_hfunc(C, _clp(u), _clp(v)))
-@inline hfunc2(C::Copulas.BB2Copula{2}, u::Real, v::Real) =
-    _clp(_arch_hfunc(C, _clp(v), _clp(u)))
-@inline hinv1(C::Copulas.BB2Copula{2}, q::Real, v::Real) =
-    _clp(_arch_hinv(C, _clp(q), _clp(v)))
-@inline hinv2(C::Copulas.BB2Copula{2}, q::Real, u::Real) =
-    _clp(_arch_hinv(C, _clp(q), _clp(u)))
+@inline _pair_logpdf(C::Copulas.BB2Copula{2}, u::Real, v::Real, ::Vector{Float64}) = _arch_pair_logpdf(C, _clp(u), _clp(v))
+@inline hfunc1(C::Copulas.BB2Copula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C, _clp(u), _clp(v)))
+@inline hfunc2(C::Copulas.BB2Copula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C, _clp(v), _clp(u)))
+@inline hinv1(C::Copulas.BB2Copula{2}, q::Real, v::Real) = _clp(_arch_hinv(C, _clp(q), _clp(v)))
+@inline hinv2(C::Copulas.BB2Copula{2}, q::Real, u::Real) = _clp(_arch_hinv(C, _clp(q), _clp(u)))
 
 @inline function _pair_hfuncs(C::Copulas.BB2Copula{2}, u::Real, v::Real)
     h1, h2 = _arch_hfuncs(C, _clp(u), _clp(v))

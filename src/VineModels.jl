@@ -80,9 +80,7 @@ function _selected_pair_family(C::PairCopula, family_set::Tuple)
     for FT in family_set
         B isa FT && return FT
     end
-    throw(ArgumentError(
-        "selected pair family $(typeof(B)) is absent from the fitted model's family_set"
-    ))
+    throw(ArgumentError("selected pair family $(typeof(B)) is absent from the fitted model's family_set"))
 end
 
 function _refit_selected_pair(template::PairCopula, U::AbstractMatrix{<:Real};
@@ -207,7 +205,7 @@ function edge_table(M::VineModel)
     [(
         tree=e.tree, edge=e.index, conditioned=e.conditioned, conditioning=e.conditioning,
         family=_short_family_name(e.copula), rotation=_rotation_of(e.copula),
-        parameters=Distributions.params(e.copula),
+        parameters=_vine_params(e.copula),
     ) for e in vine_edges(M)]
 end
 

@@ -6,21 +6,21 @@
 # inversion has no useful general closed form, but log|ϕ′| is strictly
 # decreasing in z = log(L/δ), so the common safeguarded Newton solver applies.
 @inline function _arch_coordinate(C::Copulas.BB3Copula{2}, u::Real)
-    θ, δ, uu = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(u))
+    θ, δ, uu = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(u))
     x = -log(uu)
     iszero(x) && return zero(x)
     return δ * exp(θ * log(x))
 end
 
 @inline function _arch_probability(C::Copulas.BB3Copula{2}, L::Real)
-    θ, δ, LL = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(L))
+    θ, δ, LL = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(L))
     LL >= zero(LL) || throw(DomainError(L, "The BB3 coordinate must be non-negative."))
     iszero(LL) && return one(LL)
     return exp(-exp((log(LL) - log(δ)) / θ))
 end
 
 @inline function _arch_logderivative(C::Copulas.BB3Copula{2}, L::Real)
-    θ, δ, LL = promote(float(Distributions.params(C).θ), float(Distributions.params(C).δ), float(L))
+    θ, δ, LL = promote(float(_vine_params(C).θ), float(_vine_params(C).δ), float(L))
     LL >= zero(LL) || throw(DomainError(L, "The BB3 coordinate must be non-negative."))
     isinf(LL) && return -oftype(LL, Inf)
 
@@ -39,7 +39,7 @@ function _arch_inverse_logderivative(C::Copulas.BB3Copula{2}, logm::Real)
     isnan(lm) && throw(DomainError(logm, "log|ϕ'| cannot be NaN."))
     lm == -T(Inf) && return T(Inf)
 
-    θ, δ = T(Distributions.params(C).θ), T(Distributions.params(C).δ)
+    θ, δ = T(_vine_params(C).θ), T(_vine_params(C).δ)
     θ >= one(T) || throw(DomainError(θ, "The BB3 generator requires θ ≥ 1."))
     δ > zero(T) || throw(DomainError(δ, "The BB3 generator requires δ > 0."))
 
@@ -77,7 +77,7 @@ end
 
 # log(ϕ''(s)) = M(L) + log(-M'(L)) - L, with L = log(1+s).
 @inline function _arch_pair_logpdf(C::Copulas.BB3Copula{2}, u::Real, v::Real)
-    params = Distributions.params(C)
+    params = _vine_params(C)
     p, δ = inv(float(params.θ)), float(params.δ)
     Lu, Lv = _arch_coordinate(C, u), _arch_coordinate(C, v)
     L = _arch_combine(C, Lu, Lv)
@@ -86,16 +86,11 @@ end
     return _arch_logderivative(C, L) + logslope - L -
            _arch_logderivative(C, Lu) - _arch_logderivative(C, Lv)
 end
-@inline _pair_logpdf(C::Copulas.BB3Copula{2}, u::Real, v::Real, ::Vector{Float64}) =
-    _arch_pair_logpdf(C, _clp(u), _clp(v))
-@inline hfunc1(C::Copulas.BB3Copula{2}, u::Real, v::Real) =
-    _clp(_arch_hfunc(C, _clp(u), _clp(v)))
-@inline hfunc2(C::Copulas.BB3Copula{2}, u::Real, v::Real) =
-    _clp(_arch_hfunc(C, _clp(v), _clp(u)))
-@inline hinv1(C::Copulas.BB3Copula{2}, q::Real, v::Real) =
-    _clp(_arch_hinv(C, _clp(q), _clp(v)))
-@inline hinv2(C::Copulas.BB3Copula{2}, q::Real, u::Real) =
-    _clp(_arch_hinv(C, _clp(q), _clp(u)))
+@inline _pair_logpdf(C::Copulas.BB3Copula{2}, u::Real, v::Real, ::Vector{Float64}) = _arch_pair_logpdf(C, _clp(u), _clp(v))
+@inline hfunc1(C::Copulas.BB3Copula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C, _clp(u), _clp(v)))
+@inline hfunc2(C::Copulas.BB3Copula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C, _clp(v), _clp(u)))
+@inline hinv1(C::Copulas.BB3Copula{2}, q::Real, v::Real) = _clp(_arch_hinv(C, _clp(q), _clp(v)))
+@inline hinv2(C::Copulas.BB3Copula{2}, q::Real, u::Real) = _clp(_arch_hinv(C, _clp(q), _clp(u)))
 
 @inline function _pair_hfuncs(C::Copulas.BB3Copula{2}, u::Real, v::Real)
     h1, h2 = _arch_hfuncs(C, _clp(u), _clp(v))

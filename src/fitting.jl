@@ -112,9 +112,7 @@ export DEFAULT_PAIR_FAMILIES, ALL_PARAMETRIC_PAIR_FAMILIES
     family_set === :all && return ALL_PARAMETRIC_PAIR_FAMILIES
     family_set isa Tuple && return family_set
     family_set isa AbstractVector && return Tuple(family_set)
-    throw(ArgumentError(
-        "family_set must be :default, :all, a tuple, or a vector of bivariate copula types"
-    ))
+    throw(ArgumentError("family_set must be :default, :all, a tuple, or a vector of bivariate copula types"))
 end
 
 # -----------------------------------------------------------------------------
@@ -124,9 +122,7 @@ end
 @inline _choose2(n::Integer) = n <= 1 ? 0 : (n * (n - 1)) ÷ 2
 
 @inline function _check_selection_criterion(criterion::Symbol)
-    criterion in (:loglik, :aic, :bic) || throw(ArgumentError(
-        "selection_criterion must be :loglik, :aic, or :bic"
-    ))
+    criterion in (:loglik, :aic, :bic) || throw(ArgumentError("selection_criterion must be :loglik, :aic, or :bic"))
     return criterion
 end
 
@@ -149,12 +145,8 @@ themselves carry no meaning beyond equality.
 """
 @inline function _check_groups(groups, p::Int)
     groups === nothing && return nothing
-    groups isa AbstractVector{<:Integer} || throw(ArgumentError(
-        "groups must be nothing or a vector of integer group ids, one per variable"
-    ))
-    length(groups) == p || throw(DimensionMismatch(
-        "groups has length $(length(groups)) but the data has $p variables"
-    ))
+    groups isa AbstractVector{<:Integer} || throw(ArgumentError("groups must be nothing or a vector of integer group ids, one per variable"))
+    length(groups) == p || throw(DimensionMismatch("groups has length $(length(groups)) but the data has $p variables"))
     return collect(Int, groups)
 end
 
@@ -661,9 +653,7 @@ naming the edge and the value.
 end
 function _tree_dependence(x, y, a, b, D, criterion::Function)
     w = criterion(x, y, a, b, D)
-    (w isa Real && isfinite(w)) || throw(ArgumentError(
-        "tree_criterion returned $(repr(w)) on the edge ($a, $b | $(join(D, ", "))); it must return a finite Real"
-    ))
+    (w isa Real && isfinite(w)) || throw(ArgumentError("tree_criterion returned $(repr(w)) on the edge ($a, $b | $(join(D, ", "))); it must return a finite Real"))
     return Float64(w)
 end
 

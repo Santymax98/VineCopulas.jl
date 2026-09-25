@@ -10,9 +10,8 @@ Return the log-density at a single point or the summed log-likelihood over a
 loglikelihood(vc::AbstractVineCopula, u::AbstractVector{<:Real}) = Distributions.logpdf(vc, u)
 loglikelihood(vc::AbstractVineCopula, U::AbstractMatrix{<:Real}) = sum(Distributions.logpdf(vc, U))
 
-# This is a structural count based on Distributions.params. It is suitable for
-# the currently supported bivariate families, but fitted wrappers may later
-# specialize npars to report their number of free parameters exactly.
+# Count the normalized public mathematical parameters, rather than the raw
+# upstream representation (which may include structural matrices or vectors).
 """
     npars(C)
     npars(vine)
@@ -20,7 +19,7 @@ loglikelihood(vc::AbstractVineCopula, U::AbstractMatrix{<:Real}) = sum(Distribut
 Return a lightweight structural parameter count. For pair-copulas this uses
 `Distributions.params` when available. For vines it sums over all active edges.
 """
-npars(C::PairCopula) = applicable(Distributions.params, C) ? length(Distributions.params(C)) : 0
+npars(C::PairCopula) = applicable(Distributions.params, C) ? length(_flatten_fit_params(_vine_named_params(_vine_params(C)))[2]) : 0
 npars(vc::AbstractVineCopula) = sum(npars, Iterators.flatten(edges(vc)))
 
 """
