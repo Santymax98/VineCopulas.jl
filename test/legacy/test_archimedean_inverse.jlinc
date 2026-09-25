@@ -15,27 +15,27 @@ function _check_derivative_inverse(G, s; atol=1e-9, rtol=1e-9)
 end
 
 _inverse_test_generator(C::Copulas.BB1Copula{2}) =
-    Copulas.BB1Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+    Copulas.BB1Generator(Distributions.params(C)[1], Distributions.params(C)[2])
 _inverse_test_generator(C::Copulas.BB6Copula{2}) =
-    Copulas.BB6Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+    Copulas.BB6Generator(Distributions.params(C)[1], Distributions.params(C)[2])
 
 _inverse_test_generator(C::Copulas.BB7Copula{2}) =
-    Copulas.BB7Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+    Copulas.BB7Generator(Distributions.params(C)[1], Distributions.params(C)[2])
 
 _inverse_test_generator(C::Copulas.BB8Copula{2}) =
-    Copulas.BB8Generator(Distributions.params(C).ϑ, Distributions.params(C).δ)
+    Copulas.BB8Generator(Distributions.params(C)[1], Distributions.params(C)[2])
 
 _inverse_test_generator(C::Copulas.BB2Copula{2}) =
-    Copulas.BB2Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+    Copulas.BB2Generator(Distributions.params(C)[1], Distributions.params(C)[2])
 
 _inverse_test_generator(C::Copulas.BB3Copula{2}) =
-    Copulas.BB3Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+    Copulas.BB3Generator(Distributions.params(C)[1], Distributions.params(C)[2])
 
 _inverse_test_generator(C::Copulas.BB9Copula{2}) =
-    Copulas.BB9Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+    Copulas.BB9Generator(Distributions.params(C)[1], Distributions.params(C)[2])
 
 _inverse_test_generator(C::Copulas.BB10Copula{2}) =
-    Copulas.BB10Generator(Distributions.params(C).θ, Distributions.params(C).δ)
+    Copulas.BB10Generator(Distributions.params(C)[1], Distributions.params(C)[2])
 
 # The generator remains an independent mathematical reference only.
 function _check_derivative_inverse(C::Copulas.Copula{2}, s; atol=1e-9, rtol=1e-9)

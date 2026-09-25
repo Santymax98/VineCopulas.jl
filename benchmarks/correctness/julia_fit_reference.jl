@@ -71,21 +71,19 @@ end
     return VineCopulas._rotation_from_flips(VineCopulas._survival_flips(C))
 end
 
-base_pair(C) = C isa Copulas.SurvivalCopula ? C.C : C
-
-_t_df(::Copulas.TCopula{D,NU,S}) where {D,NU,S} = Float64(NU)
+base_pair(C) = C isa Copulas.SurvivalCopula ? Copulas.basecopula(C) : C
 
 function pair_params(C)
     B = base_pair(C)
     if B isa Copulas.IndependentCopula
         return Float64[]
     elseif B isa Copulas.GaussianCopula
-        return [Float64(B.Σ[1, 2])]
+        return [Float64(VineCopulas._vine_params(B).Σ[1, 2])]
     elseif B isa Copulas.TCopula
-        return [Float64(B.Σ[1, 2]), _t_df(B)]
+        p = VineCopulas._vine_params(B)
+        return [Float64(p.Σ[1, 2]), Float64(p.ν)]
     end
-    nt = Distributions.params(B)
-    θ = nt isa NamedTuple ? nt : (; parameters=collect(nt))
+    θ = VineCopulas._vine_named_params(VineCopulas._vine_params(B))
     _, vals = VineCopulas._flatten_fit_params(θ)
     return Float64.(vals)
 end
