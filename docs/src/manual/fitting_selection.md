@@ -355,6 +355,53 @@ It cannot restore pair-copulas that are not present in the input.
     the existing engines assume at least one active tree. Level-zero truncation
     is a roadmap item, not a hidden feature.
 
+## Threaded fitting
+
+The pair-copula fits of one tree are independent of each other, and so are the
+family candidates of one edge. `threaded=true` runs both on tasks:
+
+```julia
+fit(RVineCopula, U; threaded=true)
+fit(VineModel, DVineCopula, U; threaded=true)
+select_paircopula(U2; threaded=true)
+```
+
+Start Julia with the threads you want to use (`julia -t 8`, or
+`JULIA_NUM_THREADS=8`) and keep BLAS single-threaded
+(`LinearAlgebra.BLAS.set_num_threads(1)`), since the pair likelihoods are scalar
+work and a BLAS pool would only compete with the tasks. On one thread the
+keyword changes nothing but the scheduling.
+
+The result does not depend on the thread count or on the order in which the
+fits finish. The candidate list of an edge is fixed before any fit runs (family
+order, then rotation order), each candidate writes its own slot, and the best
+candidate is read off the slots in that order, exactly as the sequential loop
+chooses it. The edges of a tree write their own slots too, and the h-function
+propagation to the next tree runs only after every edge of the tree has
+finished. `fit(…; threaded=true)` therefore returns the same structure,
+families, rotations and parameters as `fit(…)`, and the two fits can be compared
+bit for bit. A `VineModel` fitted with `threaded=true` is the model the
+sequential fit returns, with the same recipe: `threaded` says how the fit ran,
+not what it estimated, so the model does not keep it, and the bootstrap refit
+of `infer` walks the fitted vine as it does for any model.
+
+- `strict=true` raises the same error as the sequential fit: every candidate of
+  the edge is fitted first, and the error of the first failing candidate in
+  family order is rethrown.
+- `trace=true` prints the same lines as the sequential fit, in edge order: the
+  lines of an edge are collected while its candidates run and printed once the
+  edge has finished, and the edges of a tree are printed in tree order once the
+  tree has finished.
+
+The speed-up is bounded by the number of independent fits at each stage. Tree
+``t`` of a ``p``-variable vine has ``p - t`` edges, so the top trees of a full
+fit have little to parallelise at the edge level and the gain there comes from
+the candidate level, which is at most the number of family–rotation candidates
+of an edge (about twenty with the default family set and rotations). The
+sequential parts, dependence weights, the spanning tree, and the h-function
+propagation, are unchanged; see the [benchmark manual](benchmarks.md) for
+measured timings.
+
 ## Model comparison
 
 For explicit or fitted vine objects:

@@ -28,7 +28,11 @@ function _canonical_vine_fit_kwargs(kwargs)
     # meaning may change with package defaults.
     family_set = _resolve_family_set(get(raw, :family_set, :default))
     clean = merge(raw, (; family_set=Tuple(family_set)))
+    # `trace` and `threaded` control how the fit runs, not what it estimates:
+    # the threaded fit is the sequential fit by construction, so a model does
+    # not remember either.
     haskey(clean, :trace) && (clean = Base.structdiff(clean, (; trace=nothing)))
+    haskey(clean, :threaded) && (clean = Base.structdiff(clean, (; threaded=nothing)))
     # Other mutable controls (order, structure, pair kwargs, etc.) are copied
     # so later caller mutation cannot change the meaning of a fitted model.
     return deepcopy(clean)

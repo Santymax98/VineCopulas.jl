@@ -107,6 +107,44 @@ The fitting benchmark is currently the main performance gap:
 This is not a correctness issue: the corresponding common and default
 correctness gates pass. It is the clearest performance target for future work.
 
+## Threaded fitting
+
+`fit(…; threaded=true)` fits the edges of a tree, and the family candidates of
+an edge, on tasks; the [fitting manual](fitting_selection.md#Threaded-fitting)
+states why the result is the sequential one. The rows below time one automatic
+R-vine fit of a 20-variable, 2263-observation Student-t panel with the default
+family set and `trunc=4` (70 edges), single-threaded BLAS, on an eight-core
+Linux machine with sixteen hardware threads and Julia 1.13.0. Every run returned
+the same log-likelihood.
+
+| `pair_method` | Threads | `threaded` | Seconds | Speed-up |
+|---|---:|---|---:|---:|
+| `:mle` | 1 | `false` | 581.1 | — |
+| `:mle` | 1 | `true` | 584.7 | 1.0× |
+| `:mle` | 4 | `true` | 179.8 | 3.2× |
+| `:mle` | 8 | `true` | 136.9 | 4.2× |
+| `:mle` | 16 | `true` | 133.5 | 4.4× |
+| `:itau` | 1 | `false` | 14.6 | — |
+| `:itau` | 1 | `true` | 16.7 | 0.9× |
+| `:itau` | 4 | `true` | 7.2 | 2.0× |
+| `:itau` | 16 | `true` | 5.8 | 2.5× |
+
+The `:mle` fit is the family search, so it scales with the cores until the top
+trees run out of edges and candidates (the sixteen-thread row runs two tasks
+per core). Two thirds of its sequential time is the Student-t candidate, whose
+box search allocates about 2 GB per edge, and the collector stops every thread
+when it runs, which is where the curve flattens past eight threads. The
+`:itau` fit spends most of its time in the sequential parts (dependence
+weights, the spanning tree, the h-function propagation), which the keyword
+does not touch. Reproduce a row with
+
+```bash
+julia -t 8 --project=benchmarks benchmarks/fitting/threaded_fit.jl mle
+```
+
+which also runs the sequential fit when started with one thread and checks that
+the two log-likelihoods are equal.
+
 ## Generic vs specialized pair conditionals
 
 The architectural question is not simply whether `hfunc1(C, u, v)` is fast. It

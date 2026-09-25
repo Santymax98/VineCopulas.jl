@@ -42,6 +42,8 @@
 # - group-constrained first tree for R-vines: every group of variables
 #   induces a connected subtree of tree 1
 # - user-specified truncation and dependence threshold
+# - threaded edge and family-candidate fitting (`threaded=true`), identical to
+#   the sequential fit by construction
 #
 # Intentionally deferred
 # ----------------------
@@ -49,7 +51,6 @@
 # - discrete margins
 # - observation weights / missing-value pairwise logic
 # - automatic sparse truncation/threshold (mBICV)
-# - multithreaded edge fitting
 # - joint vine MLE / sequential-estimator covariance
 # =============================================================================
 
