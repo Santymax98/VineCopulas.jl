@@ -317,9 +317,34 @@ function _fit_vine_bb(FT, U; xtol::Real=1.0e-8)
     throw(ArgumentError("$FT is not a bounded default BB family"))
 end
 
+# Kendall's tau identifies one parameter, so `pair_method=:itau` cannot fit
+# the two-parameter BB families; Copulas.jl advertises no `:itau` for them.
+# vinecopulib fits those families by maximum likelihood under `itau`, and so
+# does the vine selector, so that `:itau` selects over the whole family set
+# instead of failing on its first two-parameter candidate.  Every other family
+# is delegated to the public `fit(FT, U; method=:itau)` of Copulas.jl, whose
+# estimator and parameter domain are the family's own.
+@inline function _itau_falls_back_to_mle(FT)
+    return FT <: Copulas.BB1Copula || FT <: Copulas.BB2Copula ||
+           FT <: Copulas.BB3Copula || FT <: Copulas.BB6Copula ||
+           FT <: Copulas.BB7Copula || FT <: Copulas.BB8Copula ||
+           FT <: Copulas.BB9Copula || FT <: Copulas.BB10Copula
+end
+
+@inline function _resolve_pair_method(FT, pair_method::Symbol)
+    pair_method === :default && return :mle
+    pair_method === :itau && _itau_falls_back_to_mle(FT) && return :mle
+    return pair_method
+end
+
+# The Copulas.jl Student `:itau` profiles the degrees of freedom on `(0, ∞]`
+# and returns `ν = Inf` when the Gaussian endpoint fits best.  That is an
+# estimate on the boundary of the family, not an optimizer failure.
+@inline _fitted_parameter_ok(C0, name::AbstractString, v::Real) = isfinite(v) || (C0 isa Copulas.TCopula && name == "ν" && v > 0)
+
 function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method::Symbol, selection_criterion::Symbol, pair_kwargs::NamedTuple,)
     Uf = _flip_pair_data(U, flips)
-    method = pair_method === :default ? :mle : pair_method
+    method = _resolve_pair_method(FT, pair_method)
 
     # Automatic vine selection uses pair-specific MLE domains/solvers where
     # an exact bivariate copula likelihood or a vinecopulib-aligned finite
@@ -356,8 +381,7 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method:
             C0 = Copulas.fitted_distribution(M)
             method = Copulas.fitting_method(M)
         else
-            C0 = Distributions.fit(FT, Uf; method=pair_method, pair_kwargs...)
-            method = pair_method
+            C0 = Distributions.fit(FT, Uf; method=method, pair_kwargs...)
         end
         meta = (;)
     end
@@ -372,15 +396,20 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; pair_method:
     # a SurvivalCopula wrapper on the original sample. This matters for BB
     # families near their selection boundaries.
     ll = Float64(Distributions.loglikelihood(C0, Uf))
-    isfinite(ll) || throw(ErrorException("non-finite pair-copula loglikelihood for $FT"))
+    # `-Inf` is an estimate whose support excludes part of the sample (a
+    # Clayton with `θ < 0`, which `:itau` returns on a negative tau when the
+    # unrotated candidate is allowed to run); it scores `Inf` and loses.  `NaN`
+    # or `+Inf` is a failure of the estimator.
+    (isnan(ll) || ll == Inf) && throw(ErrorException("non-finite pair-copula loglikelihood for $FT"))
 
     θ = _params_namedtuple(C0, meta)
-    _, vals = _flatten_fit_params(θ)
-    all(isfinite, vals) || throw(ErrorException("non-finite fitted parameters for $FT"))
+    names, vals = _flatten_fit_params(θ)
+    all(i -> _fitted_parameter_ok(C0, names[i], vals[i]), eachindex(vals)) ||
+        throw(ErrorException("non-finite fitted parameters for $FT"))
 
     k = length(vals)
     score = _criterion_score(ll, k, size(U, 2), selection_criterion)
-    isfinite(score) || throw(ErrorException("non-finite selection score for $FT"))
+    isnan(score) && throw(ErrorException("non-finite selection score for $FT"))
     return _PairSelection(C, _short_family_name(C), _rotation_from_flips(flips), method, ll, k, score,
         get(meta, :converged, true), Int(get(meta, :iterations, 0)), θ,)
 end
@@ -392,15 +421,29 @@ function _independence_selection(U::Matrix{Float64}, criterion::Symbol)
 end
 
 function _select_pair(U0::AbstractMatrix{<:Real}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
-    allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, pair_kwargs::NamedTuple=NamedTuple(),
-    strict::Bool=false, trace::Bool=false, force_independence::Bool=false,)
+    allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, independence_test::Symbol=:none,
+    independence_level::Real=0.05, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,
+    force_independence::Bool=false,)
 
     U = _fit_data(U0, 2)
     _check_selection_criterion(selection_criterion)
+    _check_independence_test(independence_test)
+    independence_level = _check_independence_level(independence_level)
     force_independence && return _independence_selection(U, selection_criterion)
 
     families = _resolve_family_set(family_set)
     τhat = _kendall_tau_b(view(U, 1, :), view(U, 2, :))
+
+    # The independence test is a gate on the edge, like `threshold`: an edge
+    # the test does not reject is independent whatever the criterion says.
+    if independence_test === :kendall
+        pvalue = _kendall_independence_pvalue(τhat, size(U, 2))
+        if pvalue > independence_level
+            trace && println("pair independence test: tau=$τhat, p=$pvalue > $independence_level, independence selected")
+            return _independence_selection(U, selection_criterion)
+        end
+        trace && println("pair independence test: tau=$τhat, p=$pvalue <= $independence_level, dependence")
+    end
 
     best = include_independence ? _independence_selection(U, selection_criterion) : nothing
     nsuccessful = 0
@@ -415,6 +458,12 @@ function _select_pair(U0::AbstractMatrix{<:Real}; family_set=:default, pair_meth
             try
                 fit = _fit_one_pair_family(FT, U, flips; pair_method=pair_method, selection_criterion=selection_criterion, pair_kwargs=pair_kwargs,)
                 nsuccessful += 1
+                if !isfinite(fit.score)
+                    # The estimate gives the sample zero density: a loser, not
+                    # a failure, so it is skipped under `strict=true` too.
+                    trace && println("pair candidate skipped: family=$(fit.family), rotation=$(fit.rotation), method=$(fit.method), ll=$(fit.loglik)")
+                    continue
+                end
                 if trace
                     println(
                         "pair candidate: family=$(fit.family), rotation=$(fit.rotation), ",
@@ -447,6 +496,7 @@ end
     select_paircopula(U; family_set=:default, pair_method=:default,
                       selection_criterion=:bic, allow_rotations=true,
                       preselect=true, include_independence=true,
+                      independence_test=:none, independence_level=0.05,
                       pair_kwargs=NamedTuple(), strict=false, trace=false)
 
 Fit candidate bivariate copula families to U, optionally evaluate their
@@ -455,12 +505,24 @@ Fit candidate bivariate copula families to U, optionally evaluate their
 
 The default candidate set is DEFAULT_PAIR_FAMILIES. Use family_set=:all or an
 explicit collection of Copulas.jl family types to change the candidates.
+
+`pair_method=:itau` fits each candidate by `fit(FT, U; method=:itau)` of
+Copulas.jl. Kendall's tau identifies one parameter, so the two-parameter BB
+families are fitted by `:mle` under `:itau`, as vinecopulib does; `trace=true`
+prints the method each candidate used.
+
+`independence_test=:kendall` selects the independence copula whenever the
+asymptotic Kendall test does not reject independence at size
+`independence_level`, before any family is fitted and whatever
+`include_independence` says.
 """
 function select_paircopula(U::AbstractMatrix{<:Real}; family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
                            allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
+                           independence_test::Symbol=:none, independence_level::Real=0.05,
                            pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
                            return _select_pair(U; family_set, pair_method, selection_criterion, allow_rotations,
-                                               preselect, include_independence, pair_kwargs, strict, trace,).copula
+                                               preselect, include_independence, independence_test, independence_level,
+                                               pair_kwargs, strict, trace,).copula
 end
 
 # -----------------------------------------------------------------------------

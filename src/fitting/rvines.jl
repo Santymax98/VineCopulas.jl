@@ -143,7 +143,7 @@ function _rvine_next_candidates(prev::Vector{_RVFitEdge}, criterion)
 end
 
 function _fit_rvine_candidates(selected::Vector{_RVCandidate}, nobs::Int; family_set, pair_method, selection_criterion, allow_rotations,
-                               preselect, include_independence, threshold, pair_kwargs, strict, trace, need_h::Bool,)
+                               preselect, include_independence, independence_test, independence_level, threshold, pair_kwargs, strict, trace, need_h::Bool,)
     out = Vector{_RVFitEdge}(undef, length(selected))
 
     @inbounds for i in eachindex(selected)
@@ -153,7 +153,8 @@ function _fit_rvine_candidates(selected::Vector{_RVCandidate}, nobs::Int; family
         pdata[2, :] .= c.u_b
 
         fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
-                           allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence,
+                           allow_rotations=allow_rotations, preselect=preselect,
+                           include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
                            pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=c.weight < threshold,)
         C = fit.copula
         if need_h
@@ -171,7 +172,7 @@ function _fit_rvine_candidates(selected::Vector{_RVCandidate}, nobs::Int; family
 end
 
 function _select_rvine_trees(X::Matrix{Float64}, q::Int; family_set, pair_method, selection_criterion, tree_criterion, groups,
-                             allow_rotations, preselect, include_independence, threshold, pair_kwargs, strict, trace,)
+                             allow_rotations, preselect, include_independence, independence_test, independence_level, threshold, pair_kwargs, strict, trace,)
     p, n = size(X)
     trees = Vector{Vector{_RVFitEdge}}(undef, q)
 
@@ -182,14 +183,16 @@ function _select_rvine_trees(X::Matrix{Float64}, q::Int; family_set, pair_method
     candidates = _rvine_tree1_candidates(X, tree_criterion)
     selected = _maximum_spanning_tree(candidates, p; groups=groups)
     trees[1] = _fit_rvine_candidates(selected, n; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
-                                     allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence,
+                                     allow_rotations=allow_rotations, preselect=preselect,
+                                     include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
                                      threshold=threshold, pair_kwargs=pair_kwargs, strict=strict, trace=trace, need_h=(q > 1),)
 
     for t in 2:q
         candidates = _rvine_next_candidates(trees[t - 1], tree_criterion)
         selected = _maximum_spanning_tree(candidates, length(trees[t - 1]))
         trees[t] = _fit_rvine_candidates(selected, n; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
-                                         allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence,
+                                         allow_rotations=allow_rotations, preselect=preselect,
+                                         include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
                                          threshold=threshold, pair_kwargs=pair_kwargs, strict=strict, trace=trace, need_h=(t < q),)
     end
     return trees
@@ -309,7 +312,7 @@ end
 
 
 function _fit_fixed_rvine(X::Matrix{Float64}, st::RVineStructure; family_set, pair_method, selection_criterion, allow_rotations, preselect,
-                          include_independence, threshold, tree_criterion, pair_kwargs, strict, trace,)
+                          include_independence, independence_test, independence_level, threshold, tree_criterion, pair_kwargs, strict, trace,)
     p, n = size(X)
     ord = collect(st.order)
     q = truncation(st)
@@ -339,8 +342,9 @@ function _fit_fixed_rvine(X::Matrix{Float64}, st::RVineStructure; family_set, pa
             pdata = Matrix{Float64}(undef, 2, n)
             pdata[1, :] .= ua
             pdata[2, :] .= ub
-            fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations, preselect=preselect,
-                               include_independence=include_independence, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
+            fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
+                               preselect=preselect, include_independence=include_independence, independence_test=independence_test,
+                               independence_level=independence_level, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold,)
             level[e] = fit
             if t < q
                 oa = _state_key(a, vcat(D, b))
@@ -371,11 +375,14 @@ end
 
 function _fit_rvine_sequential(U0; structure=nothing, trunc=nothing, family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
                                tree_criterion=:tau, tree_algorithm::Symbol=:mst, groups=nothing, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
-                               threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false, sampling_tail=Int[],)
+                               independence_test::Symbol=:none, independence_level::Real=0.05, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(),
+                               strict::Bool=false, trace::Bool=false, sampling_tail=Int[],)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     _check_selection_criterion(selection_criterion)
     _check_tree_criterion(tree_criterion)
+    _check_independence_test(independence_test)
+    _check_independence_level(independence_level)
     threshold = _check_threshold(threshold, tree_criterion)
     tree_algorithm in (:mst, :kruskal) || throw(ArgumentError("tree_algorithm currently supports :mst or :kruskal (same deterministic Kruskal engine)"))
     tail = collect(Int, sampling_tail)
@@ -390,14 +397,15 @@ function _fit_rvine_sequential(U0; structure=nothing, trunc=nothing, family_set=
         trunc !== nothing && Int(trunc) != q && throw(ArgumentError("when structure is supplied, trunc must match truncation(structure)"))
         st_fit, _ = _standardize_fixed_rvine_structure(structure)
         vc = _fit_fixed_rvine(X, st_fit; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
-                              preselect=preselect, include_independence=include_independence, threshold=threshold, tree_criterion=tree_criterion,
-                              pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
+                              preselect=preselect, include_independence=include_independence, independence_test=independence_test,
+                              independence_level=independence_level, threshold=threshold, tree_criterion=tree_criterion, pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
     else
         q = isnothing(trunc) ? p - 1 : Int(trunc)
         1 <= q <= p - 1 || throw(ArgumentError("trunc must be in 1:$(p-1)"))
 
         trees = _select_rvine_trees(X, q; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, tree_criterion=tree_criterion,
-                                    groups=groups, allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence,
+                                    groups=groups, allow_rotations=allow_rotations, preselect=preselect,
+                                    include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
                                     threshold=threshold, pair_kwargs=pair_kwargs, strict=strict, trace=trace,)
         ord, S, edgelevels = _rvine_peel(trees, p, q; sampling_tail=tail)
         vc = RVineCopula(ord, S, edgelevels; trunc=q)

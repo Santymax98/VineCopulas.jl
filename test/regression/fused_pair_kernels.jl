@@ -210,7 +210,8 @@ end
 @testitem "Prepared elliptical kernels preserve scalar primitives" tags=[:PairCopula, :Regression] setup=[M] begin
     buf = Vector{Float64}(undef, 2)
     for C in (M.gaussian_pair(0.35), M.t_pair(-0.35, 4))
-        K = @inferred VineCopulas._prepare_pair(C)
+        K = VineCopulas._prepare_pair(C)
+        @test K isa Union{VineCopulas._GaussianPairKernel, VineCopulas._StudentPairKernel}
         @test VineCopulas._prepare_pair(K) === K
         for (u, v) in ((0.31, 0.72), (1e-8, 0.9), (0.8, 1 - 1e-8))
             @test all(isapprox.(VineCopulas._pair_step(K, u, v, buf), VineCopulas._pair_step(C, u, v, buf)))

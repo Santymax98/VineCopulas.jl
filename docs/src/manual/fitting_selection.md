@@ -112,11 +112,37 @@ The main controls are:
 | `allow_rotations` | Whether to include rotated candidates |
 | `include_independence` | Whether independence can be selected |
 | `preselect` | Whether dependence sign may prune rotation candidates |
+| `pair_method` | Estimator per candidate: `:default` (maximum likelihood) or `:itau` |
+| `independence_test` | `:none`, or `:kendall` to accept independence on an edge the asymptotic Kendall test does not reject |
+| `independence_level` | Size of that test, `0.05` by default |
 
 !!! tip
     Use `selection_criterion=:bic` for a conservative default. Use
     `selection_criterion=:loglik` mainly for diagnostics or controlled
     comparisons where model dimension is fixed.
+
+`pair_method=:itau` fits each candidate by `fit(FT, U; method=:itau)` of
+Copulas.jl, which inverts the sample Kendall tau instead of maximizing the
+likelihood. It is closed form for the Gaussian, Clayton, Gumbel, Frank and Joe
+families, and a one-dimensional profile in the degrees of freedom for the
+Student family, so a sequential vine fit is several times faster than under
+`:mle`. The estimate lives on the family's own parameter domain, not on the
+finite selection boxes the `:mle` candidates use: a Student candidate can
+return `ν = Inf`, the Gaussian endpoint of its profile, which the vine
+evaluates as the Gaussian copula. The BB families have two parameters, which
+tau alone does not identify, so they are fitted by `:mle` under `:itau`, as in
+vinecopulib; `trace=true` prints the method used by each candidate. A family
+outside the shipped sets that advertises no `:itau` fails as a candidate with
+the Copulas.jl error, which `strict=true` raises. A candidate whose estimate
+gives the sample zero density (a Clayton with `θ < 0`, which `:itau` returns
+on a negative tau when `preselect=false` lets the unrotated candidate run)
+scores `Inf` and loses; it is not an error under `strict=true`, because the
+estimator did not fail.
+
+`independence_test=:kendall` is the usual companion of `:itau`: an edge whose
+sample tau the test does not reject at `independence_level` receives the
+independence copula before any family is fitted, whatever
+`include_independence` says, like the `threshold` gate.
 
 ## Structure selection
 

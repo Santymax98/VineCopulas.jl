@@ -2,11 +2,27 @@ struct _StudentPairKernel{R<:Real,D} <: Copulas.Copula{2}
     rho::R
     nu::D
 end
-const _StudentPair = Union{Copulas.TCopula{2},_StudentPairKernel}
+const _StudentPair = _StudentPairKernel
+# `TCopula(Inf, Σ)` is the Gaussian copula: Copulas.jl evaluates it through the
+# normal limit, and its Student `:itau` returns it when the Gaussian endpoint
+# of the profile fits best. The Student kernel below has no finite limit at
+# `ν = Inf` (`_t_pair_K` is `loggamma(Inf) - loggamma(Inf)`), so the pair is
+# evaluated by the Gaussian kernel instead. Every kernel entry takes a raw
+# `TCopula{2}` through here, so the limit is decided once per pair.
 function _prepare_pair(C::Copulas.TCopula{2})
     p = _vine_params(C)
+    isinf(p.ν) && return _GaussianPairKernel(p.Σ[1, 2])
     return _StudentPairKernel(p.Σ[1, 2], p.ν)
 end
+for f in (:_pair_logpdf, :_pair_step, :_pair_logpdf_h1, :_pair_logpdf_h2)
+    @eval @inline $f(C::Copulas.TCopula{2}, u::Real, v::Real, buf::Vector{Float64}) = $f(_prepare_pair(C), u, v, buf)
+end
+@inline _pair_hfuncs(C::Copulas.TCopula{2}, u::Real, v::Real) = _pair_hfuncs(_prepare_pair(C), u, v)
+for f in (:hfunc1, :hfunc2, :hinv1, :hinv2)
+    @eval @inline $f(C::Copulas.TCopula{2}, a::Real, b::Real) = $f(_prepare_pair(C), a, b)
+end
+@inline hfunc1(C::Copulas.TCopula{2}, uv::Tuple{<:Real,<:Real}) = hfunc1(_prepare_pair(C), uv[1], uv[2])
+@inline hfunc2(C::Copulas.TCopula{2}, uv::Tuple{<:Real,<:Real}) = hfunc2(_prepare_pair(C), uv[1], uv[2])
 @inline _student_rho(C::Copulas.TCopula{2}) = _vine_params(C).Σ[1, 2]
 @inline _student_rho(C::_StudentPairKernel) = C.rho
 @inline _tcopula_df(C::_StudentPairKernel) = C.nu
