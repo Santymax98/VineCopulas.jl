@@ -80,9 +80,7 @@ function _selected_pair_family(C::PairCopula, family_set::Tuple)
     for FT in family_set
         B isa FT && return FT
     end
-    throw(ArgumentError(
-        "selected pair family $(typeof(B)) is absent from the fitted model's family_set"
-    ))
+    throw(ArgumentError("selected pair family $(typeof(B)) is absent from the fitted model's family_set"))
 end
 
 function _refit_selected_pair(template::PairCopula, U::AbstractMatrix{<:Real};

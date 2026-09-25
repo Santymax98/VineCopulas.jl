@@ -13,10 +13,7 @@
     lu = log(uu)
     lv = log(vv)
     # For θ > 0, avoid forming u^(-θ) and v^(-θ) separately:
-    #
-    # log(u^(-θ) + v^(-θ) - 1)
-    #   = logsubexp(logaddexp(-θ log u, -θ log v), 0).
-    #
+    # log(u^(-θ) + v^(-θ) - 1) = logsubexp(logaddexp(-θ log u, -θ log v), 0).
     # This stays finite much deeper in the tails.
     if θ > zero(θ)
         logs = LogExpFunctions.logsubexp(LogExpFunctions.logaddexp(-θ * lu, -θ * lv), zero(θ),)
@@ -80,14 +77,8 @@ end
     return (_clayton_h_from_terms(θ, lv, logs), _clayton_h_from_terms(θ, lu, logs),)
 end
 
-@inline function hfunc1(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,)
-    return _clp(_clayton_hfunc(C, _clp(u), _clp(v)))
-end
-
-@inline function hfunc2(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,)
-    return _clp(_clayton_hfunc(C, _clp(v), _clp(u)))
-end
-
+@inline hfunc1(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,) = _clp(_clayton_hfunc(C, _clp(u), _clp(v)))
+@inline hfunc2(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,) = _clp(_clayton_hfunc(C, _clp(v), _clp(u)))
 
 @inline function _pair_hfuncs(C::Copulas.ClaytonCopula{2}, u::Real, v::Real,)
     uu, vv = _clp(u), _clp(v)
@@ -183,10 +174,5 @@ end
     return clamp(exp((-inv(θ)) * log(z)), zero(θ),one(θ),)
 end
 
-@inline function hinv1(C::Copulas.ClaytonCopula{2}, q::Real, v::Real,)
-    return _clp(_clayton_hinv(C, _clp(q), _clp(v),),)
-end
-
-@inline function hinv2(C::Copulas.ClaytonCopula{2}, q::Real, u::Real,)
-    return _clp(_clayton_hinv(C, _clp(q), _clp(u),),)
-end
+@inline hinv1(C::Copulas.ClaytonCopula{2}, q::Real, v::Real,) = _clp(_clayton_hinv(C, _clp(q), _clp(v),),)
+@inline hinv2(C::Copulas.ClaytonCopula{2}, q::Real, u::Real,) = _clp(_clayton_hinv(C, _clp(q), _clp(u),),)

@@ -18,7 +18,6 @@ const _ReflectedPairCopula = Union{
     return B, fu, fv
 end
 
-
 # ---------------------------------------------------------------------
 # Conditional CDFs and inverse conditional CDFs
 # ---------------------------------------------------------------------
@@ -50,7 +49,6 @@ function hinv2(S::_ReflectedPairCopula, q::Real, u::Real)
     v = hinv2(B, fv ? 1 - q : q, fu ? 1 - u : u,)
     return _clp(fv ? 1 - v : v)
 end
-
 
 # ---------------------------------------------------------------------
 # Fused reflected pair kernels

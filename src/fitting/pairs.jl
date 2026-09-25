@@ -199,7 +199,6 @@ function _fit_vine_frank(U; xtol::Real=1.0e-10)
     return C, (; meta..., θ̂=Distributions.params(C))
 end
 
-
 # Student-t, Gumbel, and Joe use finite parameter ranges in vinecopulib.
 # Copulas.jl intentionally exposes broader mathematical domains (notably
 # Student-t nu > 0), but using those broader domains inside automatic vine
@@ -220,8 +219,7 @@ function _fit_vine_joe(U; weights=nothing)
     if weights !== nothing
         weights isa AbstractVector{<:Real} || throw(ArgumentError("weights must be a vector of non-negative reals"))
         length(weights) == size(U, 2) || throw(DimensionMismatch("observation weights must match the data"))
-        all(isfinite, weights) && all(w -> w >= 0, weights) && sum(weights) > 0 ||
-            throw(ArgumentError("weights must be finite, non-negative, and not all zero"))
+        all(isfinite, weights) && all(w -> w >= 0, weights) && sum(weights) > 0 || throw(ArgumentError("weights must be finite, non-negative, and not all zero"))
         weights = weights .* (size(U, 2) / sum(weights))
         kept = findall(!iszero, weights)
         U, weights = U[:, kept], weights[kept]
@@ -293,9 +291,7 @@ function _fit_vine_two_parameter_bounded(constructor, U, lo::NTuple{2,<:Real}, h
             best_res = res
         end
     end
-    best_res === nothing && throw(ErrorException(
-        "no finite likelihood found for $constructor inside the vine-selection parameter box"
-    ))
+    best_res === nothing && throw(ErrorException("no finite likelihood found for $constructor inside the vine-selection parameter box"))
     C = candidate(Optim.minimizer(best_res))
     theta = Distributions.params(C)
     ll = Float64(Distributions.loglikelihood(C, U))

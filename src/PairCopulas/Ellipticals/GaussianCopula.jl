@@ -22,13 +22,10 @@ end
 
 @inline function _gaussian_logpdf_from_z(ρ::Real, z1::Real, z2::Real, den::Real)
     ρ2 = ρ * ρ
-    return -0.5 * log(den) +
-           (2 * ρ * z1 * z2 - ρ2 * (z1 * z1 + z2 * z2)) / (2 * den)
+    return -0.5 * log(den) + (2 * ρ * z1 * z2 - ρ2 * (z1 * z1 + z2 * z2)) / (2 * den)
 end
 
-@inline _gaussian_h_from_z(ρ::Real, target_z::Real, base_z::Real, den::Real) =
-    Distributions.cdf(_STD_NORMAL, (target_z - ρ * base_z) / sqrt(den))
-
+@inline _gaussian_h_from_z(ρ::Real, target_z::Real, base_z::Real, den::Real) = Distributions.cdf(_STD_NORMAL, (target_z - ρ * base_z) / sqrt(den))
 @inline function _pair_logpdf(C::_GaussianPair, u::Real, v::Real, buf::Vector{Float64},)
     ρ, z1, z2, den = _gaussian_pair_inputs(C, u, v)
     return _gaussian_logpdf_from_z(ρ, z1, z2, den)
@@ -80,10 +77,7 @@ end
 
 @inline hfunc1(C::_GaussianPair, u::Real, v::Real) = _clp(_gaussian_hfunc(C, u, v))
 @inline hfunc2(C::_GaussianPair, u::Real, v::Real) = _clp(_gaussian_hfunc(C, v, u))
-
 @inline hfunc1(C::_GaussianPair, uv::Tuple{<:Real,<:Real}) = hfunc1(C, uv[1], uv[2])
-
 @inline hfunc2(C::_GaussianPair, uv::Tuple{<:Real,<:Real}) = hfunc2(C, uv[1], uv[2])
-
 @inline hinv1(C::_GaussianPair, q::Real, v::Real) = _clp(_gaussian_hinv(C, q, v))
 @inline hinv2(C::_GaussianPair, q::Real, u::Real) = _clp(_gaussian_hinv(C, q, u))

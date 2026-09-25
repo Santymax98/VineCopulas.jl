@@ -48,9 +48,7 @@ end
 
 @inline function _vine_params(C::Copulas.ExtremeValueCopula{2,<:Copulas.MOTail})
     p = Distributions.params(C)
-    return (; λ₁=_vine_param(p, 1, :λ₁),
-            λ₂=_vine_param(p, 2, :λ₂),
-            λ₃=_vine_param(p, 3, :λ₃))
+    return (; λ₁=_vine_param(p, 1, :λ₁), λ₂=_vine_param(p, 2, :λ₂), λ₃=_vine_param(p, 3, :λ₃))
 end
 
 @inline function _vine_params(C::Copulas.ExtremeValueCopula{2,<:Copulas.BC2Tail})
@@ -69,8 +67,7 @@ end
     if hasproperty(p, :α) && hasproperty(p, :β)
         return (; α=p.α, β=p.β)
     end
-    return (; dep=_vine_param(p, 1, :dep),
-            weights=Tuple(p[i] for i in 2:length(p)))
+    return (; dep=_vine_param(p, 1, :dep), weights=Tuple(p[i] for i in 2:length(p)))
 end
 
 @inline function _vine_params(C::Copulas.ExtremeValueCopula{2,<:Copulas.tEVTail})
@@ -105,7 +102,6 @@ end
 end
 
 @inline _vine_params(C::Copulas.SurvivalCopula) = _vine_params(Copulas.basecopula(C))
-
 @inline _vine_params(C) = Distributions.params(C)
 
 # Generic copulas expose values positionally but do not promise names.  Keep

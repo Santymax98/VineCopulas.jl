@@ -23,123 +23,63 @@
 # Public generic fallback
 # ---------------------------------------------------------------------
 
-@inline function _pair_logpdf(
-    C::Copulas.ArchimedeanCopula{2},
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-)
+@inline function _pair_logpdf(C::Copulas.ArchimedeanCopula{2}, u::Real, v::Real, buf::Vector{Float64},)
     uu, vv = _clp(u), _clp(v)
-
     buf[1] = uu
     buf[2] = vv
-
     return Distributions.logpdf(C, buf)
 end
 
-@inline function hfunc1(
-    C::Copulas.ArchimedeanCopula{2},
-    u::Real,
-    v::Real,
-)
+@inline function hfunc1(C::Copulas.ArchimedeanCopula{2}, u::Real, v::Real,)
     uu, vv = _clp(u), _clp(v)
     D = Copulas.condition(C, 2, vv)
-
     return _clp(Distributions.cdf(D, uu))
 end
 
-@inline function hfunc2(
-    C::Copulas.ArchimedeanCopula{2},
-    u::Real,
-    v::Real,
-)
+@inline function hfunc2(C::Copulas.ArchimedeanCopula{2}, u::Real, v::Real,)
     uu, vv = _clp(u), _clp(v)
     D = Copulas.condition(C, 1, uu)
-
     return _clp(Distributions.cdf(D, vv))
 end
 
-@inline hfunc1(
-    C::Copulas.ArchimedeanCopula{2},
-    uv::Tuple{<:Real,<:Real},
-) = hfunc1(C, uv[1], uv[2])
+@inline hfunc1(C::Copulas.ArchimedeanCopula{2}, uv::Tuple{<:Real,<:Real},) = hfunc1(C, uv[1], uv[2])
+@inline hfunc2(C::Copulas.ArchimedeanCopula{2}, uv::Tuple{<:Real,<:Real},) = hfunc2(C, uv[1], uv[2])
 
-@inline hfunc2(
-    C::Copulas.ArchimedeanCopula{2},
-    uv::Tuple{<:Real,<:Real},
-) = hfunc2(C, uv[1], uv[2])
-
-@inline function hinv1(
-    C::Copulas.ArchimedeanCopula{2},
-    q::Real,
-    v::Real,
-)
+@inline function hinv1(C::Copulas.ArchimedeanCopula{2}, q::Real, v::Real,)
     qq, vv = _clp(q), _clp(v)
     D = Copulas.condition(C, 2, vv)
-
     return _clp(Distributions.quantile(D, qq))
 end
 
-@inline function hinv2(
-    C::Copulas.ArchimedeanCopula{2},
-    q::Real,
-    u::Real,
-)
+@inline function hinv2(C::Copulas.ArchimedeanCopula{2}, q::Real, u::Real,)
     qq, uu = _clp(q), _clp(u)
     D = Copulas.condition(C, 1, uu)
-
     return _clp(Distributions.quantile(D, qq))
 end
 
-@inline function _pair_hfuncs(
-    C::Copulas.ArchimedeanCopula{2},
-    u::Real,
-    v::Real,
-)
+@inline function _pair_hfuncs(C::Copulas.ArchimedeanCopula{2}, u::Real, v::Real,)
     uu, vv = _clp(u), _clp(v)
-
     return hfunc1(C, uu, vv), hfunc2(C, uu, vv)
 end
 
-@inline function _pair_step(
-    C::Copulas.ArchimedeanCopula{2},
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-)
+@inline function _pair_step(C::Copulas.ArchimedeanCopula{2}, u::Real, v::Real, buf::Vector{Float64},)
     uu, vv = _clp(u), _clp(v)
-
     logc = _pair_logpdf(C, uu, vv, buf)
     h1, h2 = _pair_hfuncs(C, uu, vv)
-
     return logc, _clp(h1), _clp(h2)
 end
 
-@inline function _pair_logpdf_h1(
-    C::Copulas.ArchimedeanCopula{2},
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-)
+@inline function _pair_logpdf_h1(C::Copulas.ArchimedeanCopula{2}, u::Real, v::Real, buf::Vector{Float64},)
     uu, vv = _clp(u), _clp(v)
-
     logc = _pair_logpdf(C, uu, vv, buf)
     h1 = hfunc1(C, uu, vv)
-
     return logc, _clp(h1)
 end
 
-@inline function _pair_logpdf_h2(
-    C::Copulas.ArchimedeanCopula{2},
-    u::Real,
-    v::Real,
-    buf::Vector{Float64},
-)
+@inline function _pair_logpdf_h2(C::Copulas.ArchimedeanCopula{2}, u::Real, v::Real, buf::Vector{Float64},)
     uu, vv = _clp(u), _clp(v)
-
     logc = _pair_logpdf(C, uu, vv, buf)
     h2 = hfunc2(C, uu, vv)
-
     return logc, _clp(h2)
 end
 
@@ -163,37 +103,17 @@ end
 # generator internals.
 # =====================================================================
 
-@inline function _arch_hfunc_coordinate(
-    C,
-    target::Real,
-    base::Real,
-)
+@inline function _arch_hfunc_coordinate(C, target::Real, base::Real,)
     ct = _arch_coordinate(C, target)
     cb = _arch_coordinate(C, base)
     ctotal = _arch_combine(C, ct, cb)
-
-    return exp(
-        _arch_logderivative(C, ctotal) -
-        _arch_logderivative(C, cb),
-    )
+    return exp(_arch_logderivative(C, ctotal) - _arch_logderivative(C, cb),)
 end
 
-@inline function _arch_hinv_coordinate(
-    C,
-    q::Real,
-    base::Real,
-)
+@inline function _arch_hinv_coordinate(C, q::Real, base::Real,)
     cb = _arch_coordinate(C, base)
-
-    ctotal = _arch_inverse_logderivative(
-        C,
-        log(float(q)) + _arch_logderivative(C, cb),
-    )
-
-    return _arch_probability(
-        C,
-        _arch_difference(C, ctotal, cb),
-    )
+    ctotal = _arch_inverse_logderivative(C, log(float(q)) + _arch_logderivative(C, cb),)
+    return _arch_probability(C, _arch_difference(C, ctotal, cb),)
 end
 
 
@@ -208,7 +128,6 @@ end
 @inline function _arch_pair_step(C, u::Real, v::Real)
     logc = _arch_pair_logpdf(C, u, v)
     h1, h2 = _arch_hfuncs(C, u, v)
-
     return logc, h1, h2
 end
 
@@ -219,7 +138,6 @@ end
 @inline function _arch_pair_logpdf_h2(C, u::Real, v::Real)
     return _arch_pair_logpdf(C, u, v), _arch_hfunc(C, v, u)
 end
-
 
 # =====================================================================
 # Shared monotone scalar solver
@@ -250,12 +168,7 @@ function _solve_decreasing_root(f, df, x0::T) where {T<:AbstractFloat}
         fhi = f(hi)
     end
 
-    flo >= zero(T) >= fhi ||
-        throw(DomainError(
-            x0,
-            "Could not bracket the monotone inverse.",
-        ))
-
+    flo >= zero(T) >= fhi || throw(DomainError(x0, "Could not bracket the monotone inverse.",))
     x = clamp(x0, lo, hi)
 
     for _ in 1:64

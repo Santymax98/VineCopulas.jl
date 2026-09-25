@@ -11,20 +11,16 @@
 
 @inline function _arch_coordinate(C::Copulas.BB6Copula{2}, u::Real)
     θ, uu = promote(float(_vine_params(C).θ), float(u))
-
     # logw = log((1-u)^θ)
     logw = θ * log1p(-uu)
-
     # x = log(-log(1 - (1-u)^θ))
     return _log_neglog1mexp(logw)
 end
 
 @inline function _arch_probability(C::Copulas.BB6Copula{2}, x::Real)
     θ, xx = promote(float(_vine_params(C).θ), float(x))
-
     # logH = log(1 - exp(-exp(x)))
     logH = _log1mexp_negexp(xx)
-
     # u = 1 - H^(1/θ)
     return -expm1(logH / θ)
 end
@@ -42,16 +38,8 @@ end
     a = inv(θ)
     logH = _log1mexp_negexp(xx)
 
-    # log|ϕ′(s)| =
-    #   -log θ - log δ
-    #   + (1-δ)x
-    #   - exp(x)
-    #   + (1/θ-1)log(1-exp(-exp(x))).
-    return -log(θ) -
-           log(δ) +
-           (one(T) - δ) * xx -
-           r +
-           (a - one(T)) * logH
+    # log|ϕ′(s)| = -log θ - log δ + (1-δ)x - exp(x) + (1/θ-1)log(1-exp(-exp(x))).
+    return -log(θ) - log(δ) + (one(T) - δ) * xx - r + (a - one(T)) * logH
 end
 
 function _arch_inverse_logderivative(C::Copulas.BB6Copula{2}, logm::Real,)
@@ -121,7 +109,6 @@ end
 end
 
 @inline _arch_hfunc(C::Copulas.BB6Copula{2}, target::Real, base::Real,) = _arch_hfunc_coordinate(C, target, base)
-
 @inline _arch_hinv(C::Copulas.BB6Copula{2}, q::Real, base::Real,) = _arch_hinv_coordinate(C, q, base)
 
 function _inv_ϕ¹(C::Copulas.BB6Copula{2}, y::Real)
@@ -147,20 +134,14 @@ end
     r = exp(x)
     ratio = exp(x - r - _log1mexp_negexp(x))
     slope = δ - one(δ) + r + (one(θ) - inv(θ)) * ratio
-    return _arch_logderivative(C, x) + log(slope) - log(δ) - δ * x -
-           _arch_logderivative(C, xu) - _arch_logderivative(C, xv)
+    return _arch_logderivative(C, x) + log(slope) - log(δ) - δ * x - _arch_logderivative(C, xu) - _arch_logderivative(C, xv)
 end
 
-@inline _pair_logpdf(C::Copulas.BB6Copula{2}, u::Real, v::Real, ::Vector{Float64}) =
-    _arch_pair_logpdf(C, _clp(u), _clp(v))
-@inline hfunc1(C::Copulas.BB6Copula{2}, u::Real, v::Real) =
-    _clp(_arch_hfunc(C, _clp(u), _clp(v)))
-@inline hfunc2(C::Copulas.BB6Copula{2}, u::Real, v::Real) =
-    _clp(_arch_hfunc(C, _clp(v), _clp(u)))
-@inline hinv1(C::Copulas.BB6Copula{2}, q::Real, v::Real) =
-    _clp(_arch_hinv(C, _clp(q), _clp(v)))
-@inline hinv2(C::Copulas.BB6Copula{2}, q::Real, u::Real) =
-    _clp(_arch_hinv(C, _clp(q), _clp(u)))
+@inline _pair_logpdf(C::Copulas.BB6Copula{2}, u::Real, v::Real, ::Vector{Float64}) = _arch_pair_logpdf(C, _clp(u), _clp(v))
+@inline hfunc1(C::Copulas.BB6Copula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C, _clp(u), _clp(v)))
+@inline hfunc2(C::Copulas.BB6Copula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C, _clp(v), _clp(u)))
+@inline hinv1(C::Copulas.BB6Copula{2}, q::Real, v::Real) = _clp(_arch_hinv(C, _clp(q), _clp(v)))
+@inline hinv2(C::Copulas.BB6Copula{2}, q::Real, u::Real) = _clp(_arch_hinv(C, _clp(q), _clp(u)))
 
 @inline function _pair_hfuncs(C::Copulas.BB6Copula{2}, u::Real, v::Real)
     h1, h2 = _arch_hfuncs(C, _clp(u), _clp(v))

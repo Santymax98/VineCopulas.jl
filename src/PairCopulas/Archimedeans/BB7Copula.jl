@@ -125,16 +125,11 @@ end
            _arch_logderivative(C, Lu) - _arch_logderivative(C, Lv)
 end
 
-@inline _pair_logpdf(C::Copulas.BB7Copula{2}, u::Real, v::Real, ::Vector{Float64}) =
-    _arch_pair_logpdf(C, _clp(u), _clp(v))
-@inline hfunc1(C::Copulas.BB7Copula{2}, u::Real, v::Real) =
-    _clp(_arch_hfunc(C, _clp(u), _clp(v)))
-@inline hfunc2(C::Copulas.BB7Copula{2}, u::Real, v::Real) =
-    _clp(_arch_hfunc(C, _clp(v), _clp(u)))
-@inline hinv1(C::Copulas.BB7Copula{2}, q::Real, v::Real) =
-    _clp(_arch_hinv(C, _clp(q), _clp(v)))
-@inline hinv2(C::Copulas.BB7Copula{2}, q::Real, u::Real) =
-    _clp(_arch_hinv(C, _clp(q), _clp(u)))
+@inline _pair_logpdf(C::Copulas.BB7Copula{2}, u::Real, v::Real, ::Vector{Float64}) = _arch_pair_logpdf(C, _clp(u), _clp(v))
+@inline hfunc1(C::Copulas.BB7Copula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C, _clp(u), _clp(v)))
+@inline hfunc2(C::Copulas.BB7Copula{2}, u::Real, v::Real) = _clp(_arch_hfunc(C, _clp(v), _clp(u)))
+@inline hinv1(C::Copulas.BB7Copula{2}, q::Real, v::Real) = _clp(_arch_hinv(C, _clp(q), _clp(v)))
+@inline hinv2(C::Copulas.BB7Copula{2}, q::Real, u::Real) = _clp(_arch_hinv(C, _clp(q), _clp(u)))
 
 @inline function _pair_hfuncs(C::Copulas.BB7Copula{2}, u::Real, v::Real)
     h1, h2 = _arch_hfuncs(C, _clp(u), _clp(v))

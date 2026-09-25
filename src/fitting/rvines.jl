@@ -27,9 +27,7 @@ end
 @inline function _edge_conditional(E::_RVFitEdge, v::Int)
     v == E.a && return E.h_a
     v == E.b && return E.h_b
-    throw(ArgumentError(
-        "proximity candidate requires a conditioned endpoint, but variable $v is not one"
-    ))
+    throw(ArgumentError("proximity candidate requires a conditioned endpoint, but variable $v is not one"))
 end
 
 mutable struct _DSU
@@ -80,8 +78,6 @@ cross-group edges.
 The grouped form is used only for tree 1. Higher R-vine trees retain the
 ordinary proximity-constrained selection.
 """
-
-
 function _maximum_spanning_tree(candidates::Vector{_RVCandidate}, nvertices::Int; groups::Union{Nothing,Vector{Int}}=nothing,)
     nvertices <= 1 && return _RVCandidate[]
     cross(c) = groups === nothing ? false : groups[c.v1] != groups[c.v2]

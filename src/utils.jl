@@ -102,9 +102,7 @@ end
 # Generic fallback for number wrappers such as ForwardDiff.Dual.
 @inline function _log_neglog1mexp(x::Real)
     isnan(x) && return x
-    x <= zero(x) ||
-        throw(DomainError(x, "Expected a non-positive logarithm."))
-
+    x <= zero(x) || throw(DomainError(x, "Expected a non-positive logarithm."))
     x == -Inf && return x
     return log(-LogExpFunctions.log1mexp(x))
 end
