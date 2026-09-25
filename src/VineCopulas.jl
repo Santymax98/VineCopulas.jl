@@ -58,6 +58,7 @@ include("utils.jl")
 include("VineCopula.jl")
 
 include("PairCopulas/Generic.jl")
+include("PairCopulas/ParameterCompat.jl")
 include("PairCopulas/Ellipticals/GaussianCopula.jl")
 include("PairCopulas/Ellipticals/TCopula.jl")
 include("PairCopulas/Archimedeans/ArchimedeanCopula.jl")
