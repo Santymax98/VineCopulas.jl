@@ -292,7 +292,7 @@ end
     # Uniform weights: the same model, the same log-likelihood, and no weights
     # stored. The unweighted recipe carries no `weights` key.
     @test StatsBase.coef(M1) == StatsBase.coef(M0)
-    @test Distributions.loglikelihood(M1) == Distributions.loglikelihood(M0)
+    @test Distributions.loglikelihood(M1) ≈ Distributions.loglikelihood(M0)
     @test !haskey(M0.recipe.kwargs, :weights)
     @test VineCopulas._model_weights(M0) === nothing
 

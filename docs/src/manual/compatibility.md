@@ -2,7 +2,7 @@
 
 ## Julia and package versions
 
-`VineCopulas.jl` supports Julia 1.10 and newer. Version 0.1.2 requires `Copulas.jl` 0.1.40 or newer within the 0.1 series.
+`VineCopulas.jl` supports Julia 1.11 and newer and requires `Copulas.jl` 1.x.
 
 The CI matrix tests the package on Julia 1.10 and the current Julia release.
 
