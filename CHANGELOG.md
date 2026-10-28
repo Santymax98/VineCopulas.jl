@@ -4,6 +4,10 @@ All notable changes to `VineCopulas.jl` are documented here. Version numbers fol
 
 ## [Unreleased]
 
+### Changed
+
+- VineCopulas now targets the stable `Copulas.jl` 1.x public parameter contract.
+
 ### Added
 
 - Exact conditional simulation through the vine's own sampling recursion: `rand`, `rand!`, `simulate_qmc`, `inverse_rosenblatt`, and `inverse_rosenblatt!` accept `fixed=(js, Ujs)` to hold the coordinates `js` at known uniforms and draw the remaining coordinates from their conditional law, at the cost of an unconditional draw.

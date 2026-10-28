@@ -29,7 +29,7 @@
     end
 end
 
-@testitem "Vine parameter metadata is contract-independent" tags=[:Vine, :VineModel, :Stats] setup=[M] begin
+@testitem "Vine parameter metadata follows the Copulas 1.x public contract" tags=[:Vine, :VineModel, :Stats] setup=[M] begin
     using Copulas
     using Distributions
     using StatsBase
@@ -51,6 +51,18 @@ end
         @test npars(C) == expected
         @test length(VineCopulas._flatten_fit_params(VineCopulas._vine_params(C))[2]) == expected
     end
+
+    G = GaussianCopula(2, 0.2)
+    T = TCopula(5.0, [1.0 0.2; 0.2 1.0])
+    B = ExtremeValueCopula(2, Copulas.BC2Tail(0.3, 0.4))
+    A = ExtremeValueCopula(2, Copulas.AsymGalambosTail(1.5, 0.3, 0.7))
+    @test Distributions.params(G) isa Tuple{<:AbstractMatrix}
+    @test Distributions.params(T) isa Tuple{<:Real,<:AbstractMatrix}
+    @test Distributions.params(B) isa Tuple{<:AbstractVector}
+    @test Distributions.params(A) isa Tuple{<:AbstractVector,<:AbstractVector,<:AbstractVector}
+    @test VineCopulas._vine_params(T) == (; ν=5.0, Σ=[1.0 0.2; 0.2 1.0])
+    @test VineCopulas._vine_params(B) == (; a=0.3, b=0.4)
+    @test VineCopulas._vine_params(A) == (; α=1.5, θ₁=0.3, θ₂=0.7)
 
     U = rand(MersenneTwister(2026), 2, 24)
     model = fit(VineModel, CVineCopula, U;
