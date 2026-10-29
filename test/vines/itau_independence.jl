@@ -130,17 +130,16 @@ end
     R = fit(TCopula, U; method=:itau)
     @test isinf(VineCopulas._vine_params(R).ν)
 
-    # The candidate is an estimate on the boundary, not a failure: it scores
-    # with the Gaussian likelihood and two parameters.
+    # The endpoint is represented canonically as the equivalent one-parameter
+    # Gaussian candidate, including when Student was the only requested family.
     sel = VineCopulas._fit_one_pair_family(TCopula, U, (); pair_method=:itau, selection_criterion=:bic, pair_kwargs=NamedTuple())
-    @test isinf(sel.theta.ν)
-    @test sel.npars == 2
+    @test sel.copula isa GaussianCopula
+    @test sel.npars == 1
     G = GaussianCopula(VineCopulas._vine_params(R).Σ)
     @test sel.loglik ≈ Distributions.loglikelihood(G, U) atol=1e-8
-    # BIC prefers the one-parameter Gaussian with the same likelihood.
     @test select_paircopula(U; family_set=(GaussianCopula, TCopula), pair_method=:itau, strict=true) isa GaussianCopula
     Cinf = select_paircopula(U; family_set=(TCopula,), pair_method=:itau, include_independence=false, strict=true)
-    @test Cinf isa TCopula && isinf(VineCopulas._vine_params(Cinf).ν)
+    @test Cinf isa GaussianCopula
 
     # The vine evaluates `TCopula(Inf, Σ)` as the Gaussian copula: kernels
     # and the vine density agree with the Gaussian pair (this also covers a

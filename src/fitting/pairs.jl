@@ -199,16 +199,9 @@ function _fit_vine_frank(U; weights=nothing, xtol::Real=1.0e-10)
     return C, (; meta..., θ̂=Distributions.params(C))
 end
 
-# Student-t, Gumbel, and Joe use finite parameter ranges in vinecopulib.
-# Copulas.jl intentionally exposes broader mathematical domains (notably
-# Student-t nu > 0), but using those broader domains inside automatic vine
-# selection changes the candidate model space and can change AIC/BIC family
-# choices.  The local optimizers align *selection only* with vinecopulib while
-# leaving direct family fits in Copulas.jl unchanged.
-const _VINE_STUDENT_RHO_LO = -1.0
-const _VINE_STUDENT_RHO_HI = 1.0
-const _VINE_STUDENT_NU_LO = 2.0
-const _VINE_STUDENT_NU_HI = 50.0
+# Gumbel and Joe use finite parameter ranges in vinecopulib. Copulas.jl
+# intentionally exposes broader mathematical domains, but these local boxes
+# are selection policy for those families only.
 const _VINE_GUMBEL_LO = 1.0
 const _VINE_GUMBEL_HI = 50.0
 const _VINE_JOE_LO = 1.0
@@ -334,29 +327,30 @@ end
     return pair_method
 end
 
-# The Copulas.jl Student `:itau` profiles the degrees of freedom on `(0, ∞]`
-# and returns `ν = Inf` when the Gaussian endpoint fits best.  That is an
-# estimate on the boundary of the family, not an optimizer failure.
+# The Copulas.jl Student fit may return `ν = Inf` when the Gaussian endpoint
+# fits best. It is represented canonically as the equivalent Gaussian candidate
+# so selection scores it with the one-parameter Gaussian model.
+@inline function _canonical_student_endpoint(C::Copulas.TCopula{2})
+    p = Distributions.params(C)
+    return isinf(p[1]) ? Copulas.GaussianCopula(p[2]) : C
+end
+@inline _canonical_student_endpoint(C::PairCopula) = C
+
 @inline _fitted_parameter_ok(C0, name::AbstractString, v::Real) = isfinite(v) || (C0 isa Copulas.TCopula && name == "ν" && v > 0)
 
 function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; weights=nothing, pair_method::Symbol, selection_criterion::Symbol, pair_kwargs::NamedTuple,)
     Uf = _flip_pair_data(U, flips)
     method = _resolve_pair_method(FT, pair_method)
 
-    # Automatic vine selection uses pair-specific MLE domains/solvers where
-    # an exact bivariate copula likelihood or a vinecopulib-aligned finite
-    # parameter domain is required.
+    # Automatic vine selection uses pair-specific MLE domains/solvers only
+    # where they are VineCopulas selection policy. Student fitting is owned by
+    # Copulas.jl and uses its public full-domain fit API.
     if FT <: Copulas.GaussianCopula && method === :mle
         C0 = Distributions.fit(FT, Uf; method=:mle, weights=weights, pair_kwargs...)
         meta = (; θ̂=Distributions.params(C0))
     elseif FT <: Copulas.TCopula && method === :mle
-        C0, meta = _fit_vine_two_parameter_bounded(
-            (rho, nu) -> Copulas.TCopula(nu, [1.0 rho; rho 1.0]), Uf,
-            (_VINE_STUDENT_RHO_LO, _VINE_STUDENT_NU_LO),
-            (_VINE_STUDENT_RHO_HI, _VINE_STUDENT_NU_HI);
-            weights=weights, pair_kwargs...,
-        )
-        meta = (; meta..., θ̂=Distributions.params(C0))
+        C0 = Distributions.fit(FT, Uf; method=:mle, weights=weights, pair_kwargs...)
+        meta = (; θ̂=Distributions.params(C0))
     elseif FT <: Copulas.ClaytonCopula && method === :mle
         C0, meta = _fit_vine_scalar_bounded(theta -> Copulas.ClaytonCopula(2, theta), Uf, _VINE_CLAYTON_LO, _VINE_CLAYTON_HI; weights=weights, pair_kwargs...,)
         meta = (; meta..., θ̂=(; θ=_vine_params(C0).θ))
@@ -383,6 +377,7 @@ function _fit_one_pair_family(FT, U::Matrix{Float64}, flips::Tuple; weights=noth
         meta = (;)
     end
 
+    C0 = _canonical_student_endpoint(C0)
     C0 isa PairCopula || throw(ArgumentError("family $FT did not produce a bivariate copula when fitted to 2×n data"))
     C = isempty(flips) ? C0 : Copulas.SurvivalCopula(C0, flips)
 

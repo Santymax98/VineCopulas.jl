@@ -42,4 +42,4 @@ For native fits, simulate Joe and Gumbel samples near independence with ``\theta
 
 ## What is not an upstream bug
 
-The narrower Student-t, Clayton, Gumbel, Joe, and BB boxes used by automatic vine selection are compatibility choices. `Copulas.jl` can legitimately expose broader mathematical parameter domains; `VineCopulas.jl` narrows only the candidate space used by its automatic selector.
+The narrower Clayton, Gumbel, Joe, and BB boxes used by automatic vine selection are compatibility choices. Student-t fitting delegates to Copulas.jl's public fitter on its full finite `ν > 0` domain; a `ν = Inf` result is canonicalized as the equivalent Gaussian candidate.

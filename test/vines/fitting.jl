@@ -94,7 +94,7 @@ end
     @test ClaytonCopula(2, -0.25) isa Copulas.Copula{2}
 end
 
-@testitem "Fit API – Student vine-selection df matches vinecopulib domain" tags=[:Fit, :PairCopula, :Regression] setup=[M] begin
+@testitem "Fit API – Student selection uses the public full-domain MLE" tags=[:Fit, :PairCopula, :Regression] setup=[M] begin
     using Test
     using Distributions
     using Copulas
@@ -103,21 +103,85 @@ end
 
     rng = StableRNG(1204)
     Sigma = [1.0 0.55; 0.55 1.0]
-    # Copulas.jl supports the broader mathematical domain nu > 0.  Generate a
-    # heavy-tailed sample below vinecopulib's lower fitting bound to ensure the
-    # vine selector itself still remains in the aligned 2 < nu < 50 range.
+    # A finite Student copula is valid for every nu > 0. This fixture used to
+    # be clamped to the vinecopulib-inspired lower bound of two.
     U = rand(rng, TCopula(1.25, Sigma), 600)
 
     S = VineCopulas._select_pair(U; family_set=(TCopula,), pair_method=:mle, selection_criterion=:aic, allow_rotations=false,
                                  preselect=false, include_independence=false, strict=true,)
+    direct = fit(TCopula, U; method=:mle)
 
     p = Distributions.params(S.copula)
+    pdirect = Distributions.params(direct)
+    @test S.copula isa TCopula
     @test abs(p[2][1, 2]) < 1.0
-    @test 2.0 < p[1] < 50.0
+    @test 0.0 < p[1] < 2.0
+    @test isfinite(p[1])
+    @test p[1] ≈ pdirect[1] atol=1e-8
+    @test p[2] ≈ pdirect[2] atol=1e-8
     @test isfinite(S.loglik)
+    @test S.loglik ≈ Distributions.loglikelihood(direct, U) atol=1e-8
 
-    # Direct Copulas.jl construction keeps the broader nu > 0 domain.
+    # Direct construction keeps the same full mathematical domain.
     @test TCopula(1.25, Sigma) isa Copulas.Copula{2}
+end
+
+@testitem "Fit API – Student MLE Gaussian endpoint is canonicalized" tags=[:Fit, :PairCopula, :Regression] setup=[M] begin
+    using Test
+    using Random
+    using Distributions
+    using Copulas
+    using VineCopulas
+
+    Σ = [1.0 0.5; 0.5 1.0]
+    U = rand(MersenneTwister(4), GaussianCopula(Σ), 1000)
+    direct = fit(TCopula, U; method=:mle)
+    @test isinf(Distributions.params(direct)[1])
+
+    for criterion in (:aic, :bic)
+        sel = VineCopulas._fit_one_pair_family(TCopula, U, (); pair_method=:mle, selection_criterion=criterion, pair_kwargs=NamedTuple())
+        @test sel.copula isa GaussianCopula
+        @test sel.npars == 1
+        @test sel.loglik ≈ Distributions.loglikelihood(sel.copula, U) atol=1e-8
+        @test sel.score ≈ VineCopulas._criterion_score(sel.loglik, 1, size(U, 2), criterion) atol=1e-12
+        @test select_paircopula(U; family_set=(TCopula,), pair_method=:mle, selection_criterion=criterion,
+                                 allow_rotations=false, include_independence=false, strict=true) isa GaussianCopula
+        # Both candidate orders are deterministic and retain the canonical
+        # Gaussian representation rather than a duplicate Student endpoint.
+        @test select_paircopula(U; family_set=(GaussianCopula, TCopula), pair_method=:mle, selection_criterion=criterion,
+                                 allow_rotations=false, include_independence=false, strict=true) isa GaussianCopula
+        @test select_paircopula(U; family_set=(TCopula, GaussianCopula), pair_method=:mle, selection_criterion=criterion,
+                                 allow_rotations=false, include_independence=false, strict=true) isa GaussianCopula
+    end
+
+    # A large but finite public estimate remains Student; VineCopulas applies
+    # no arbitrary near-Gaussian df cutoff.
+    Ufinite = rand(MersenneTwister(8), GaussianCopula(Σ), 1000)
+    Dfinite = fit(TCopula, Ufinite; method=:mle)
+    Sfinite = VineCopulas._select_pair(Ufinite; family_set=(TCopula,), pair_method=:mle, selection_criterion=:bic,
+                                       allow_rotations=false, include_independence=false, strict=true)
+    @test Distributions.params(Dfinite)[1] > 50.0
+    @test Sfinite.copula isa TCopula
+    @test Distributions.params(Sfinite.copula)[1] > 50.0
+    @test Sfinite.loglik ≈ Distributions.loglikelihood(Dfinite, Ufinite) atol=1e-8
+end
+
+@testitem "Fit API – Student MLE retains finite interior fits" tags=[:Fit, :PairCopula, :Regression] setup=[M] begin
+    using Test
+    using Distributions
+    using Copulas
+    using VineCopulas
+    using StableRNGs
+
+    U = rand(StableRNG(1206), TCopula(4.0, [1.0 0.5; 0.5 1.0]), 800)
+    S = VineCopulas._select_pair(U; family_set=(TCopula,), pair_method=:mle, selection_criterion=:aic,
+                                 allow_rotations=false, include_independence=false, strict=true)
+    direct = fit(TCopula, U; method=:mle)
+    p = Distributions.params(S.copula)
+    @test S.copula isa TCopula
+    @test isfinite(p[1]) && p[1] > 0.0
+    @test abs(p[2][1, 2] - 0.5) < 0.15
+    @test S.loglik ≈ Distributions.loglikelihood(direct, U) atol=1e-8
 end
 
 @testitem "Fit API – Gumbel/Joe vine-selection boundaries are safe" tags=[:Fit, :PairCopula, :Rotation, :Regression] setup=[M] begin

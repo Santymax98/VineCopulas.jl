@@ -129,10 +129,10 @@ Copulas.jl, which inverts the sample Kendall tau instead of maximizing the
 likelihood. It is closed form for the Gaussian, Clayton, Gumbel, Frank and Joe
 families, and a one-dimensional profile in the degrees of freedom for the
 Student family, so a sequential vine fit is several times faster than under
-`:mle`. The estimate lives on the family's own parameter domain, not on the
-finite selection boxes the `:mle` candidates use: a Student candidate can
-return `ν = Inf`, the Gaussian endpoint of its profile, which the vine
-evaluates as the Gaussian copula. The BB families have two parameters, which
+`:mle`. Student fitting delegates to Copulas.jl for both methods: finite
+estimates use the full valid `ν > 0` domain. If its profile returns `ν = Inf`,
+VineCopulas represents that Gaussian endpoint canonically as `GaussianCopula`
+for selection and scoring. The BB families have two parameters, which
 tau alone does not identify, so they are fitted by `:mle` under `:itau`, as in
 vinecopulib; `trace=true` prints the method used by each candidate. A family
 outside the shipped sets that advertises no `:itau` fails as a candidate with
