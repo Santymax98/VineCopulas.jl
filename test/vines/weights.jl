@@ -123,6 +123,19 @@ end
         @test Distributions.params(F2) == Distributions.params(F0)
     end
 
+    # Student MLE is delegated to Copulas.jl with VineCopulas' normalized
+    # weights, so the selected finite Student fit is the public weighted fit.
+    wstudent = collect(range(0.5, 2.0; length=n))
+    wnorm = VineCopulas._fit_weights(wstudent, n)
+    Sstudent = VineCopulas._select_pair(U; weights=wstudent, family_set=(TCopula,), pair_method=:mle,
+                                        allow_rotations=false, include_independence=false, strict=true)
+    Dstudent = fit(TCopula, U; method=:mle, weights=wnorm)
+    @test Sstudent.copula isa TCopula
+    pstudent, pdirect = Distributions.params(Sstudent.copula), Distributions.params(Dstudent)
+    @test pstudent[1] ≈ pdirect[1] atol=1e-8
+    @test pstudent[2] ≈ pdirect[2] atol=1e-8
+    @test Sstudent.loglik ≈ VineCopulas._weighted_loglikelihood(Dstudent, U, wnorm) atol=1e-8
+
     # A family outside the local fitters, and a rank inversion, are fitted by
     # Copulas.jl, which takes the same weights and the same scaling.
     for kw in ((; family_set=(AMHCopula,), pair_method=:mle), (; family_set=(ClaytonCopula,), pair_method=:itau))

@@ -7,6 +7,7 @@ All notable changes to `VineCopulas.jl` are documented here. Version numbers fol
 ### Changed
 
 - VineCopulas now targets the stable `Copulas.jl` 1.x public parameter contract.
+- Student pair fitting now delegates to Copulas.jl's specialized public fitter, removes the former vinecopulib-inspired degrees-of-freedom restriction, and canonicalizes its Gaussian endpoint as `GaussianCopula` for selection.
 
 ### Added
 
