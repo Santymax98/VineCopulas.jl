@@ -1,5 +1,5 @@
-# Fork-safe Tachometer comparison: pull-request code receives only a read-only
-# token and uploads its measurements for the trusted reporter workflow.
+# Untrusted half of Tachometer's fork-safe two-workflow setup. This workflow
+# executes pull-request code with a read-only token and only uploads results.
 name: Benchmarks
 
 on:
@@ -28,11 +28,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+
       - uses: KristofferC/Tachometer.jl@d598409830fa4118d82668463400e7ddc060d7b8
         with:
-          julia-version: '1'
-          nruns: '1'
-          time-tolerance: '5%'
-          memory-tolerance: '5%'
-          time-floor: '1us'
-          fail-on-regression: 'true'
+          julia-version: "1"
+          nruns: "1"
+          time-tolerance: "5%"
+          memory-tolerance: "5%"
+          time-floor: "1us"
+          fail-on-regression: "true"

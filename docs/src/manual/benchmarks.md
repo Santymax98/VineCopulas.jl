@@ -131,9 +131,9 @@ quantile(condition(C, 2, v), q)
 Focused diagnostics live in:
 
 ```bash
-julia --project=benchmarks benchmark/diagnostics/condition_fallback.jl
-julia --project=benchmarks benchmark/diagnostics/fused_pair_kernels.jl
-julia --project=benchmarks benchmark/diagnostics/vine_engine_allocations.jl
+julia --project=benchmark benchmark/diagnostics/condition_fallback.jl
+julia --project=benchmark benchmark/diagnostics/fused_pair_kernels.jl
+julia --project=benchmark benchmark/diagnostics/vine_engine_allocations.jl
 ```
 
 The goal is to decide which optimized paths remain justified. Generic
@@ -145,7 +145,7 @@ when they are measurably faster, more stable, or avoid important allocations.
 Instantiate the benchmark environment:
 
 ```bash
-julia --project=benchmarks -e '
+julia --project=benchmark -e '
 using Pkg
 Pkg.develop(path=".")
 Pkg.resolve()

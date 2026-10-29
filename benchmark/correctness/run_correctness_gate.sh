@@ -19,12 +19,12 @@ if ! Rscript -e 'quit(status = if (requireNamespace("rvinecopulib", quietly = TR
   exit 2
 fi
 
-julia --project=benchmarks "$CORR/generate_inputs.jl"
+julia --project=benchmark "$CORR/generate_inputs.jl"
 Rscript "$CORR/r_fixed_reference.R"
-julia --project=benchmarks "$CORR/julia_fixed_reference.jl"
+julia --project=benchmark "$CORR/julia_fixed_reference.jl"
 
 set +e
-julia --project=benchmarks "$CORR/compare_fixed.jl"
+julia --project=benchmark "$CORR/compare_fixed.jl"
 fixed_status=$?
 set -e
 
@@ -41,10 +41,10 @@ EOF
 fi
 
 Rscript "$CORR/r_fit_reference.R"
-julia --project=benchmarks "$CORR/julia_fit_reference.jl"
+julia --project=benchmark "$CORR/julia_fit_reference.jl"
 
 set +e
-julia --project=benchmarks "$CORR/compare_fit.jl"
+julia --project=benchmark "$CORR/compare_fit.jl"
 fit_status=$?
 set -e
 

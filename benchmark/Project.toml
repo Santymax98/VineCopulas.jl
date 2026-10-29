@@ -9,9 +9,6 @@ StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 VineCopulas = "58f8e485-d1fe-48aa-8792-3d6ba0b7fb45"
 
-[sources]
-VineCopulas = {path = "/Users/santiago/Repositorios/VineCopulas.jl"}
-
 [compat]
 BenchmarkTools = "1"
 Copulas = "1"

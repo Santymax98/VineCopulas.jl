@@ -19,7 +19,7 @@ export FAMILY MODEL P N TRUNC CDF_POINTS CDF_N SAMPLES ITERATIONS INCLUDE_CDF RA
 mkdir -p benchmark/results benchmark/reference benchmark/logs
 
 echo "== Julia performance =="
-julia --project=benchmarks benchmark/julia_bench.jl
+julia --project=benchmark benchmark/julia_bench.jl
 
 echo
 echo "== R performance =="
@@ -32,5 +32,5 @@ if [[ "$RUN_VALIDATION" == "true" || "$RUN_VALIDATION" == "1" ]]; then
 
   echo
   echo "== Julia validation against R =="
-  julia --project=benchmarks benchmark/julia_validate_against_r.jl
+  julia --project=benchmark benchmark/julia_validate_against_r.jl
 fi

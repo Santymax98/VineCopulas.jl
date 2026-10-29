@@ -18,7 +18,7 @@ export RUN_VALIDATION="${RUN_VALIDATION:=true}"
 
 bash benchmark/run_battery.sh
 
-julia --project=benchmarks benchmark/summarize_evaluation.jl
+julia --project=benchmark benchmark/summarize_evaluation.jl
 
 echo
 echo "Evaluation benchmark complete."

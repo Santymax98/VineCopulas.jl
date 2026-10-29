@@ -48,7 +48,7 @@ is applied to inverse h-functions.
 From the package root, instantiate the Julia benchmark environment:
 
 ```bash
-julia --project=benchmarks -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
+julia --project=benchmark -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
 ```
 
 Install the R reference package if needed:

@@ -28,7 +28,7 @@ in the manual correctness campaign.
 ## Setup
 
 ```bash
-julia --project=benchmarks -e '
+julia --project=benchmark -e '
 using Pkg
 Pkg.develop(path=".")
 Pkg.resolve()
@@ -88,9 +88,9 @@ Each mode measures pair selection, fixed-structure R-vine fitting, and automatic
 ## Focused engine diagnostics
 
 ```bash
-julia --project=benchmarks benchmark/diagnostics/condition_fallback.jl
-julia --project=benchmarks benchmark/diagnostics/fused_pair_kernels.jl
-julia --project=benchmarks benchmark/diagnostics/vine_engine_allocations.jl
+julia --project=benchmark benchmark/diagnostics/condition_fallback.jl
+julia --project=benchmark benchmark/diagnostics/fused_pair_kernels.jl
+julia --project=benchmark benchmark/diagnostics/vine_engine_allocations.jl
 ```
 
 These isolate the pair-copula boundary with `Copulas.condition`, fused pair-kernel speedups, and C-/D-/R-vine allocation behavior from the larger benchmark campaign.
@@ -98,7 +98,7 @@ These isolate the pair-copula boundary with `Copulas.condition`, fused pair-kern
 For a quick local smoke run:
 
 ```bash
-SMOKE=1 julia --project=benchmarks benchmark/diagnostics/condition_fallback.jl
+SMOKE=1 julia --project=benchmark benchmark/diagnostics/condition_fallback.jl
 ```
 
 The default `MATRIX=core` keeps the run focused on FGM, Gaussian, Student, Clayton, Frank, Gumbel, and Joe. Set `MATRIX=full` to include BB and extreme-value families, `FAMILIES=gaussian,student,clayton` to narrow the matrix, `SAMPLES=20` to increase measurement stability, or `OUT=benchmark/reports/condition_fallback.csv` to persist the results.

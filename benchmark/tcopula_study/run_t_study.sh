@@ -21,11 +21,11 @@ mkdir -p benchmark/results benchmark/reference benchmark/logs
 
 if [[ "$RUN_DIAGNOSTICS" == "true" || "$RUN_DIAGNOSTICS" == "1" ]]; then
   echo "== TCopula scalar diagnostics =="
-  julia --project=benchmarks benchmark/tcopula_study/diagnose_t_core.jl
+  julia --project=benchmark benchmark/tcopula_study/diagnose_t_core.jl
 
   echo
   echo "== TCopula primitive diagnostics =="
-  julia --project=benchmarks benchmark/tcopula_study/diagnose_t_primitives.jl
+  julia --project=benchmark benchmark/tcopula_study/diagnose_t_primitives.jl
 fi
 
 for MODEL in $MODELS; do
