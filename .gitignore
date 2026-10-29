@@ -10,15 +10,15 @@
 /docs/node_modules/
 /docs/package-lock.json
 
-/benchmarks/Manifest*.toml
-/benchmarks/results/
-/benchmarks/reference/
-/benchmarks/logs/
-/benchmarks/fitting/data/
-/benchmarks/fitting/results/
-/benchmarks/correctness/data/
-/benchmarks/correctness/results/
-/benchmarks/correctness/environment_correctness.txt
+/benchmark/Manifest*.toml
+/benchmark/results/
+/benchmark/reference/
+/benchmark/logs/
+/benchmark/fitting/data/
+/benchmark/fitting/results/
+/benchmark/correctness/data/
+/benchmark/correctness/results/
+/benchmark/correctness/environment_correctness.txt
 
 # Local Phase A contract/performance baseline
 /.phase_a0/

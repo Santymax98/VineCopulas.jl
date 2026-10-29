@@ -4,11 +4,11 @@ The roadmap is intentionally short and is not tied to version numbers. Correctne
 
 ## Main priority: performance
 
-- Use the [benchmark manual](../manual/benchmarks.md) as the baseline for optimization work and keep every result reproducible through the benchmark workflow.
+- Use the [benchmark manual](../manual/benchmarks.md) as the baseline for optimization work. The canonical `BenchmarkTools.SUITE` is tracked on pull requests with Tachometer; material hot-path changes should update or add a representative benchmark.
 - Reduce fitting time, especially for the default family search. The practical goal is to close the gap to `rvinecopulib` and, where possible, match or outperform it without weakening correctness or API clarity.
 - Profile before optimizing. Performance changes should show a measurable improvement in the benchmark suite while the correctness gate remains green.
 - Prioritize pair-family selection, repeated likelihood and h-function calculations, Student-t bottlenecks, allocations, and reusable intermediate state.
-- Explore parallel family or edge fitting only where benchmarks show a clear benefit.
+- Evaluate future threaded fitting against the canonical suite, separating sequential, edge-only, and edge-plus-candidate measurements.
 
 Performance work is a particularly useful contribution area. Profiling results, lower-allocation kernels, optimizer improvements, and focused pull requests with before/after benchmark numbers are welcome.
 

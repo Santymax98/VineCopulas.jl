@@ -105,10 +105,10 @@ Run the external correctness gate with:
 
 ```bash
 PARITY_N=800 PARITY_FIT_MODE=common \
-  bash benchmarks/correctness/run_correctness_gate.sh
+  bash benchmark/correctness/run_correctness_gate.sh
 ```
 
-Evaluation and fitting speed benchmarks are kept separate from correctness checks. See [`benchmarks/README.md`](benchmarks/README.md) for the short commands and report format.
+Evaluation and fitting speed benchmarks are kept separate from correctness checks. See [`benchmark/README.md`](benchmark/README.md) for the short commands and report format.
 
 ## Current scope
 
