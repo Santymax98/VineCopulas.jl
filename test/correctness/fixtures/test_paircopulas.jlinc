@@ -10,9 +10,6 @@ using VineCopulas
 
 
     for (label, C) in pairs
-        println("Testing pair-copula: ", label)
-        flush(stdout)
-
         @testset "$label" begin
             is_ev = _is_extreme_value(C)
             is_singular_ev = _is_singular_extreme_value(C)
