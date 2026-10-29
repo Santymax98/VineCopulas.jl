@@ -17,7 +17,7 @@ Performance work is a particularly useful contribution area. Profiling results, 
 - Improve fitted-model summaries and diagnostics.
 - Reduce allocations in repeated vine evaluation and conditional-state propagation.
 - Reuse or fuse intermediate computations when density and h-functions require the same quantities.
-- Add data-driven truncation-depth selection with a clear statistical criterion.
+- Add a Vuong-test truncation rule beside the mBICV one.
 - Keep fitting controls expressive without making the default API heavier.
 
 ## Later

@@ -22,7 +22,7 @@ and vine-specific fitting/selection algorithms.
 - Rotated/survival pair-copulas and an optional independence candidate.
 - Fixed-structure fitting for C-, D-, and R-vines.
 - Automatic C-/D-vine ordering and Dissmann-style R-vine structure selection.
-- User-controlled vine truncation and weak-dependence thresholds.
+- User-controlled or mBICV-selected vine truncation, and weak-dependence thresholds.
 - External numerical validation against R `rvinecopulib`.
 - Reproducible evaluation and fitting benchmarks.
 
@@ -112,7 +112,7 @@ Evaluation and fitting speed benchmarks are kept separate from correctness check
 
 ## Current scope
 
-The 0.1 series focuses on sequential fitting and structure selection for simplified vines. Automatic data-driven truncation selection, observation weights, missing/discrete-data fitting, nonparametric pair-copula selection, and joint full-vine maximum-likelihood estimation remain outside the current scope.
+The 0.1 series focuses on sequential fitting and structure selection for simplified vines. Observation weights, missing/discrete-data fitting, nonparametric pair-copula selection, and joint full-vine maximum-likelihood estimation remain outside the current scope.
 
 Automatic selection may use narrower **candidate parameter domains** than the mathematical domains exposed by `Copulas.jl`. Those bounds align the selection problem with `vinecopulib`; they do not restrict direct construction or direct use of the underlying pair-copulas.
 

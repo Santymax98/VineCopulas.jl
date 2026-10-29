@@ -56,15 +56,15 @@ families remains the responsibility of `Copulas.jl`.
 - Sequential fitting for fixed vine structures.
 - Automatic C-vine and D-vine ordering.
 - Dissmann-style R-vine structure selection with maximum spanning trees.
-- AIC, BIC, log-likelihood, Kendall-``\tau``, and Spearman-``\rho`` controls.
-- Truncated vine evaluation and user-controlled fitting truncation.
+- AIC, BIC, mBICV, log-likelihood, Kendall-``\tau``, and Spearman-``\rho`` controls.
+- Truncated vine evaluation, and user-controlled or mBICV-selected fitting truncation.
 - External correctness checks against `rvinecopulib` and reproducible performance benchmarks.
 
 !!! warning "Current modeling scope"
-    The package currently implements simplified vines. Truncation is user
-    controlled for every vine type, and density evaluation, Rosenblatt/inverse
-    Rosenblatt transforms, and simulation all respect it. Automatic data-driven
-    truncation selection is not implemented.
+    The package currently implements simplified vines. Truncation is
+    user-controlled or selected greedily with `trunc=:mbicv` for every vine
+    type, and density evaluation, Rosenblatt/inverse Rosenblatt transforms, and
+    simulation all respect it.
 
 ## Quick example
 
