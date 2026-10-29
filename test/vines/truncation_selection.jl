@@ -24,6 +24,18 @@
         @test mbicv(vine, U; psi0=psi0) - bic(vine, U) ≈ -2 * (2 * log(psi0) + 1 * 2 * log(psi0)) atol=1e-10
     end
     @test mbicv(vine, U) == mbicv(vine, U; psi0=0.9)
+    @test mbicv(vine, U) == mbicv(vine, U; weights=nothing)
+
+    # The weighted extension uses the same normalized likelihood convention as
+    # fitting while retaining n, the number of observations, in the BIC term.
+    w = [isodd(j) ? 0.5 : 1.5 for j in 1:n]
+    ψ0 = 0.8
+    wll = sum(j -> w[j] * logpdf(vine, view(U, :, j)), 1:n)
+    wprior = 2 * log(ψ0) + (p - 1 - 2) * log1p(-ψ0) +
+             log(ψ0^2) + (p - 2 - 1) * log1p(-ψ0^2)
+    expected = -2wll + ν * log(n) - 2wprior
+    @test mbicv(vine, U; psi0=ψ0, weights=w) ≈ expected atol=1e-12 * abs(wll)
+    @test mbicv(vine, U; psi0=ψ0, weights=w) != mbicv(vine, U; psi0=ψ0)
 
     # Truncated at 1: tree 2 is independence and contributes (p - 2) log(1 - ψ₂).
     v1 = truncate(vine, 1)
@@ -228,6 +240,16 @@ end
         @test_throws ArgumentError mbicv(model; psi0=1.0)
         plain = fit(VineModel, VT, U; family_set=fams)
         @test mbicv(plain) == mbicv(fitted_distribution(plain), U)
+
+        # Stored normalized weights make the public model score the same
+        # weighted criterion used by truncation selection.
+        w = [isodd(j) ? 0.5 : 1.5 for j in axes(U, 2)]
+        weighted = fit(VineModel, VT, U; trunc=:mbicv, psi0=0.8, family_set=fams, weights=w)
+        CW = fitted_distribution(weighted)
+        stored = VineCopulas._model_weights(weighted)
+        @test mbicv(weighted) ≈ mbicv(CW, weighted.data; psi0=0.8, weights=stored)
+        @test mbicv(weighted; psi0=0.9) ≈ mbicv(CW, weighted.data; psi0=0.9, weights=stored)
+        @test mbicv(weighted) != mbicv(CW, weighted.data; psi0=0.8)
 
         # The refit walks the selected structure at the selected level, so the
         # bootstrap resamples a model of the same depth and coefficient length.

@@ -77,9 +77,9 @@ StatsBase.confint(I)
 ```
 
 !!! warning "Conditional inference"
-    Current vine covariance inference conditions on the selected structure,
-    pair families, and rotations. Every replicate resamples observations and
-    sequentially refits all active pair parameters, propagating
+    Current vine covariance inference conditions on the selected truncation
+    level, structure, pair families, and rotations. Every replicate resamples
+    observations and sequentially refits all active pair parameters, propagating
     pseudo-observations through the trees. It does not include model-selection
     uncertainty, and it intentionally does not offer a joint-MLE Hessian.
 
@@ -453,7 +453,9 @@ After each tree `t` is fitted, the model truncated at `t` is scored with
 [`mbicv`](@ref). If the score does not improve on the score at `t - 1`, tree
 `t` is dropped and the fit stops; otherwise the search continues up to the
 ceiling, which is `max_trunc` or `p - 1`. The rule is greedy, so it costs at
-most one extra tree. `psi0 ∈ (0, 1)` is the prior probability that a tree-1
+most one extra tree. It finds the first local improvement boundary along this
+sequential fit, not an exhaustive optimum over levels, structures, orders, or
+family assignments. `psi0 ∈ (0, 1)` is the prior probability that a tree-1
 pair copula is not independence; the prior decays geometrically with the tree
 level, so deeper trees must earn their parameters. The published default is
 `0.9`; a smaller value favours sparser models.
@@ -511,6 +513,11 @@ tree `t`, and `ψₜ = psi0^t`,
 
 Trees beyond the truncation level are independence, so they contribute
 `(p - t) log(1 - ψₜ)` each.
+
+For weighted fits, `mbicv` uses VineCopulas' normalized weighted
+log-likelihood convention: weights sum to the number of observations, so the
+criterion retains that observation count in its BIC term. This is a package
+extension; the paper treats ordinary iid likelihoods.
 
 ## Metadata and diagnostics
 

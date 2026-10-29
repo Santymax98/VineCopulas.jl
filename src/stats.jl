@@ -73,7 +73,7 @@ end
 end
 
 """
-    mbicv(vine, U; psi0=0.9)
+    mbicv(vine, U; psi0=0.9, weights=nothing)
     mbicv(M::VineModel; psi0=M.recipe.kwargs.psi0)
 
 Compute the modified Bayesian information criterion for vines of Nagler, Bumann
@@ -89,6 +89,11 @@ a tree beyond the truncation level of `vine` is independence, so it contributes
 pair copula is not independence; the prior decays geometrically with the tree
 level, so deeper trees must earn their parameters.
 
+`weights` extends the criterion with VineCopulas' normalized weighted
+log-likelihood convention: weights are scaled to sum to the number of
+observations, so `n` remains the number of columns. The paper treats the
+ordinary iid likelihood.
+
 `fit(...; trunc=:mbicv)` selects the truncation level with this criterion.
 
 On a `VineModel` the score is that of the fitted vine on the data it was fitted
@@ -96,13 +101,14 @@ to, and `psi0` defaults to the value the fit was called with (`0.9` when it was
 not given), so a model fitted with `trunc=:mbicv` reports the score its
 truncation level was selected on.
 """
-function mbicv(vc::AbstractVineCopula{p}, U::AbstractMatrix{<:Real}; psi0::Real=0.9) where {p}
+function mbicv(vc::AbstractVineCopula{p}, U::AbstractMatrix{<:Real}; psi0::Real=0.9, weights=nothing) where {p}
     ψ0 = _check_psi0(psi0)
     X = _as_pxn(p, U)
+    w = _fit_weights(weights, size(X, 2))
     q = Int[count(C -> !_is_independence_pair(C), tree) for tree in edges(vc)]
-    return _mbicv_score(loglikelihood(vc, X), npars(vc), size(X, 2), q, p, ψ0)
+    return _mbicv_score(_weighted_loglikelihood(vc, X, w), npars(vc), size(X, 2), q, p, ψ0)
 end
 
 function mbicv(M::VineModel; psi0::Real=get(M.recipe.kwargs, :psi0, 0.9))
-    return mbicv(Copulas.fitted_distribution(M), M.data; psi0=psi0)
+    return mbicv(Copulas.fitted_distribution(M), M.data; psi0=psi0, weights=_model_weights(M))
 end

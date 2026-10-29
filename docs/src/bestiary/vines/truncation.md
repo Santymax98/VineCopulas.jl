@@ -24,7 +24,10 @@ Truncation is a structural property of the vine and must not be confused with **
 
 Truncation applies uniformly to fitting, density evaluation, Rosenblatt/inverse Rosenblatt transforms, simulation, and the simulation-based numerical CDF, for C-vines, D-vines, and standard general R-vines alike. The omitted trees behave as independence pair-copulas, so a truncated vine and the same vine padded to full depth with independence pair-copulas are the same model.
 
-Automatic data-driven selection of the truncation level is not yet part of the public API.
+`fit(...; trunc=:mbicv)` selects a truncation level greedily along the
+sequentially fitted vine path. It stops at the first tree whose addition does
+not improve mBICV; it is not an exhaustive search over levels, structures,
+orders, or pair-copula families.
 
 !!! tip
     Use truncation as a modeling decision, not only as a speed knob. A smaller
