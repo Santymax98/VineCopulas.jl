@@ -14,10 +14,10 @@ Run both fitting campaigns against R `rvinecopulib`:
 
 ```bash
 PARITY_N=800 PARITY_FIT_MODE=common \
-  bash benchmarks/correctness/run_correctness_gate.sh
+  bash benchmark/correctness/run_correctness_gate.sh
 
 PARITY_N=800 PARITY_FIT_MODE=default \
-  bash benchmarks/correctness/run_correctness_gate.sh
+  bash benchmark/correctness/run_correctness_gate.sh
 ```
 
 Do not relax tolerances or remove a candidate family to turn a failing gate into a pass. Diagnose the failing family, structure, or numerical primitive instead.
@@ -27,14 +27,14 @@ Do not relax tolerances or remove a candidate family to turn a failing gate into
 Refresh the evaluation benchmark and at least one fitting benchmark:
 
 ```bash
-bash benchmarks/run_main.sh
-MODE=common N=1000 P=5 REPEATS=3 bash benchmarks/fitting/run_fit.sh
+bash benchmark/run_main.sh
+MODE=common N=1000 P=5 REPEATS=3 bash benchmark/fitting/run_fit.sh
 ```
 
 Run the default fitting benchmark after its correctness gate is green. Record the comparison environment with:
 
 ```bash
-bash benchmarks/correctness/record_environment.sh
+bash benchmark/correctness/record_environment.sh
 ```
 
 ## 4. Documentation

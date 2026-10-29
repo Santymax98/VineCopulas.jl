@@ -1,7 +1,10 @@
 # Benchmarks
 
-Benchmarks in `VineCopulas.jl` serve two different purposes:
+Benchmarks in `VineCopulas.jl` serve three different purposes:
 
+- the small Julia-only `BenchmarkTools.SUITE` in `benchmark/benchmarks.jl`
+  tracks representative evaluation, fitting, selection, transforms and CDF
+  workloads; Tachometer compares it on pull requests;
 - correctness gates show that the Julia implementation agrees with an external
   reference on deterministic fixtures;
 - performance benchmarks explain where the Julia implementation is fast, where
@@ -11,6 +14,10 @@ Benchmarks in `VineCopulas.jl` serve two different purposes:
     A faster result is not meaningful until both implementations are known to be
     evaluating or fitting the same model. Read correctness reports before
     interpreting speed tables.
+
+The continuous suite is intentionally distinct from the deeper R-backed
+campaigns below: the latter remain useful for parity and diagnosis, but are
+not required for ordinary pull-request benchmark comparisons.
 
 ## Correctness against rvinecopulib
 
@@ -30,10 +37,10 @@ Run:
 
 ```bash
 PARITY_N=800 PARITY_FIT_MODE=common \
-  bash benchmarks/correctness/run_correctness_gate.sh
+  bash benchmark/correctness/run_correctness_gate.sh
 
 PARITY_N=800 PARITY_FIT_MODE=default \
-  bash benchmarks/correctness/run_correctness_gate.sh
+  bash benchmark/correctness/run_correctness_gate.sh
 ```
 
 The `v0.1.1` release-candidate gate passed both supported parity modes:
@@ -59,13 +66,13 @@ implementation.
 Run:
 
 ```bash
-bash benchmarks/run_main.sh
+bash benchmark/run_main.sh
 ```
 
 Fitting benchmarks use a separate entry point:
 
 ```bash
-bash benchmarks/fitting/run_fit.sh
+bash benchmark/fitting/run_fit.sh
 ```
 
 !!! tip
@@ -124,9 +131,9 @@ quantile(condition(C, 2, v), q)
 Focused diagnostics live in:
 
 ```bash
-julia --project=benchmarks benchmarks/diagnostics/condition_fallback.jl
-julia --project=benchmarks benchmarks/diagnostics/fused_pair_kernels.jl
-julia --project=benchmarks benchmarks/diagnostics/vine_engine_allocations.jl
+julia --project=benchmarks benchmark/diagnostics/condition_fallback.jl
+julia --project=benchmarks benchmark/diagnostics/fused_pair_kernels.jl
+julia --project=benchmarks benchmark/diagnostics/vine_engine_allocations.jl
 ```
 
 The goal is to decide which optimized paths remain justified. Generic
@@ -153,8 +160,8 @@ Rscript -e 'install.packages("rvinecopulib", repos="https://cloud.r-project.org"
 ```
 
 Then run the correctness and performance commands above from the repository
-root. Generated reports are written under `benchmarks/reports/` and
-`benchmarks/correctness/results/`.
+root. Generated reports are written under `benchmark/reports/` and
+`benchmark/correctness/results/`.
 
 !!! note
     Benchmark numbers are local measurements. They are useful for tracking
