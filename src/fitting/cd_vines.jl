@@ -41,7 +41,7 @@ end
 function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, max_trunc=nothing, psi0::Real=0.9, family_set=:default, pair_method::Symbol=:default,
     weights=nothing, selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
     independence_test::Symbol=:none, independence_level::Real=0.05, threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(),
-    strict::Bool=false, trace::Bool=false,)
+    strict::Bool=false, trace::Bool=false, threaded::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     w = _fit_weights(weights, size(X, 2))
@@ -72,18 +72,19 @@ function _fit_cvine_sequential(U0; order=nothing, trunc=nothing, max_trunc=nothi
         deleteat!(remaining, findfirst(==(root), remaining))
 
         children = explicit_order ? collect(ord[(t+1):p]) : copy(remaining)
-        level = Dict{Int,_PairSelection}()
-
-        @inbounds for child in children
+        fits = Vector{_PairSelection}(undef, length(children))
+        _run_indexed!(length(children), threaded && !trace) do i
+            child = children[i]
             dep = _tree_dependence(cond[root], cond[child], root, child, D, tree_criterion, w,)
             pdata = Matrix{Float64}(undef, 2, size(X, 2))
             pdata[1, :] .= cond[root]
             pdata[2, :] .= cond[child]
             fit = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion, allow_rotations=allow_rotations,
                 preselect=preselect, include_independence=include_independence, independence_test=independence_test, independence_level=independence_level,
-                pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold, weights=w,)
-            level[child] = fit
+                pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold, weights=w, threaded=false,)
+            fits[i] = fit
         end
+        level = Dict{Int,_PairSelection}(children[i] => fits[i] for i in eachindex(children))
         if selector !== nothing && !_accept_tree!(selector, values(level), trace)
             # Drop tree `t` and its root, so the result is the vine
             # `trunc = t - 1` would have returned.
@@ -252,7 +253,7 @@ end
 function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, max_trunc=nothing, psi0::Real=0.9, order_method::Symbol=:auto, exact_order_max::Int=12,
     weights=nothing, family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic, tree_criterion=:tau, allow_rotations::Bool=true,
     preselect::Bool=true, include_independence::Bool=true, independence_test::Symbol=:none, independence_level::Real=0.05,
-    threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
+    threshold::Real=0.0, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false, threaded::Bool=false,)
     p = size(U0, 1)
     X = _fit_data(U0, p)
     w = _fit_weights(weights, size(X, 2))
@@ -279,7 +280,7 @@ function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, max_trunc=nothi
         m = p - t
         level = Vector{_PairSelection}(undef, m)
 
-        @inbounds for i in 1:m
+        _run_indexed!(m, threaded && !trace) do i
             # Edge (ord[i], ord[i+t] | ord[i+1], …, ord[i+t-1]).
             dep = _tree_dependence(L[i], R[i + t], ord[i], ord[i + t], ord[(i + 1):(i + t - 1)], tree_criterion, w,)
             pdata = Matrix{Float64}(undef, 2, n)
@@ -287,7 +288,7 @@ function _fit_dvine_sequential(U0; order=nothing, trunc=nothing, max_trunc=nothi
             pdata[2, :] .= R[i + t]
             level[i] = _select_pair(pdata; family_set=family_set, pair_method=pair_method, selection_criterion=selection_criterion,
                 allow_rotations=allow_rotations, preselect=preselect, include_independence=include_independence, independence_test=independence_test,
-                independence_level=independence_level, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold, weights=w,)
+                independence_level=independence_level, pair_kwargs=pair_kwargs, strict=strict, trace=trace, force_independence=dep < threshold, weights=w, threaded=false,)
         end
 
         levels[t] = level

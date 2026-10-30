@@ -412,10 +412,31 @@ function _independence_selection(U::Matrix{Float64}, criterion::Symbol, weights=
     return _PairSelection(C, "Independence", 0, :none, ll, 0, _criterion_score(ll, 0, _weighted_nobs(U, weights), criterion), true, 0, (;),)
 end
 
+function _run_indexed!(f, n::Int, threaded::Bool)
+    if !threaded
+        for i in 1:n
+            f(i)
+        end
+        return nothing
+    end
+    errors = Vector{Any}(nothing, n)
+    @sync for i in 1:n
+        Threads.@spawn try
+            f(i)
+        catch err
+            errors[i] = err
+        end
+    end
+    for err in errors
+        err === nothing || throw(err)
+    end
+    return nothing
+end
+
 function _select_pair(U0::AbstractMatrix{<:Real}; weights=nothing, family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
     allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true, independence_test::Symbol=:none,
     independence_level::Real=0.05, pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,
-    force_independence::Bool=false,)
+    force_independence::Bool=false, threaded::Bool=false,)
 
     U = _fit_data(U0, 2)
     U, w = _weighted_sample(U, _fit_weights(weights, size(U, 2)))
@@ -442,41 +463,73 @@ function _select_pair(U0::AbstractMatrix{<:Real}; weights=nothing, family_set=:d
         trace && println("pair independence test: tau=$τtest, p=$pvalue <= $independence_level, dependence")
     end
 
-    best = include_independence ? _independence_selection(U, selection_criterion, w) : nothing
-    nsuccessful = 0
-
+    candidates = Tuple{Any,Tuple}[]
     for FT in families
         (FT isa Type || FT isa UnionAll) ||
             throw(ArgumentError("family_set entries must be copula types; got $FT"))
         FT <: Copulas.Copula ||
             throw(ArgumentError("family $FT is not a Copulas.jl copula type"))
-
         for flips in _rotation_candidates(FT, τhat, allow_rotations, preselect)
-            try
-                fit = _fit_one_pair_family(FT, U, flips; weights=w, pair_method=pair_method, selection_criterion=selection_criterion, pair_kwargs=pair_kwargs,)
-                nsuccessful += 1
-                if !isfinite(fit.score)
-                    # The estimate gives the sample zero density: a loser, not
-                    # a failure, so it is skipped under `strict=true` too.
-                    trace && println("pair candidate skipped: family=$(fit.family), rotation=$(fit.rotation), method=$(fit.method), ll=$(fit.loglik)")
-                    continue
-                end
-                if trace
-                    println(
-                        "pair candidate: family=$(fit.family), rotation=$(fit.rotation), ",
-                        "method=$(fit.method), ll=$(fit.loglik), score=$(fit.score)"
-                    )
-                end
-                if best === nothing || fit.score < best.score
-                    best = fit
-                end
-            catch err
-                strict && rethrow()
-                trace && println("pair candidate failed: family=$FT flips=$flips error=$err")
-            end
+            push!(candidates, (FT, flips))
         end
     end
 
+    fits = Vector{Union{Nothing,_PairSelection}}(nothing, length(candidates))
+    errors = Vector{Any}(nothing, length(candidates))
+    lines = trace ? Vector{Union{Nothing,String}}(nothing, length(candidates)) : nothing
+    function fit_candidate!(i)
+        FT, flips = candidates[i]
+        try
+            fit = _fit_one_pair_family(FT, U, flips; weights=w, pair_method=pair_method, selection_criterion=selection_criterion, pair_kwargs=pair_kwargs,)
+            fits[i] = fit
+            if trace
+                lines[i] = isfinite(fit.score) ?
+                    "pair candidate: family=$(fit.family), rotation=$(fit.rotation), method=$(fit.method), ll=$(fit.loglik), score=$(fit.score)" :
+                    "pair candidate skipped: family=$(fit.family), rotation=$(fit.rotation), method=$(fit.method), ll=$(fit.loglik)"
+            end
+        catch err
+            errors[i] = err
+            trace && (lines[i] = "pair candidate failed: family=$FT flips=$flips error=$err")
+        end
+        return nothing
+    end
+
+    if threaded
+        @sync for i in eachindex(candidates)
+            Threads.@spawn fit_candidate!(i)
+        end
+    else
+        for i in eachindex(candidates)
+            fit_candidate!(i)
+            strict && errors[i] !== nothing && throw(errors[i])
+        end
+    end
+
+    best = include_independence ? _independence_selection(U, selection_criterion, w) : nothing
+    nsuccessful = 0
+    for i in eachindex(candidates)
+        if trace
+            line = lines[i]
+            line === nothing || println(line)
+        end
+        strict && errors[i] !== nothing && throw(errors[i])
+        fit = fits[i]
+        fit === nothing && continue
+        nsuccessful += 1
+        if !isfinite(fit.score)
+            continue
+        end
+        if best === nothing || fit.score < best.score
+            best = fit
+        end
+    end
+
+    # The candidate list was built in family/rotation order and is reduced in
+    # that same order, so ties agree with the sequential selection path.
+    return _finish_pair_selection(best, families, nsuccessful)
+end
+
+function _finish_pair_selection(best, families, nsuccessful)
     if !isempty(families) && nsuccessful == 0
         throw(ErrorException(
             "all non-independence pair-copula candidates failed; " *
@@ -494,7 +547,8 @@ end
                       selection_criterion=:bic, allow_rotations=true,
                       preselect=true, include_independence=true,
                       independence_test=:none, independence_level=0.05,
-                      pair_kwargs=NamedTuple(), strict=false, trace=false)
+                      pair_kwargs=NamedTuple(), strict=false, trace=false,
+                      threaded=false)
 
 Fit candidate bivariate copula families to U, optionally evaluate their
 0/90/180/270-degree rotations, and select the best candidate by :loglik,
@@ -512,14 +566,17 @@ prints the method each candidate used.
 asymptotic Kendall test does not reject independence at size
 `independence_level`, before any family is fitted and whatever
 `include_independence` says.
+
+`threaded=true` evaluates the fixed family × rotation candidate list on tasks,
+then reduces it in candidate order so ties retain their sequential result.
 """
 function select_paircopula(U::AbstractMatrix{<:Real}; weights=nothing, family_set=:default, pair_method::Symbol=:default, selection_criterion::Symbol=:bic,
                            allow_rotations::Bool=true, preselect::Bool=true, include_independence::Bool=true,
                            independence_test::Symbol=:none, independence_level::Real=0.05,
-                           pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false,)
+                           pair_kwargs::NamedTuple=NamedTuple(), strict::Bool=false, trace::Bool=false, threaded::Bool=false,)
                            return _select_pair(U; weights, family_set, pair_method, selection_criterion, allow_rotations,
                                                preselect, include_independence, independence_test, independence_level,
-                                               pair_kwargs, strict, trace,).copula
+                                               pair_kwargs, strict, trace, force_independence=false, threaded=threaded,).copula
 end
 
 # -----------------------------------------------------------------------------
