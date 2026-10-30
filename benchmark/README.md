@@ -6,6 +6,12 @@ their merge base. It covers representative evaluation, sampling, transforms,
 fitting, selection, and indicator-CDF paths. The larger campaigns below remain
 manual diagnostics; they are not part of continuous PR timing.
 
+The threading diagnostics `diagnostics/threaded_pair_selection.jl` and
+`diagnostics/threaded_vine_fitting.jl` reproduce representative local studies.
+Candidate selection observed about 1.9×, 3.0× and 3.6× speedups at 2, 4 and 8
+Julia threads; edge-threaded vines observed about 1.8×, 2.9× and 3.5× median
+speedups. These are workload observations, not guarantees.
+
 Run all commands from the repository root.
 
 ## Continuous BenchmarkTools suite

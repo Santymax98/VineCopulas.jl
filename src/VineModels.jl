@@ -29,6 +29,7 @@ function _canonical_vine_fit_kwargs(kwargs, weights)
     family_set = _resolve_family_set(get(raw, :family_set, :default))
     clean = merge(raw, (; family_set=Tuple(family_set)))
     haskey(clean, :trace) && (clean = Base.structdiff(clean, (; trace=nothing)))
+    haskey(clean, :threaded) && (clean = Base.structdiff(clean, (; threaded=nothing)))
     # The observation weights are stored validated and scaled to sum to n, the
     # vector every fit below the entry point saw, or left out when unweighted.
     clean = weights === nothing ? Base.structdiff(clean, (; weights=nothing)) : merge(clean, (; weights=weights))

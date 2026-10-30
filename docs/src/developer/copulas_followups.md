@@ -4,14 +4,14 @@ The vine parity campaign exposed a few upstream questions worth testing independ
 
 | Priority | Topic | Reproducible condition |
 |---|---|---|
-| high | Gaussian `:mle` | deterministic 20-point normal-score sample in `test/vines/fitting.jl`; direct copula MLE gives ``\hat\rho\approx0.556166`` |
+| high | Gaussian `:mle` | deterministic 20-point normal-score sample in `test/operations/fitting_selection.jl`; direct copula MLE gives ``\hat\rho\approx0.556166`` |
 | medium | generic transformed-space MLE | weak Clayton/Gumbel interior optima on higher-tree pseudo-observations collapsed to the independence boundary in a custom bounded wrapper |
 | low | Archimedean `xtol` | keyword is accepted by the one-parameter MLE; verify that it actually changes optimizer termination settings |
 | stress test | Joe/Gumbel boundary robustness | ``\theta\in\{1.01,1.05,1.10\}`` with ``n\in\{100,500,1000\}`` |
 
 ## Gaussian direct copula MLE
 
-The cleanest standalone regression fixture is already in `test/vines/fitting.jl` under `Gaussian vine selection maximizes copula likelihood`. Its 20 normal-score pairs have sample Pearson correlation about `0.673483`, while direct maximization of the Gaussian copula likelihood gives
+The cleanest standalone regression fixture is already in `test/operations/fitting_selection.jl` under `Gaussian vine selection maximizes copula likelihood`. Its 20 normal-score pairs have sample Pearson correlation about `0.673483`, while direct maximization of the Gaussian copula likelihood gives
 
 $$\hat\rho \approx 0.5561662333, \qquad \ell(\hat\rho) \approx 5.140188517.$$
 

@@ -33,6 +33,24 @@ fitted = fit(RVineCopula, U)
 The returned object is an ordinary `RVineCopula`: it can be evaluated,
 simulated, truncated, and passed to `aic` or `bic`.
 
+## Threaded fitting
+
+Threading is opt-in. `select_paircopula(U; threaded=true)` fits candidate
+families and rotations concurrently, while `fit(...; threaded=true)` fits the
+independent edges of each vine tree concurrently. Both preserve the sequential
+statistical result and deterministic candidate ordering.
+
+```julia
+pair = select_paircopula(U[1:2, :]; threaded=true)
+vine = fit(RVineCopula, U; threaded=true)
+```
+
+Benefits depend on the family set, sample size, vine dimension, truncation and
+available cores. Keep BLAS thread counts modest and avoid casually combining
+outer `Threads.@threads` loops with internally threaded fits. `trace=true`
+prioritizes readable deterministic output and may fit a tree's edges
+sequentially.
+
 ## Statistical fitted models and inference
 
 Use `VineModel` when the fitting recipe, observations, likelihood summaries,
