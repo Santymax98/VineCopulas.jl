@@ -345,6 +345,40 @@ full-depth Gaussian case, different R-vine structures can represent the same
 Gaussian copula; remaining differences are then due to finite-sample
 sequential estimation rather than to the group constraint itself.
 
+### Groups from the data
+
+When no partition is known in advance, `dependence_groups` derives one from the
+data. It clusters the variables hierarchically on the distances
+``d_{ij} = 1 - w_{ij}``, where ``w_{ij}`` is the tree-1 weight that `fit` gives
+to the edge ``(i, j)`` under the same `tree_criterion` and `weights`. The
+clustering step is a package extension, so it needs Clustering.jl:
+
+```julia
+using VineCopulas, Clustering
+
+g = dependence_groups(U)                                # average linkage, k by the largest gap
+g = dependence_groups(U; k=4, linkage=:complete)        # four groups
+model = fit(RVineCopula, U; groups=g)
+
+# The partition and the first tree read the same weights.
+g = dependence_groups(U; tree_criterion=:rho, weights=w)
+model = fit(RVineCopula, U; groups=g, tree_criterion=:rho, weights=w)
+```
+
+With `k = nothing` the dendrogram is cut at the first largest gap between two
+consecutive merge heights, which gives between ``2`` and ``p - 1`` groups. If
+``p \le 2``, or if every gap is zero, the rule gives one group, and the fit is
+then the unconstrained one. The distance needs weights on ``[0, 1]``, so
+`tree_criterion = :joe` is refused, and a custom criterion must return values
+on ``[0, 1]``.
+
+A partition from `dependence_groups` is a function of the same data that the
+vine is then fitted to. The constrained first tree is then a two-stage
+selection, and the fit statistics of the vine do not count the choice of the
+partition. The call is separate from `fit` for this reason: the partition is
+an explicit value that can be inspected, compared with domain knowledge, or
+replaced before the fit.
+
 
 ## Observation weights
 

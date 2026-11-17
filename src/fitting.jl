@@ -41,6 +41,8 @@
 #   mutual information, Chatterjee xi, or user-supplied tree weights
 # - group-constrained first tree for R-vines: every group of variables
 #   induces a connected subtree of tree 1
+# - groups derived from the data by hierarchical clustering of the tree-1
+#   distances (`dependence_groups`, Clustering.jl extension)
 # - user-specified or mBICV-selected truncation, and dependence threshold
 # - Kendall-tau inversion (`pair_method=:itau`) delegated to Copulas.jl, with a `:mle` fallback for the BB families
 # - asymptotic Kendall independence test per edge (`independence_test=:kendall`)
@@ -1037,7 +1039,8 @@ function Distributions.fit(::Type{Copulas.CopulaModel}, ::Type{<:AbstractVineCop
     ))
 end
 
-# Implementation is split into three focused files to keep the fitting layer navigable.
+# Implementation is split into four focused files to keep the fitting layer navigable.
 include("fitting/pairs.jl")
 include("fitting/cd_vines.jl")
 include("fitting/rvines.jl")
+include("fitting/groups.jl")

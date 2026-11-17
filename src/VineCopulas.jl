@@ -135,6 +135,7 @@ export PairCopula,
        bic,
        edge_table,
        vine_kind,
-       mbicv
+       mbicv,
+       dependence_groups
 
 end

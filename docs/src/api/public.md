@@ -26,6 +26,7 @@ VineEdge
 DEFAULT_PAIR_FAMILIES
 ALL_PARAMETRIC_PAIR_FAMILIES
 select_paircopula
+dependence_groups
 ```
 
 Use `select_paircopula(U)` for automatic bivariate family selection. Fitting vine models is exposed through `Distributions.fit`, for example `fit(CVineCopula, U)`, `fit(DVineCopula, U)`, and `fit(RVineCopula, U)`.
